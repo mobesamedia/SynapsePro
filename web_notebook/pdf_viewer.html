@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF</title>
+  <!-- PDF.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    :root {
+      --bg:           #ffffff;
+      --header-bg:    #f2f2f2;
+      --text:         #37352f;
+      --text-gray:    #9b9a97;
+      --hover-bg:     #efefef;
+      --border:       rgba(0,0,0,0.08);
+      --font:         -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --accent:       #0071D3;
+      --danger:       #e03e3e;
+      --input-bg:     #f7f7f5;
+      --card-bg:      #ffffff;
+      --card-shadow:  0 1px 4px rgba(0,0,0,0.07);
+      --folder-bg:    #fff8e7;
+      --folder-text:  #b45309;
+      --folder-border:#fcd34d;
+    }
+    body.nightMode {
+      --bg:           #191919;
+      --header-bg:    #252525;
+      --text:         #ececec;
+      --text-gray:    #888;
+      --hover-bg:     #2c2c2c;
+      --border:       rgba(255,255,255,0.09);
+      --accent:       #4a9eff;
+      --danger:       #e05a5a;
+      --input-bg:     #252525;
+      --card-bg:      #222222;
+      --card-shadow:  0 1px 4px rgba(0,0,0,0.35);
+      --folder-bg:    #2a2010;
+      --folder-text:  #fbbf24;
+      --folder-border:rgba(251,191,36,0.3);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ═══════════════════════════════════════════
+       LIST VIEW
+    ═══════════════════════════════════════════ */
+    #list-view {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Header */
+    #pdf-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #pdf-search {
+      flex: 1; padding: 6px 10px;
+      border: 1px solid var(--border); border-radius: 7px;
+      background: var(--input-bg); color: var(--text);
+      font-size: 13px; font-family: var(--font);
+    }
+    #pdf-search:focus { border-color: var(--accent); }
+    #pdf-search::placeholder { color: var(--text-gray); }
+    #add-pdf-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 6px 11px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 7px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: opacity 0.15s; white-space: nowrap; flex-shrink: 0;
+    }
+    #add-pdf-btn:hover { opacity: 0.85; }
+
+    /* Folder bar */
+    #folder-bar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+    }
+    #folder-bar::-webkit-scrollbar { display: none; }
+    .folder-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px;
+      border: 1px solid var(--border); border-radius: 20px;
+      font-size: 12px; font-weight: 500; cursor: pointer;
+      white-space: nowrap; background: var(--bg); color: var(--text-gray);
+      flex-shrink: 0; transition: all 0.15s;
+    }
+    .folder-pill:hover { background: var(--hover-bg); color: var(--text); }
+    .folder-pill.active { background: var(--folder-bg); color: var(--folder-text); border-color: var(--folder-border); }
+    .folder-pill.all-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .folder-pill svg { width: 12px; height: 12px; flex-shrink: 0; }
+    .folder-pill-actions { display: none; align-items: center; gap: 1px; }
+    .folder-pill:hover .folder-pill-actions { display: inline-flex; }
+    .fpill-btn {
+      width: 16px; height: 16px; border: none; background: transparent;
+      cursor: pointer; padding: 0; color: inherit; opacity: 0.65;
+      display: flex; align-items: center; justify-content: center; border-radius: 3px;
+    }
+    .fpill-btn:hover { opacity: 1; background: rgba(0,0,0,0.1); }
+    .fpill-btn svg { width: 10px; height: 10px; }
+    #new-folder-btn {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 9px;
+      border: 1px dashed var(--border); border-radius: 20px;
+      background: transparent; color: var(--text-gray);
+      font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+    }
+    #new-folder-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--hover-bg); }
+
+    /* PDF list */
+    #pdf-list-wrap {
+      flex: 1; overflow-y: auto; padding: 10px 12px 24px;
+    }
+    #pdf-list-wrap::-webkit-scrollbar { width: 5px; }
+    #pdf-list-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .pdf-card {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 10px;
+      background: var(--card-bg); border-radius: 8px; box-shadow: var(--card-shadow);
+      margin-bottom: 6px; cursor: default; transition: background 0.12s;
+    }
+    .pdf-card:hover { background: var(--hover-bg); }
+    .pdf-thumb {
+      width: 36px; height: 44px; background: var(--folder-bg);
+      border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; border: 1px solid var(--folder-border);
+    }
+    .pdf-thumb svg { width: 18px; height: 18px; color: var(--folder-text); }
+    .pdf-info { flex: 1; min-width: 0; }
+    .pdf-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pdf-meta { display: flex; gap: 5px; margin-top: 4px; align-items: center; flex-wrap: wrap; }
+    .pdf-date { font-size: 10px; color: var(--text-gray); }
+    .pdf-folder-tag { font-size: 10px; font-weight: 500; padding: 1px 6px; background: var(--folder-bg); color: var(--folder-text); border-radius: 4px; white-space: nowrap; }
+    .pdf-actions { display: flex; gap: 3px; flex-shrink: 0; }
+    .action-btn {
+      width: 26px; height: 26px; border: none; border-radius: 5px;
+      background: transparent; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-gray); transition: background 0.12s, color 0.12s; padding: 0;
+    }
+    .action-btn:hover { background: var(--hover-bg); }
+    .action-btn.view-btn:hover  { color: var(--accent); }
+    .action-btn.open-btn:hover  { color: var(--accent); }
+    .action-btn.move-btn:hover  { color: var(--folder-text); }
+    .action-btn.del-btn:hover    { color: var(--danger); }
+    .action-btn.relink-btn:hover { color: var(--folder-text); }
+    .action-btn svg { width: 14px; height: 14px; }
+
+    /* Move dropdown */
+    .move-dropdown {
+      position: fixed; background: var(--card-bg);
+      border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 500;
+      min-width: 160px; padding: 4px;
+    }
+    .move-dropdown-item {
+      display: flex; align-items: center; gap: 7px; padding: 6px 10px;
+      border-radius: 5px; cursor: pointer; font-size: 13px; color: var(--text);
+      transition: background 0.12s;
+    }
+    .move-dropdown-item:hover { background: var(--hover-bg); }
+    .move-dropdown-item.active { color: var(--accent); font-weight: 600; }
+    .move-dropdown-item svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+    /* Empty state */
+    #empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 12px; color: var(--text-gray); text-align: center; padding: 40px 20px;
+    }
+    #empty-state svg { width: 44px; height: 44px; opacity: 0.28; }
+    #empty-state p { font-size: 14px; line-height: 1.6; }
+    #empty-add-btn {
+      display: flex; align-items: center; gap: 7px; padding: 9px 18px;
+      background: var(--accent); color: #fff; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+    }
+    #empty-add-btn:hover { opacity: 0.85; }
+
+    /* ═══════════════════════════════════════════
+       PDF VIEWER
+    ═══════════════════════════════════════════ */
+    #viewer-view {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Viewer toolbar */
+    #viewer-toolbar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 10px; height: 42px;
+      background: var(--header-bg); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .vtb-btn {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 9px;
+      border: 1px solid var(--border); border-radius: 6px;
+      background: transparent; color: var(--text); font-family: var(--font);
+      font-size: 12px; cursor: pointer; transition: background 0.15s; white-space: nowrap;
+    }
+    .vtb-btn:hover { background: var(--hover-bg); }
+    .vtb-btn svg { width: 12px; height: 12px; flex-shrink: 0; }
+    .vtb-icon-btn {
+      width: 28px; height: 28px;
+      border: 1px solid var(--border); border-radius: 6px;
+      background: transparent; color: var(--text-gray);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; flex-shrink: 0;
+    }
+    .vtb-icon-btn:hover { background: var(--hover-bg); color: var(--text); }
+    .vtb-icon-btn:disabled { opacity: 0.35; cursor: default; }
+    .vtb-icon-btn svg { width: 13px; height: 13px; }
+    #viewer-filename {
+      flex: 1; font-size: 12px; font-weight: 500; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    #zoom-label {
+      font-size: 12px; color: var(--text-gray); white-space: nowrap; flex-shrink: 0;
+    }
+
+    /* Canvas area */
+    #canvas-wrap {
+      flex: 1; overflow-y: auto; overflow-x: auto;
+      background: #525659; padding: 12px 8px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    #canvas-wrap::-webkit-scrollbar { width: 7px; height: 7px; }
+    #canvas-wrap::-webkit-scrollbar-track { background: #404040; }
+    #canvas-wrap::-webkit-scrollbar-thumb { background: #666; border-radius: 4px; }
+
+    .page-wrapper {
+      position: relative; box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+      background: #fff; flex-shrink: 0;
+    }
+    .page-wrapper canvas { display: block; }
+    .page-placeholder {
+      background: #fff; display: flex; align-items: center; justify-content: center;
+    }
+    .page-placeholder-spinner {
+      width: 24px; height: 24px; border: 3px solid rgba(0,113,211,0.25);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Loading overlay */
+    #viewer-loading {
+      display: none;
+      position: absolute; inset: 0; background: rgba(82,86,89,0.85);
+      align-items: center; justify-content: center; z-index: 10;
+      flex-direction: column; gap: 12px; color: #fff; font-size: 13px;
+    }
+    #viewer-loading.show { display: flex; }
+    #viewer-loading-bar-bg {
+      width: 180px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;
+    }
+    #viewer-loading-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; width: 0%; }
+
+    /* Error state */
+    #viewer-error {
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px; flex: 1; color: var(--text-gray); text-align: center; padding: 24px;
+    }
+    #viewer-error.show { display: flex; }
+    #viewer-error svg { width: 40px; height: 40px; opacity: 0.35; }
+    #viewer-error p { font-size: 13px; line-height: 1.6; }
+
+    /* Status toast */
+    #status-bar {
+      position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+      background: #333; color: #fff; padding: 5px 14px; border-radius: 20px;
+      font-size: 12px; opacity: 0; pointer-events: none; transition: opacity 0.25s; z-index: 999;
+    }
+    #status-bar.show { opacity: 1; }
+
+    /* Missing-file indicator on cards */
+    .pdf-card.missing {
+      opacity: 0.55;
+    }
+    .pdf-card.missing .pdf-thumb svg {
+      stroke: var(--danger);
+    }
+    .missing-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 10px; font-weight: 600; color: var(--danger);
+      background: rgba(224,62,62,0.10); border-radius: 4px;
+      padding: 1px 5px; margin-left: 4px;
+    }
+
+    /* ── PDF.js text layer (transparent spans for text selection) ── */
+    .textLayer {
+      position: absolute;
+      top: 0; left: 0;
+      overflow: hidden;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .textLayer span,
+    .textLayer br {
+      color: transparent;
+      position: absolute;
+      white-space: pre;
+      cursor: text;
+      transform-origin: 0% 0%;
+      user-select: text;
+      -webkit-user-select: text;
+      pointer-events: all;
+    }
+    .textLayer ::selection {
+      background: rgba(0, 113, 211, 0.28);
+    }
+    .textLayer ::-moz-selection {
+      background: rgba(0, 113, 211, 0.28);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════ LIST VIEW ═══════ -->
+<div id="list-view">
+  <div id="pdf-header">
+    <input id="pdf-search" type="text" placeholder="Search PDFs…"
+           data-i18n-placeholder="search_placeholder"
+           oninput="renderList()" autocomplete="off">
+    <button id="add-pdf-btn" onclick="addPdf()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+           stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      <span data-i18n="add_btn">Add PDF</span>
+    </button>
+  </div>
+  <div id="folder-bar"></div>
+  <div id="pdf-viewer-notice" style="
+    margin: 6px 12px 2px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    background: var(--header-bg);
+    border: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text-gray);
+    line-height: 1.5;
+  ">
+    <strong style="color:inherit;" data-i18n="notice_title">PDF Viewer only</strong> — <span data-i18n="notice_body">PDFs can be viewed but not edited here. Keep your files at their original paths; moving or deleting them will break the link.</span>
+  </div>
+  <div id="pdf-list-wrap">
+    <div id="pdf-list"></div>
+    <div id="empty-state" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      <p id="empty-msg"><span data-i18n="empty_msg">No PDFs yet.</span><br><span data-i18n="empty_sub">Add one to get started.</span></p>
+      <button id="empty-add-btn" onclick="addPdf()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span data-i18n="add_btn">Add PDF</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ PDF VIEWER ═══════ -->
+<div id="viewer-view">
+  <div id="viewer-toolbar">
+    <button class="vtb-btn" onclick="showList()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+           stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <span data-i18n="back">Back</span>
+    </button>
+    <span id="viewer-filename"></span>
+    <span id="zoom-label">100%</span>
+    <button class="vtb-icon-btn" id="btn-zoom-out" onclick="changeZoom(-0.2)" title="Zoom out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/>
+      </svg>
+    </button>
+    <button class="vtb-icon-btn" id="btn-zoom-in" onclick="changeZoom(0.2)" title="Zoom in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+      </svg>
+    </button>
+    <button class="vtb-icon-btn" id="btn-open-ext" onclick="openCurrentExt()" title="Open in system viewer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="canvas-wrap" style="position:relative">
+    <div id="viewer-loading">
+      <div id="viewer-loading-bar-bg"><div id="viewer-loading-bar"></div></div>
+      <span id="viewer-loading-text" data-i18n="loading">Loading PDF…</span>
+    </div>
+    <div id="viewer-error">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p id="viewer-error-msg" data-i18n="error_msg">Could not render PDF.</p>
+      <button class="vtb-btn" onclick="openCurrentExt()" style="margin-top:4px" data-i18n="open_sys">Open in system viewer</button>
+    </div>
+  </div>
+</div>
+
+<div id="status-bar"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// DATA MODEL
+// ══════════════════════════════════════════════════════════════
+let state = { version: 2, folders: [], pdfs: [] };
+let selectedFolderId = '__all__';
+let openMoveDropdown = null;
+
+// ── Utilities ──────────────────────────────────────────────────
+function uid()  { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escPath(p) { return p.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function fmtDate(iso) {
+  try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
+  catch(e) { return iso||''; }
+}
+function basename(p) { return p.replace(/\\/g,'/').split('/').pop()||p; }
+
+function migrate(raw) {
+  try {
+    const p = JSON.parse(raw);
+    if (Array.isArray(p)) return { version:2, folders:[], pdfs: p.map(x=>({...x,folderId:null})) };
+    if (p && p.pdfs)       return p;
+    return { version:2, folders:[], pdfs:[] };
+  } catch(e) { return { version:2, folders:[], pdfs:[] }; }
+}
+
+// ── Load / Save ────────────────────────────────────────────────
+window.loadPdfs = function(jsonStr) {
+  state = migrate(jsonStr);
+  renderFolderBar();
+  renderList();
+};
+function save() { pycmd('notion_mini:pdf:save:' + JSON.stringify(state)); }
+window.onPdfSaved = function() { showStatus(window.__SYNAPSE_I18N__?.saved || 'Saved'); };
+
+window.onPdfRelinked = function(pdfId, newPath) {
+  const p = state.pdfs.find(x => x.id === pdfId);
+  if (!p) return;
+  p.path = newPath;
+  p.name = newPath.replace(/\\/g, '/').split('/').pop() || newPath;
+  p._exists = true;
+  renderFolderBar();
+  renderList();
+  save();
+  showStatus(window.__SYNAPSE_I18N__?.relinked || 'File relinked');
+};
+
+// ── PDF CRUD ───────────────────────────────────────────────────
+function addPdf() { pycmd('notion_mini:pdf:add'); }
+window.onPdfAdded = function(filePath) {
+  if (!filePath) return;
+  if (state.pdfs.find(p=>p.path===filePath)) { showStatus(window.__SYNAPSE_I18N__?.already_in_list || 'Already in list'); return; }
+  const folderId = (selectedFolderId!=='__all__'&&selectedFolderId!=='__unfiled__') ? selectedFolderId : null;
+  state.pdfs.unshift({ id:uid(), name:basename(filePath), path:filePath, addedAt:new Date().toISOString(), folderId });
+  renderFolderBar(); renderList(); save(); showStatus(window.__SYNAPSE_I18N__?.pdf_added || 'PDF added');
+};
+
+function removePdf(id) {
+  state.pdfs = state.pdfs.filter(p=>p.id!==id);
+  renderFolderBar(); renderList(); save(); showStatus(window.__SYNAPSE_I18N__?.removed || 'Removed');
+}
+
+function openPdf(path)  { pycmd('notion_mini:pdf:open:'+path); }
+function viewPdf(path)  { pycmd('notion_mini:pdf:render:'+path); }
+function openCurrentExt() { if(currentPdfPath) pycmd('notion_mini:pdf:open:'+currentPdfPath); }
+
+// ── Folder CRUD ────────────────────────────────────────────────
+function createFolder() {
+  const name = prompt('Folder name:');
+  if (!name||!name.trim()) return;
+  state.folders.push({id:uid(),name:name.trim()});
+  save(); renderFolderBar(); renderList();
+}
+function renameFolder(id) {
+  closeDropdown();
+  const f=state.folders.find(x=>x.id===id); if(!f) return;
+  const name=prompt('Rename folder:',f.name);
+  if(!name||!name.trim()||name.trim()===f.name) return;
+  f.name=name.trim(); save(); renderFolderBar(); renderList();
+}
+function deleteFolder(id) {
+  closeDropdown();
+  const f=state.folders.find(x=>x.id===id); if(!f) return;
+  const cnt=state.pdfs.filter(p=>p.folderId===id).length;
+  if(!confirm(`Delete "${f.name}"?${cnt>0?' '+cnt+' PDF(s) will become unfiled.':''}`)) return;
+  state.pdfs.forEach(p=>{ if(p.folderId===id) p.folderId=null; });
+  state.folders=state.folders.filter(x=>x.id!==id);
+  if(selectedFolderId===id) selectedFolderId='__all__';
+  save(); renderFolderBar(); renderList();
+}
+function movePdfToFolder(pdfId, folderId) {
+  closeDropdown();
+  const p=state.pdfs.find(x=>x.id===pdfId); if(!p) return;
+  p.folderId=folderId; save(); renderFolderBar(); renderList();
+  showStatus(folderId ? (window.__SYNAPSE_I18N__?.moved_to_folder || 'Moved to folder') : (window.__SYNAPSE_I18N__?.removed_from_folder || 'Removed from folder'));
+}
+
+// ── Folder bar ─────────────────────────────────────────────────
+function selectFolder(id) { selectedFolderId=id; renderFolderBar(); renderList(); }
+
+function renderFolderBar() {
+  const bar=document.getElementById('folder-bar');
+  const allCnt=state.pdfs.length, unCnt=state.pdfs.filter(p=>!p.folderId).length;
+  let h=`<span class="folder-pill all-pill${selectedFolderId==='__all__'?' active':''}" onclick="selectFolder('__all__')">
+    All <span style="opacity:.7;font-size:11px">${allCnt}</span></span>`;
+
+  state.folders.forEach(f=>{
+    const cnt=state.pdfs.filter(p=>p.folderId===f.id).length, act=selectedFolderId===f.id?' active':'';
+    h+=`<span class="folder-pill${act}" onclick="selectFolder('${esc(f.id)}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      ${esc(f.name)} <span style="opacity:.6;font-size:11px">${cnt}</span>
+      <span class="folder-pill-actions">
+        <button class="fpill-btn" onclick="event.stopPropagation();renameFolder('${esc(f.id)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="fpill-btn" onclick="event.stopPropagation();deleteFolder('${esc(f.id)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      </span></span>`;
+  });
+
+  if(unCnt>0||state.folders.length>0) {
+    h+=`<span class="folder-pill${selectedFolderId==='__unfiled__'?' active':''}"
+      onclick="selectFolder('__unfiled__')" style="font-style:italic">
+      Unfiled <span style="opacity:.6;font-size:11px">${unCnt}</span></span>`;
+  }
+  h+=`<button id="new-folder-btn" onclick="createFolder()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>New Folder</button>`;
+  bar.innerHTML=h;
+}
+
+// ── List render ────────────────────────────────────────────────
+function visiblePdfs() {
+  const q=document.getElementById('pdf-search').value.trim().toLowerCase();
+  let list=state.pdfs;
+  if(selectedFolderId==='__unfiled__') list=list.filter(p=>!p.folderId);
+  else if(selectedFolderId!=='__all__') list=list.filter(p=>p.folderId===selectedFolderId);
+  if(q) list=list.filter(p=>p.name.toLowerCase().includes(q)||p.path.toLowerCase().includes(q));
+  return list;
+}
+function renderList() {
+  const vis=visiblePdfs(), listEl=document.getElementById('pdf-list'), emEl=document.getElementById('empty-state');
+  if(!vis.length) {
+    listEl.innerHTML='';
+    const f=state.folders.find(x=>x.id===selectedFolderId);
+    document.getElementById('empty-msg').innerHTML=f?`No PDFs in "${esc(f.name)}" yet.`:'No PDFs yet.<br>Add one to get started.';
+    emEl.style.display='flex'; return;
+  }
+  emEl.style.display='none';
+  listEl.innerHTML=vis.map(cardHTML).join('');
+}
+function cardHTML(p) {
+  const folder=p.folderId?state.folders.find(f=>f.id===p.folderId):null, d=fmtDate(p.addedAt);
+  const folderTag=folder?`<span class="pdf-folder-tag">📁 ${esc(folder.name)}</span>`:'';
+  const missing = p._exists === false;
+  const missingBadge = missing ? `<span class="missing-badge">⚠ File missing</span>` : '';
+  const cardClass = missing ? 'pdf-card missing' : 'pdf-card';
+  return `<div class="${cardClass}" ondblclick="${missing?'':` viewPdf('${escPath(p.path)}')`}">
+    <div class="pdf-thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+    <div class="pdf-info">
+      <div class="pdf-name" title="${esc(p.path)}">${esc(p.name)}${missingBadge}</div>
+      <div class="pdf-meta">${folderTag}${d?`<span class="pdf-date">${esc(d)}</span>`:''}</div>
+    </div>
+    <div class="pdf-actions">
+      ${missing ? `
+      <button class="action-btn relink-btn" title="${window.__SYNAPSE_I18N__?.relink_btn || 'Relink file'}" onclick="pycmd('notion_mini:pdf:relink:${esc(p.id)}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+      ` : `
+      <button class="action-btn view-btn" title="${window.__SYNAPSE_I18N__?.view_inline || 'View inline'}" onclick="viewPdf('${escPath(p.path)}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <button class="action-btn move-btn" title="${window.__SYNAPSE_I18N__?.move_to_folder || 'Move to folder'}" onclick="toggleMoveDropdown(event,'${esc(p.id)}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+      <button class="action-btn open-btn" title="${window.__SYNAPSE_I18N__?.open_externally || 'Open externally'}" onclick="openPdf('${escPath(p.path)}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+      `}
+      <button class="action-btn del-btn" title="${window.__SYNAPSE_I18N__?.remove || 'Remove'}" onclick="removePdf('${esc(p.id)}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+    </div></div>`;
+}
+
+// ── Move dropdown ──────────────────────────────────────────────
+function toggleMoveDropdown(event, pdfId) {
+  event.stopPropagation(); closeDropdown();
+  const pdf=state.pdfs.find(p=>p.id===pdfId); if(!pdf) return;
+  const rect=event.currentTarget.getBoundingClientRect();
+  const menu=document.createElement('div'); menu.className='move-dropdown';
+  menu.style.top=(rect.bottom+4)+'px'; menu.style.right=(document.body.clientWidth-rect.right)+'px';
+  const fSVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  let items=`<div class="move-dropdown-item${!pdf.folderId?' active':''}" onclick="movePdfToFolder('${esc(pdfId)}',null)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px">
+      <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>No folder</div>`;
+  state.folders.forEach(f=>{
+    items+=`<div class="move-dropdown-item${pdf.folderId===f.id?' active':''}" onclick="movePdfToFolder('${esc(pdfId)}','${esc(f.id)}')">${fSVG}${esc(f.name)}</div>`;
+  });
+  if(!state.folders.length) items+=`<div style="padding:8px 10px;font-size:12px;color:var(--text-gray)">No folders yet.</div>`;
+  menu.innerHTML=items; document.body.appendChild(menu); openMoveDropdown=menu;
+}
+function closeDropdown() { if(openMoveDropdown){ openMoveDropdown.remove(); openMoveDropdown=null; } }
+document.addEventListener('click', closeDropdown);
+
+// ══════════════════════════════════════════════════════════════
+// PDF.js VIEWER
+// ══════════════════════════════════════════════════════════════
+let currentPdfDoc   = null;
+let currentPdfPath  = '';
+let currentScale    = 1.5;
+let renderingPages  = new Set();
+let _zoomTimer      = null;   // debounce handle for zoom
+
+// Set worker: prefer local blob URL (avoids cross-origin restriction + works offline),
+// fall back to CDN.
+if (window.pdfjsLib) {
+  if (window.__PDFJS_WORKER_CODE__) {
+    try {
+      const _blob = new Blob([window.__PDFJS_WORKER_CODE__], {type: 'application/javascript'});
+      pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(_blob);
+      window.__PDFJS_WORKER_CODE__ = null; // free memory
+    } catch(_e) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  } else {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+}
+
+function showList() {
+  document.getElementById('viewer-view').style.display = 'none';
+  document.getElementById('list-view').style.display   = 'flex';
+  // Free memory
+  currentPdfDoc  = null;
+  currentPdfPath = '';
+}
+
+function showViewer(filename, path) {
+  document.getElementById('list-view').style.display   = 'none';
+  document.getElementById('viewer-view').style.display = 'flex';
+  document.getElementById('viewer-filename').textContent = filename;
+  currentPdfPath = path;
+}
+
+function setLoading(progress, text) {
+  const el = document.getElementById('viewer-loading');
+  if (progress === null) { el.classList.remove('show'); return; }
+  el.classList.add('show');
+  document.getElementById('viewer-loading-bar').style.width = progress + '%';
+  document.getElementById('viewer-loading-text').textContent = text || 'Loading…';
+}
+
+function showViewerError(msg) {
+  setLoading(null);
+  document.getElementById('viewer-error-msg').textContent = msg;
+  document.getElementById('viewer-error').classList.add('show');
+  document.getElementById('canvas-wrap').querySelectorAll('.page-wrapper').forEach(e=>e.remove());
+}
+function hideViewerError() {
+  document.getElementById('viewer-error').classList.remove('show');
+}
+
+// Called by Python after setting window.__PDF_B64__ etc.
+window.renderFromGlobals = function() {
+  const b64  = window.__PDF_B64__;
+  const name = window.__PDF_NAME__ || 'PDF';
+  const path = window.__PDF_PATH__ || '';
+  if (b64) renderPdfB64(b64, name, path);
+};
+
+async function renderPdfB64(b64, filename, path) {
+  if (!window.pdfjsLib) {
+    showViewer(filename, path);
+    showViewerError('PDF.js could not be loaded. Make sure Anki has internet access, then reopen the PDF.');
+    return;
+  }
+
+  showViewer(filename, path);
+  hideViewerError();
+  setLoading(5, 'Decoding PDF…');
+
+  // Clear previous pages
+  const wrap = document.getElementById('canvas-wrap');
+  wrap.querySelectorAll('.page-wrapper').forEach(e => e.remove());
+  currentPdfDoc = null;
+  renderingPages.clear();
+
+  let pdfData;
+  try {
+    // Decode base64 in chunks to avoid stack overflow on large PDFs
+    const binary = atob(b64);
+    pdfData = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) pdfData[i] = binary.charCodeAt(i);
+  } catch(e) {
+    showViewerError('Failed to decode PDF data: ' + e.message);
+    return;
+  }
+
+  setLoading(20, 'Parsing PDF…');
+  let pdf;
+  try {
+    pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+  } catch(e) {
+    showViewerError('Failed to open PDF: ' + e.message);
+    return;
+  }
+
+  currentPdfDoc = pdf;
+  setLoading(40, `Rendering ${pdf.numPages} page(s)…`);
+  document.getElementById('zoom-label').textContent = Math.round(currentScale * 100) + '%';
+
+  // Create placeholders for all pages (estimate A4 size at current scale)
+  const phW = Math.round(595 * currentScale);
+  const phH = Math.round(842 * currentScale);
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'page-wrapper';
+    wrapper.dataset.page = i;
+    const ph = document.createElement('div');
+    ph.className = 'page-placeholder';
+    ph.style.width  = phW + 'px';
+    ph.style.height = phH + 'px';
+    ph.innerHTML = '<div class="page-placeholder-spinner"></div>';
+    wrapper.appendChild(ph);
+    wrap.appendChild(wrapper);
+  }
+
+  // Render pages progressively
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const pct = 40 + Math.round((i / pdf.numPages) * 55);
+    setLoading(pct, `Rendering page ${i} of ${pdf.numPages}…`);
+    await renderPage(pdf, i, currentScale);
+  }
+
+  setLoading(null);
+}
+
+async function renderPage(pdf, pageNum, scale) {
+  if (renderingPages.has(pageNum)) return;
+  renderingPages.add(pageNum);
+
+  const wrapper = document.querySelector(`.page-wrapper[data-page="${pageNum}"]`);
+  if (!wrapper) return;
+
+  try {
+    const page    = await pdf.getPage(pageNum);
+    const dpr     = window.devicePixelRatio || 1;
+
+    // CSS-sized viewport — what the user sees
+    const cssVP   = page.getViewport({ scale });
+    // Pixel-dense viewport — rendered at full device resolution for sharpness
+    const pixelVP = page.getViewport({ scale: scale * dpr });
+
+    const canvas        = document.createElement('canvas');
+    canvas.width        = pixelVP.width;
+    canvas.height       = pixelVP.height;
+    canvas.style.width  = cssVP.width  + 'px';
+    canvas.style.height = cssVP.height + 'px';
+    canvas.style.display = 'block';
+
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: pixelVP }).promise;
+
+    // Transparent text layer for text selection
+    const textLayer         = document.createElement('div');
+    textLayer.className     = 'textLayer';
+    textLayer.style.width   = cssVP.width  + 'px';
+    textLayer.style.height  = cssVP.height + 'px';
+
+    // Container holds canvas + text layer stacked
+    const container         = document.createElement('div');
+    container.style.cssText = `position:relative;width:${cssVP.width}px;height:${cssVP.height}px;flex-shrink:0;`;
+    container.appendChild(canvas);
+    container.appendChild(textLayer);
+
+    wrapper.innerHTML = '';
+    wrapper.appendChild(container);
+
+    // Render text layer asynchronously (best-effort; non-blocking)
+    page.getTextContent().then(textContent => {
+      try {
+        const task = pdfjsLib.renderTextLayer({
+          textContentSource: textContent,
+          container: textLayer,
+          viewport: cssVP,
+          textDivs: [],
+        });
+        // PDF.js 3.x returns an object with a .promise
+        return task && task.promise ? task.promise : Promise.resolve();
+      } catch(_e) { /* text layer is optional */ }
+    }).catch(() => {});
+  } catch(e) {
+    wrapper.innerHTML = `<div style="padding:8px;font-size:11px;color:#999">Page ${pageNum}: ${e.message}</div>`;
+  }
+  renderingPages.delete(pageNum);
+}
+
+function changeZoom(delta) {
+  if (!currentPdfDoc) return;
+  currentScale = Math.max(0.5, Math.min(3.0, currentScale + delta));
+  document.getElementById('zoom-label').textContent = Math.round(currentScale * 100) + '%';
+
+  // Debounce: accumulate rapid zoom clicks, then render once after 200 ms idle
+  clearTimeout(_zoomTimer);
+  _zoomTimer = setTimeout(() => {
+    const scale = currentScale; // capture at settle time
+    const phW = Math.round(595 * scale);
+    const phH = Math.round(842 * scale);
+    const wrap = document.getElementById('canvas-wrap');
+    wrap.querySelectorAll('.page-wrapper').forEach(w => {
+      const ph = document.createElement('div');
+      ph.className = 'page-placeholder';
+      ph.style.width  = phW + 'px';
+      ph.style.height = phH + 'px';
+      ph.innerHTML = '<div class="page-placeholder-spinner"></div>';
+      w.innerHTML = '';
+      w.appendChild(ph);
+    });
+    renderingPages.clear();
+    setLoading(10, 'Zooming…');
+    (async () => {
+      for (let i = 1; i <= currentPdfDoc.numPages; i++) {
+        await renderPage(currentPdfDoc, i, scale);
+      }
+      setLoading(null);
+    })();
+  }, 200);
+}
+
+// Note: drag-and-drop file import is not supported in Anki's embedded WebView
+// because the File API doesn't expose file system paths in this context.
+// Use the "Add PDF" button instead.
+
+// ══════════════════════════════════════════════════════════════
+// STATUS TOAST
+// ══════════════════════════════════════════════════════════════
+let _st=null;
+function showStatus(msg) {
+  const b=document.getElementById('status-bar'); b.textContent=msg; b.classList.add('show');
+  clearTimeout(_st); _st=setTimeout(()=>b.classList.remove('show'),2000);
+}
+
+// ══════════════════════════════════════════════════════════════
+// DARK MODE + INIT
+// ══════════════════════════════════════════════════════════════
+if(document.documentElement.classList.contains('nightMode')||
+   window.matchMedia('(prefers-color-scheme:dark)').matches) {
+  document.body.classList.add('nightMode');
+}
+renderFolderBar();
+renderList();
+if (window.__SYNAPSE_PDF_PRELOAD__ !== undefined) {
+  loadPdfs(window.__SYNAPSE_PDF_PRELOAD__);
+} else {
+  pycmd('notion_mini:pdf:load');
+}
+</script>
+<script>
+// ── SynapsePro i18n: apply data-i18n / data-i18n-placeholder attributes ──
+(function applyI18n() {
+    const t = window.__SYNAPSE_I18N__;
+    if (!t) return;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (t[key] !== undefined) el.textContent = t[key];
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (t[key] !== undefined) el.setAttribute('placeholder', t[key]);
+    });
+})();
+</script>
+</body>
+</html>

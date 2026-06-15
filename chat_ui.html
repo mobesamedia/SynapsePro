@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SynapseGPT</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#ffffff;--surface:#f4f4f4;--text:#0d0d0d;--text-muted:#8e8ea0;
+  --text-faint:#c0c0cc;--border:#e5e5e5;--user-bubble:#f0f0f0;
+  --ai-bubble:#f7f7f8;--input-bg:#f4f4f4;--btn-bg:#0d0d0d;--btn-fg:#ffffff;
+  --chip-bg:#ffffff;--chip-border:#d9d9e3;
+  --error:#ef4444;--success:#22c55e;--code-bg:#f0f0f0;--overlay:rgba(0,0,0,.45);
+  --shadow-start:0 4px 28px rgba(0,0,0,.10);
+  /* Accent */
+  --accent:#3b82f6;--accent-fg:#ffffff;
+  --accent-glow:rgba(59,130,246,.12);--accent-glow-2:rgba(59,130,246,.08);
+}
+body.dark{
+  --bg:#212121;--surface:#2f2f2f;--text:#ececec;--text-muted:#8e8ea0;
+  --text-faint:#4a4a5a;--border:#3a3a3a;--user-bubble:#303030;
+  --ai-bubble:#282828;--input-bg:#2f2f2f;--btn-bg:#ececec;--btn-fg:#0d0d0d;
+  --chip-bg:#2f2f2f;--chip-border:#4a4a5a;
+  --error:#f87171;--success:#4ade80;--code-bg:#1a1a1a;--overlay:rgba(0,0,0,.65);
+  --shadow-start:0 4px 28px rgba(0,0,0,.40);
+  /* Accent dark defaults */
+  --accent:#6366f1;
+  --accent-glow:rgba(99,102,241,.18);--accent-glow-2:rgba(99,102,241,.12);
+}
+
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);display:flex;flex-direction:column;
+  font-size:13px;line-height:1.55}
+
+/* ── Header ── */
+#header{display:flex;align-items:center;justify-content:space-between;
+  padding:9px 14px;border-bottom:1px solid var(--border);flex-shrink:0;
+  position:relative;z-index:100}
+#model-label{font-size:11px;font-weight:500;letter-spacing:.03em;
+  color:var(--text-muted);user-select:none}
+#header-right{display:flex;align-items:center;gap:6px}
+.hbtn{background:none;border:none;cursor:pointer;color:var(--text-muted);
+  padding:4px 5px;border-radius:6px;line-height:0;transition:background .12s,color .12s}
+.hbtn:hover{color:var(--text);background:var(--surface)}
+
+/* ── Settings panel ── */
+#settings-panel{display:none;position:absolute;top:calc(100% + 4px);right:8px;
+  background:var(--bg);border:1px solid var(--border);border-radius:14px;
+  padding:14px;width:260px;z-index:300;box-shadow:0 6px 28px rgba(0,0,0,.15);
+  max-height:calc(100vh - 80px);overflow-y:auto}
+#settings-panel.open{display:block}
+.s-section{border-top:1px solid var(--border);margin-top:10px;padding-top:10px}
+.s-label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-muted);margin-bottom:5px;display:block}
+.s-row{margin-bottom:10px}
+.s-row:last-child{margin-bottom:0}
+.s-select,.s-input{width:100%;background:var(--surface);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;
+  font-family:inherit;outline:none;-webkit-appearance:none;transition:border-color .12s}
+.s-select:focus,.s-input:focus{border-color:var(--text-muted)}
+.s-hint{font-size:10px;color:var(--text-muted);margin-top:3px;line-height:1.4}
+.s-save{width:100%;background:var(--accent);color:var(--accent-fg);border:none;
+  border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:opacity .15s;margin-top:12px}
+.s-save:hover{opacity:.82}
+#ollama-status-line{font-size:11px;color:var(--text-muted);line-height:1.5}
+#ollama-status-line a{color:inherit;text-decoration:underline;cursor:pointer}
+
+
+/* ── Info panel ── */
+#info-panel{display:none;position:absolute;top:calc(100% + 4px);right:8px;
+  background:var(--bg);border:1px solid var(--border);border-radius:14px;
+  padding:16px;width:290px;z-index:300;box-shadow:0 6px 28px rgba(0,0,0,.15);
+  max-height:calc(100vh - 80px);overflow-y:auto}
+#info-panel.open{display:block}
+.ip-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px}
+.ip-section{margin-bottom:14px}
+.ip-section:last-child{margin-bottom:0}
+.ip-heading{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:5px}
+.ip-body{font-size:11.5px;color:var(--text-muted);line-height:1.6}
+.ip-body b{color:var(--text);font-weight:600}
+.ip-divider{border:none;border-top:1px solid var(--border);margin:12px 0}
+
+/* ── Chips bar — always visible ── */
+#chips-bar{display:flex;align-items:center;gap:6px;padding:8px 12px;
+  border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;
+  scrollbar-width:none;position:relative;z-index:1}
+#chips-bar::-webkit-scrollbar{display:none}
+#chips-bar .chip-manage-btn{margin-left:auto}
+
+/* ── Chips shared styles ── */
+.chip{display:inline-flex;align-items:center;background:var(--chip-bg);
+  border:1px solid var(--chip-border);color:var(--text);border-radius:20px;
+  padding:5px 14px;font-size:12px;font-weight:500;cursor:pointer;
+  font-family:inherit;white-space:nowrap;user-select:none;flex-shrink:0;
+  transition:background .12s,border-color .12s,opacity .12s}
+.chip:hover:not(:disabled){background:var(--surface);border-color:var(--text-muted)}
+.chip:disabled{opacity:.32;cursor:not-allowed}
+.chip-manage-btn{display:inline-flex;align-items:center;background:none;
+  border:1px dashed var(--chip-border);color:var(--text-muted);border-radius:20px;
+  padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;
+  white-space:nowrap;flex-shrink:0;transition:color .12s,border-color .12s}
+.chip-manage-btn:hover{color:var(--text);border-color:var(--text-muted)}
+
+/* ── Animated orb background (empty state only) ── */
+@keyframes orb-float-1{
+  0%,100%{transform:translate(0,0) scale(1)}
+  50%    {transform:translate(12vw,10vh) scale(1.12)}
+}
+@keyframes orb-float-2{
+  0%,100%{transform:translate(0,0) scale(1)}
+  50%    {transform:translate(-10vw,-8vh) scale(1.09)}
+}
+#bg-anim{display:none;position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+body.empty #bg-anim{display:block}
+.bg-orb{position:absolute;border-radius:50%;filter:blur(72px)}
+.bg-orb-1{
+  width:68vw;height:62vh;left:-20vw;top:-18vh;
+  background:var(--accent-glow);
+  animation:orb-float-1 18s ease-in-out infinite}
+.bg-orb-2{
+  width:58vw;height:54vh;right:-18vw;bottom:-12vh;
+  background:var(--accent-glow-2);
+  animation:orb-float-2 24s ease-in-out infinite}
+
+/* ── Empty state center ── */
+#start-center{display:none;flex-direction:column;align-items:center;
+  justify-content:center;flex:1;padding:0 22px 260px;text-align:center;
+  position:relative;z-index:1}
+body.empty #start-center{display:flex}
+.start-title{
+  font-size:34px;font-weight:700;letter-spacing:-.03em;
+  color:var(--accent);margin-bottom:6px}
+
+/* ── Empty state prominent input ── */
+#start-input-box{width:100%;display:flex;align-items:center;gap:8px;
+  background:var(--bg);border:1px solid var(--border);border-radius:22px;
+  padding:12px 10px 12px 18px;transition:border-color .15s,box-shadow .15s;
+  box-shadow:var(--shadow-start);margin-top:22px}
+#start-input-box:focus-within{border-color:var(--accent);
+  box-shadow:0 4px 28px var(--accent-glow)}
+#start-user-input{flex:1;background:none;border:none;outline:none;color:var(--text);
+  font-family:inherit;font-size:14px;resize:none;min-height:24px;max-height:130px;
+  line-height:1.55;padding:0}
+#start-user-input::placeholder{color:var(--text-muted)}
+#start-send-btn{width:34px;height:34px;border-radius:50%;background:var(--accent);
+  color:var(--accent-fg);border:none;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;transition:opacity .15s}
+#start-send-btn:disabled{opacity:.22;cursor:default}
+.start-hint{font-size:11px;color:var(--text-faint);margin-top:14px;
+  line-height:1.55;max-width:260px}
+
+/* ── Chip manager modal ── */
+#chip-modal{display:none;position:fixed;inset:0;background:var(--overlay);
+  z-index:500;align-items:center;justify-content:center}
+#chip-modal.open{display:flex}
+#chip-modal-card{background:var(--bg);border:1px solid var(--border);border-radius:16px;
+  width:300px;max-height:82vh;overflow-y:auto;padding:18px;
+  box-shadow:0 8px 40px rgba(0,0,0,.22)}
+.cm-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cm-title{font-size:14px;font-weight:600}
+.cm-close{background:none;border:1px solid var(--border);cursor:pointer;
+  color:var(--text-muted);font-size:11px;font-family:inherit;font-weight:500;
+  padding:3px 10px;border-radius:6px;line-height:1.5}
+.cm-close:hover{color:var(--text);background:var(--surface)}
+.cm-section-label{font-size:10px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--text-muted);margin:14px 0 6px}
+.cm-section-label:first-of-type{margin-top:0}
+.cm-row{display:flex;align-items:center;justify-content:space-between;
+  padding:5px 0;border-bottom:1px solid var(--border);gap:8px}
+.cm-row:last-child{border-bottom:none}
+.cm-chip-label{font-size:12px}
+.cm-shortcut-input{width:34px;font-size:11px;font-family:inherit;text-align:center;
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+  border-radius:6px;padding:3px 4px;outline:none;flex-shrink:0}
+.cm-shortcut-input:focus{border-color:var(--accent)}
+.cm-shortcut-label{font-size:10px;color:var(--text-muted);margin-right:2px;flex-shrink:0}
+.cm-toggle-btn{font-size:11px;font-family:inherit;padding:3px 10px;border-radius:20px;
+  border:1px solid var(--border);cursor:pointer;color:var(--text-muted);
+  background:none;flex-shrink:0;transition:all .12s}
+.cm-toggle-btn.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.cm-custom-info{flex:1;min-width:0}
+.cm-custom-name{font-size:12px;font-weight:500}
+.cm-custom-preview{font-size:10px;color:var(--text-muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm-delete-btn{background:none;border:1px solid var(--border);color:var(--text-muted);
+  cursor:pointer;font-size:11px;font-family:inherit;padding:3px 8px;
+  border-radius:6px;flex-shrink:0}
+.cm-delete-btn:hover{color:var(--error);border-color:var(--error)}
+.cm-add-form{margin-top:10px}
+.cm-add-input,.cm-add-textarea{width:100%;background:var(--surface);
+  border:1px solid var(--border);color:var(--text);border-radius:8px;
+  padding:6px 10px;font-size:12px;font-family:inherit;outline:none;margin-bottom:6px}
+.cm-add-input:focus,.cm-add-textarea:focus{border-color:var(--text-muted)}
+.cm-add-textarea{resize:vertical;min-height:60px;line-height:1.4}
+.cm-hint{font-size:10px;color:var(--text-muted);margin-bottom:8px;line-height:1.4}
+.cm-error{font-size:11px;color:var(--error);margin-top:4px;min-height:15px}
+.cm-add-btn{width:100%;background:var(--accent);color:var(--accent-fg);border:none;
+  border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:opacity .15s}
+.cm-add-btn:hover{opacity:.82}
+
+/* ── Setup banner ── */
+#setup-banner{display:none;margin:10px 14px 0;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;padding:10px 13px;
+  font-size:12px;color:var(--text-muted);line-height:1.5;position:relative;z-index:1}
+body.empty #setup-banner{display:none!important}
+#setup-banner button{background:var(--accent);color:var(--accent-fg);border:none;
+  border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;
+  font-family:inherit;margin-top:7px;display:block;transition:opacity .15s}
+#setup-banner button:hover{opacity:.8}
+
+/* ── Chat area ── */
+#chat{display:none;flex:1;overflow-y:auto;padding:14px 14px 4px;
+  flex-direction:column;gap:12px;position:relative;z-index:1}
+#chat::-webkit-scrollbar{width:5px}
+#chat::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+body:not(.empty) #chat{display:flex}
+
+/* ── Messages ── */
+.msg{display:flex;flex-direction:column}
+.msg.user{align-items:flex-end}
+.msg.ai{align-items:flex-start}
+.bubble{max-width:88%;padding:9px 13px;border-radius:18px;
+  font-size:var(--chat-font-size,13px);line-height:1.6;word-break:break-word}
+.msg.user .bubble{background:var(--user-bubble);border-bottom-right-radius:5px}
+.msg.ai   .bubble{background:var(--ai-bubble);border-bottom-left-radius:5px;
+  border:1px solid var(--accent-border,rgba(59,130,246,.18))}
+.bubble code{background:var(--code-bg);padding:1px 5px;border-radius:4px;
+  font-size:11.5px;font-family:"SF Mono","Consolas","Fira Code",monospace}
+.bubble pre{background:var(--code-bg);border:1px solid var(--border);
+  border-radius:8px;padding:10px 12px;overflow-x:auto;margin:7px 0;
+  font-size:11.5px;font-family:"SF Mono","Consolas","Fira Code",monospace;
+  white-space:pre-wrap;word-break:break-all}
+.bubble pre code{background:none;padding:0;font-size:inherit}
+.bubble ul,.bubble ol{padding-left:18px;margin:4px 0}
+.bubble li{margin:2px 0}
+.bubble strong{font-weight:600}
+.msg-error{font-size:12px;padding:7px 12px;line-height:1.5;
+  background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
+  border-radius:12px;color:var(--error);max-width:88%}
+.msg.ai .bubble.bubble--error{
+  border-color:rgba(239,68,68,.5);
+  background:rgba(239,68,68,.04)}
+body.dark .msg.ai .bubble.bubble--error{
+  border-color:rgba(248,113,113,.45);
+  background:rgba(248,113,113,.06)}
+.chip-indicator{font-size:11px;color:var(--text-faint);text-align:center;
+  padding:2px 0;user-select:none}
+
+/* ── Typing indicator ── */
+.typing-bubble{background:var(--ai-bubble);border-radius:18px;
+  border-bottom-left-radius:5px;padding:8px 14px;display:inline-block}
+.typing-dots{display:flex;gap:4px;align-items:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--text-muted);
+  animation:bop .9s ease-in-out infinite}
+.dot:nth-child(2){animation-delay:.18s}
+.dot:nth-child(3){animation-delay:.36s}
+@keyframes bop{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-5px);opacity:1}}
+
+/* ── Regular input (active state only) ── */
+#input-wrap{display:none;padding:6px 14px 4px;flex-shrink:0;position:relative;z-index:1}
+body:not(.empty) #input-wrap{display:block}
+#input-box{display:flex;align-items:center;gap:8px;background:var(--input-bg);
+  border:1px solid var(--border);border-radius:18px;padding:8px 8px 8px 14px;
+  transition:border-color .15s}
+#input-box:focus-within{border-color:var(--accent)}
+#user-input{flex:1;background:none;border:none;outline:none;color:var(--text);
+  font-family:inherit;font-size:13px;resize:none;min-height:22px;max-height:110px;
+  line-height:1.5;padding:0}
+#user-input::placeholder{color:var(--text-muted)}
+#send-btn{width:30px;height:30px;border-radius:50%;background:var(--accent);
+  color:var(--accent-fg);border:none;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;transition:opacity .15s}
+#send-btn:disabled{opacity:.22;cursor:default}
+
+/* ── Disclaimer ── */
+#disclaimer{display:none;text-align:center;font-size:10px;color:var(--text-faint);
+  padding:3px 14px 8px;flex-shrink:0;user-select:none;position:relative;z-index:1}
+body:not(.empty) #disclaimer{display:block}
+</style>
+</head>
+<body class="empty">
+
+<!-- Orb background (empty state) -->
+<div id="bg-anim">
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+</div>
+
+<!-- ── Header ── -->
+<div id="header">
+  <span id="model-label">AI Assistant</span>
+  <div id="header-right">
+    <button class="hbtn" onclick="clearChat()" title="Clear chat">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+      </svg>
+    </button>
+    <button class="hbtn" id="info-btn" onclick="toggleInfo()" title="Help & Privacy">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </button>
+    <button class="hbtn" id="settings-btn" onclick="toggleSettings()" title="Settings">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Settings panel -->
+  <div id="settings-panel">
+    <div class="s-row">
+      <label class="s-label">Provider</label>
+      <select class="s-select" id="s-provider" onchange="onProviderChange()">
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="openrouter">OpenRouter</option>
+        <option value="anthropic">Anthropic Claude</option>
+        <option value="ollama">Ollama (Local)</option>
+      </select>
+    </div>
+    <div class="s-row" id="s-apikey-row">
+      <label class="s-label">API Key</label>
+      <input class="s-input" type="password" id="s-apikey" placeholder="Enter your API key..." autocomplete="off"/>
+    </div>
+    <div class="s-row">
+      <label class="s-label">Model</label>
+      <input class="s-input" id="s-model" list="s-model-list" placeholder="Select or type a model..." autocomplete="off"/>
+      <datalist id="s-model-list"></datalist>
+      <div class="s-hint">Pick from the list or type a custom model name.</div>
+    </div>
+    <div class="s-row" id="s-ollama-ep-row" style="display:none">
+      <label class="s-label">Ollama Endpoint</label>
+      <input class="s-input" type="url" id="s-ollama-ep" placeholder="http://localhost:11434" autocomplete="off"/>
+    </div>
+    <div class="s-row" id="s-ollama-row" style="display:none">
+      <label class="s-label">Ollama Status</label>
+      <div id="ollama-status-line">Checking...</div>
+    </div>
+    <div class="s-section">
+      <div class="s-row">
+        <label class="s-label">Response Language</label>
+        <select class="s-select" id="s-language">
+          <option value="English">English</option><option value="German">German</option>
+          <option value="French">French</option><option value="Spanish">Spanish</option>
+          <option value="Italian">Italian</option><option value="Portuguese">Portuguese</option>
+          <option value="Dutch">Dutch</option><option value="Russian">Russian</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+          <option value="Korean">Korean</option>
+        </select>
+      </div>
+      <div class="s-row">
+        <label class="s-label">Card Content</label>
+        <select class="s-select" id="s-source">
+          <option value="Front Only">Front Only</option>
+          <option value="Front &amp; Back" selected>Front &amp; Back</option>
+          <option value="Back Only">Back Only</option>
+        </select>
+      </div>
+      <div class="s-row">
+        <label class="s-label">Chat Font Size</label>
+        <select class="s-select" id="s-fontsize">
+          <option value="11px">Small (11px)</option>
+          <option value="13px" selected>Normal (13px)</option>
+          <option value="15px">Large (15px)</option>
+          <option value="17px">Extra Large (17px)</option>
+        </select>
+      </div>
+    </div>
+    <button class="s-save" onclick="saveSettings()">Save</button>
+  </div>
+
+  <!-- Info panel — inside #header so position:absolute works correctly -->
+  <div id="info-panel">
+    <div class="ip-title">Help &amp; Privacy</div>
+
+    <div class="ip-section">
+      <div class="ip-heading">What is an API Key?</div>
+      <div class="ip-body">
+        An <b>API key</b> is a password that lets SynapseGPT talk to an AI service on your behalf.
+        You create one for free (or low cost) in the provider's dashboard, paste it here, and the
+        add-on sends your questions directly to that service — no middleman.
+      </div>
+    </div>
+
+    <hr class="ip-divider">
+
+    <div class="ip-section">
+      <div class="ip-heading">Which provider should I choose?</div>
+      <div class="ip-body">
+        <b>OpenAI</b> (gpt-4o-mini) — fast &amp; affordable, great all-rounder.<br>
+        <b>Google Gemini</b> (flash) — free tier available, very capable.<br>
+        <b>Anthropic Claude</b> — strong at nuanced explanations.<br>
+        <b>OpenRouter</b> — access many models with one key, includes free options.<br>
+        <b>Ollama</b> — runs 100% locally on your machine, no key, no cost, no data leaves your device.
+      </div>
+    </div>
+
+    <hr class="ip-divider">
+
+    <div class="ip-section">
+      <div class="ip-heading">Local AI with Ollama</div>
+      <div class="ip-body">
+        Ollama runs open-source models (Llama, Gemma, Qwen…) directly on your computer.
+        <b>Nothing is sent to the internet</b> — ideal for sensitive material.
+        Select <b>Ollama</b> as provider and click the link to install it, then pull a model
+        from the wizard. Recommended starter: <b>gemma2:2b</b> (~1.6 GB).
+      </div>
+    </div>
+
+    <hr class="ip-divider">
+
+    <div class="ip-section">
+      <div class="ip-heading">Privacy &amp; Data Security</div>
+      <div class="ip-body">
+        <b>Your API key is stored only on this device</b> in Anki's local config — it is never
+        uploaded to any server by this add-on.<br><br>
+        When you send a message, your question and card content go directly to the provider you
+        chose (OpenAI, Google, etc.) under <b>their</b> privacy policy.
+        If privacy is critical, use <b>Ollama</b> — everything stays local.<br><br>
+        SynapseGPT does <b>not</b> collect analytics, logs, or usage data.
+      </div>
+    </div>
+
+    <hr class="ip-divider">
+
+    <div class="ip-section">
+      <div class="ip-heading">Quick Tips</div>
+      <div class="ip-body">
+        • Open a card in the reviewer, then use the <b>action buttons</b> (Short, Concise…) to instantly analyse it.<br>
+        • Set <b>keyboard shortcuts</b> for buttons in the Manage menu.<br>
+        • Switch <b>Card Content</b> to "Front &amp; Back" for richer context.<br>
+        • Adjust <b>Chat Font Size</b> in Settings if text feels too small or large.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Chips bar — always at top ── -->
+<div id="chips-bar">
+  <!-- chips rendered by JS -->
+  <button class="chip-manage-btn" id="chip-manage-btn-top" onclick="openChipManager()">Manage</button>
+</div>
+
+<!-- ── Empty state: centered title + big input + hint ── -->
+<div id="start-center">
+  <div class="start-title">SynapseGPT</div>
+  <div id="start-input-box">
+    <textarea id="start-user-input" rows="1" placeholder="Ask anything..."></textarea>
+    <button id="start-send-btn" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+      </svg>
+    </button>
+  </div>
+  <div class="start-hint">Type a question, or open an Anki card and use the quick action buttons above.</div>
+</div>
+
+<!-- Setup banner -->
+<div id="setup-banner">
+  No API key configured. Open Settings to get started.
+  <button onclick="openSettings()">Open Settings</button>
+</div>
+
+<!-- ── Chat messages (active state) ── -->
+<div id="chat"></div>
+
+<!-- ── Regular input (active state) ── -->
+<div id="input-wrap">
+  <div id="input-box">
+    <textarea id="user-input" rows="1" placeholder="Ask a question..."></textarea>
+    <button id="send-btn" disabled>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- ── Disclaimer ── -->
+<div id="disclaimer">AI can make mistakes &middot; Verify important information</div>
+
+<!-- ── Chip manager modal ── -->
+<div id="chip-modal">
+  <div id="chip-modal-card">
+    <div class="cm-header">
+      <span class="cm-title">Quick Action Buttons</span>
+      <button class="cm-close" onclick="closeChipManager()">Close</button>
+    </div>
+    <div class="cm-section-label">Built-in</div>
+    <div id="cm-builtin-list"></div>
+    <div class="cm-section-label">Your Custom Buttons</div>
+    <div id="cm-custom-list"></div>
+    <div class="cm-section-label">Add New Button</div>
+    <div class="cm-add-form">
+      <input class="cm-add-input" id="cm-new-label" placeholder="Button name (e.g. Simplify)" maxlength="30"/>
+      <textarea class="cm-add-textarea" id="cm-new-prompt"
+        placeholder="Your prompt. Use {content} where the card text should go.&#10;Example: Explain {content} as if I were a beginner."></textarea>
+      <div class="cm-hint">Use <code style="font-size:10px">{content}</code> where the card text should appear.</div>
+      <div class="cm-error" id="cm-error"></div>
+      <button class="cm-add-btn" onclick="addCustomChip()">Add Button</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Bridge ────────────────────────────────────────────────────────────────────
+function sendToPython(action, data) {
+  console.log('PYCALL:' + action + ':' + JSON.stringify(data || {}));
+}
+
+// ── Model lists ───────────────────────────────────────────────────────────────
+var MODELS = {
+  openai:     ['gpt-4o-mini','gpt-4o','gpt-4.1-mini','gpt-4.1','o4-mini'],
+  gemini:     ['gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-flash','gemini-1.5-pro'],
+  openrouter: [
+    'openai/gpt-4o-mini','openai/gpt-4o','google/gemini-2.0-flash-001',
+    'anthropic/claude-haiku-4-5','anthropic/claude-sonnet-4-5',
+    'meta-llama/llama-3.1-8b-instruct','mistralai/mistral-small-3.1-24b',
+    'meta-llama/llama-3.2-3b-instruct:free','meta-llama/llama-3.1-8b-instruct:free',
+    'deepseek/deepseek-chat-v3-0324:free','mistralai/mistral-7b-instruct:free'
+  ],
+  anthropic:  ['claude-haiku-4-5-20251001','claude-sonnet-4-6','claude-opus-4-6'],
+  ollama:     []
+};
+
+// ── Built-in chips ────────────────────────────────────────────────────────────
+var BUILTIN_CHIPS = [
+  { id:'short',    label:'Short'    },
+  { id:'concise',  label:'Concise'  },
+  { id:'detailed', label:'Detailed' },
+  { id:'mcq',      label:'Quiz Me'  },
+  { id:'mnemonic', label:'Mnemonic' },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+var busy         = false;
+var chipsEnabled = false;
+var chipConfig   = {
+  builtin:   { short:true, concise:true, detailed:true, mcq:true, mnemonic:true },
+  shortcuts: { short:'', concise:'', detailed:'', mcq:'', mnemonic:'' },
+  custom:    []
+};
+
+// ── Streaming state ───────────────────────────────────────────────────────────
+var _streamBubble = null;
+var _streamRaw    = '';
+
+// ── Accent color ──────────────────────────────────────────────────────────────
+var ACCENT_PRESETS = ['#3b82f6','#6366f1','#8b5cf6','#ec4899','#10b981','#f59e0b','#ef4444'];
+
+function setFontSize(px) {
+  if (!px) return;
+  document.documentElement.style.setProperty('--chat-font-size', px);
+  var sel = document.getElementById('s-fontsize');
+  if (sel) sel.value = px;
+}
+
+function setAccentColor(color) {
+  if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
+  var r = parseInt(color.slice(1,3),16);
+  var g = parseInt(color.slice(3,5),16);
+  var b = parseInt(color.slice(5,7),16);
+  var isDark = document.body.classList.contains('dark');
+  // Full rgba strings — avoids rgba(var(--r),...) which some WebEngine builds reject
+  var op1 = isDark ? 0.20 : 0.13;
+  var op2 = isDark ? 0.13 : 0.09;
+  var root = document.documentElement;
+  root.style.setProperty('--accent', color);
+  root.style.setProperty('--accent-glow',   'rgba('+r+','+g+','+b+','+op1+')');
+  root.style.setProperty('--accent-glow-2', 'rgba('+r+','+g+','+b+','+op2+')');
+  root.style.setProperty('--accent-border',  'rgba('+r+','+g+','+b+','+(isDark?0.28:0.18)+')');
+  // fg: white on dark accent, dark on light accent
+  var lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+  root.style.setProperty('--accent-fg', lum > 0.6 ? '#0d0d0d' : '#ffffff');
+}
+
+// ── Init (called from Python) ─────────────────────────────────────────────────
+function init(cfg) {
+  console.log('AI Assistant: init() provider=' + cfg.provider);
+  if (cfg.isDark) document.body.classList.add('dark');
+
+  safeSet('s-provider', cfg.provider  || 'openai');
+  safeSet('s-apikey',   cfg.apiKey    || '');
+  safeSet('s-language', cfg.language  || 'English');
+  safeSet('s-source',   cfg.source    || 'Front Only');
+  document.getElementById('s-ollama-ep').value = cfg.ollamaEndpoint || 'http://localhost:11434';
+
+  // Accent color
+  var accent = cfg.accentColor || (cfg.isDark ? '#6366f1' : '#3b82f6');
+  setAccentColor(accent);
+
+  // Font size
+  setFontSize(cfg.fontSize || '13px');
+  safeSet('s-fontsize', cfg.fontSize || '13px');
+
+  onProviderChange(false);
+  if (cfg.model) document.getElementById('s-model').value = cfg.model;
+
+  if (cfg.provider === 'ollama') {
+    setOllamaStatus(cfg.ollamaRunning ? 'running' : 'stopped', cfg.ollamaModels || []);
+  }
+
+  if (cfg.chipsConfig) {
+    if (cfg.chipsConfig.builtin) {
+      Object.keys(cfg.chipsConfig.builtin).forEach(function(k) {
+        chipConfig.builtin[k] = cfg.chipsConfig.builtin[k];
+      });
+    }
+    if (cfg.chipsConfig.shortcuts) {
+      Object.keys(cfg.chipsConfig.shortcuts).forEach(function(k) {
+        chipConfig.shortcuts[k] = cfg.chipsConfig.shortcuts[k];
+      });
+    }
+    if (Array.isArray(cfg.chipsConfig.custom)) {
+      chipConfig.custom = cfg.chipsConfig.custom;
+    }
+  }
+  renderChips();
+
+  if (!cfg.isConfigured) {
+    document.getElementById('setup-banner').dataset.showOnActive = '1';
+  }
+  updateModelLabel();
+  console.log('AI Assistant: init() done');
+}
+
+// ── DOMContentLoaded ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('AI Assistant: DOMContentLoaded – signalling Python');
+  sendToPython('page_ready', {});
+
+  // Active-state input
+  var inp = document.getElementById('user-input');
+  inp.addEventListener('input', function() { autoResize(inp); updateSendBtn(); });
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); trySend(); }
+  });
+  document.getElementById('send-btn').addEventListener('click', trySend);
+
+  // Empty-state big input
+  var startInp = document.getElementById('start-user-input');
+  startInp.addEventListener('input', function() { autoResize(startInp); updateStartSendBtn(); });
+  startInp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); trySendFromEmpty(); }
+  });
+  document.getElementById('start-send-btn').addEventListener('click', trySendFromEmpty);
+
+  // Close modal on overlay click
+  document.getElementById('chip-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeChipManager();
+  });
+
+  // Global keyboard shortcuts for chip buttons (only when not typing)
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var tag = (document.activeElement || {}).tagName || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (!chipsEnabled || busy) return;
+    var key = e.key;
+    // Builtin chip shortcuts
+    var shorts = chipConfig.shortcuts || {};
+    for (var id in shorts) {
+      if (shorts[id] && shorts[id] === key) {
+        var chip = null;
+        for (var i = 0; i < BUILTIN_CHIPS.length; i++) {
+          if (BUILTIN_CHIPS[i].id === id) { chip = BUILTIN_CHIPS[i]; break; }
+        }
+        if (chip) {
+          e.preventDefault();
+          sendToPython('chip_action', { action: chip.id, label: chip.label });
+          return;
+        }
+      }
+    }
+    // Custom chip shortcuts
+    var customs = chipConfig.custom || [];
+    for (var j = 0; j < customs.length; j++) {
+      var cc = customs[j];
+      if (cc.shortcut && cc.shortcut === key) {
+        e.preventDefault();
+        sendToPython('chip_action', { action:'custom', label:cc.label, prompt:cc.prompt });
+        return;
+      }
+    }
+  });
+});
+
+// ── Layout transition ─────────────────────────────────────────────────────────
+function startChat() {
+  if (!document.body.classList.contains('empty')) return;
+  document.body.classList.remove('empty');
+  var banner = document.getElementById('setup-banner');
+  if (banner.dataset.showOnActive) {
+    banner.style.display = 'block';
+    delete banner.dataset.showOnActive;
+  }
+}
+
+// ── Chip rendering ────────────────────────────────────────────────────────────
+function renderChips() {
+  var bar = document.getElementById('chips-bar');
+  var mgr = document.getElementById('chip-manage-btn-top');
+  if (!bar || !mgr) return;
+
+  Array.from(bar.childNodes).forEach(function(n) {
+    if (n !== mgr) bar.removeChild(n);
+  });
+
+  BUILTIN_CHIPS.forEach(function(c) {
+    if (chipConfig.builtin[c.id] === false) return;
+    var btn = _makeChip(c.label, function() {
+      if (!chipsEnabled || busy) return;
+      sendToPython('chip_action', { action: c.id, label: c.label });
+    });
+    bar.insertBefore(btn, mgr);
+  });
+
+  chipConfig.custom.forEach(function(c) {
+    var btn = _makeChip(c.label, function() {
+      if (!chipsEnabled || busy) return;
+      sendToPython('chip_action', { action:'custom', label:c.label, prompt:c.prompt });
+    });
+    bar.insertBefore(btn, mgr);
+  });
+
+  _applyChipState();
+}
+
+function _makeChip(label, handler) {
+  var btn = document.createElement('button');
+  btn.className   = 'chip';
+  btn.textContent = label;
+  btn.disabled    = !chipsEnabled;
+  btn.addEventListener('click', handler);
+  return btn;
+}
+
+function _applyChipState() {
+  document.querySelectorAll('#chips-bar .chip').forEach(function(b) {
+    b.disabled = !chipsEnabled;
+  });
+}
+
+function setChipsEnabled(enabled) {
+  chipsEnabled = enabled;
+  _applyChipState();
+}
+
+// ── Chip manager ──────────────────────────────────────────────────────────────
+function openChipManager() {
+  document.getElementById('chip-modal').classList.add('open');
+  document.getElementById('cm-error').textContent = '';
+  _renderChipManager();
+}
+function closeChipManager() {
+  document.getElementById('chip-modal').classList.remove('open');
+}
+
+function _renderChipManager() {
+  var bl = document.getElementById('cm-builtin-list');
+  bl.innerHTML = '';
+  BUILTIN_CHIPS.forEach(function(c) {
+    var on  = chipConfig.builtin[c.id] !== false;
+    var row = document.createElement('div');
+    row.className = 'cm-row';
+    var lbl = document.createElement('span');
+    lbl.className   = 'cm-chip-label';
+    lbl.style.flex  = '1';
+    lbl.textContent = c.label;
+    // Shortcut input
+    var scLbl = document.createElement('span');
+    scLbl.className   = 'cm-shortcut-label';
+    scLbl.textContent = 'Key';
+    var scInp = document.createElement('input');
+    scInp.type       = 'text';
+    scInp.className  = 'cm-shortcut-input';
+    scInp.maxLength  = 1;
+    scInp.value      = chipConfig.shortcuts[c.id] || '';
+    scInp.placeholder= '—';
+    scInp.title      = 'Press this key to trigger "' + c.label + '" when not typing';
+    scInp.addEventListener('input', function() {
+      var k = scInp.value.trim().slice(-1); // keep last char
+      scInp.value = k;
+      if (!chipConfig.shortcuts) chipConfig.shortcuts = {};
+      chipConfig.shortcuts[c.id] = k;
+      sendToPython('save_chips', { config: chipConfig });
+    });
+    var btn = document.createElement('button');
+    btn.className   = 'cm-toggle-btn' + (on ? ' on' : '');
+    btn.textContent = on ? 'On' : 'Off';
+    btn.addEventListener('click', function() { toggleBuiltin(c.id); });
+    row.appendChild(lbl);
+    row.appendChild(scLbl); row.appendChild(scInp);
+    row.appendChild(btn);
+    bl.appendChild(row);
+  });
+
+  var cl = document.getElementById('cm-custom-list');
+  cl.innerHTML = '';
+  if (!chipConfig.custom.length) {
+    var ph = document.createElement('div');
+    ph.style.cssText = 'font-size:12px;color:var(--text-muted);padding:6px 0';
+    ph.textContent = 'No custom buttons yet.';
+    cl.appendChild(ph);
+  } else {
+    chipConfig.custom.forEach(function(c) {
+      var row = document.createElement('div');
+      row.className = 'cm-row';
+      var info = document.createElement('div');
+      info.className = 'cm-custom-info';
+      var nm = document.createElement('div'); nm.className = 'cm-custom-name';
+      nm.textContent = c.label;
+      var pv = document.createElement('div'); pv.className = 'cm-custom-preview';
+      pv.textContent = c.prompt.length > 55 ? c.prompt.slice(0,55) + '...' : c.prompt;
+      info.appendChild(nm); info.appendChild(pv);
+      var scLbl = document.createElement('span');
+      scLbl.className   = 'cm-shortcut-label';
+      scLbl.textContent = 'Key';
+      var scInp = document.createElement('input');
+      scInp.type       = 'text';
+      scInp.className  = 'cm-shortcut-input';
+      scInp.maxLength  = 1;
+      scInp.value      = c.shortcut || '';
+      scInp.placeholder= '—';
+      scInp.addEventListener('input', function() {
+        var k = scInp.value.trim().slice(-1);
+        scInp.value = k;
+        c.shortcut = k;
+        sendToPython('save_chips', { config: chipConfig });
+      });
+      var del = document.createElement('button');
+      del.className   = 'cm-delete-btn';
+      del.textContent = 'Delete';
+      del.addEventListener('click', function() { deleteCustomChip(c.id); });
+      row.appendChild(info);
+      row.appendChild(scLbl); row.appendChild(scInp);
+      row.appendChild(del);
+      cl.appendChild(row);
+    });
+  }
+}
+
+function toggleBuiltin(id) {
+  chipConfig.builtin[id] = !chipConfig.builtin[id];
+  sendToPython('save_chips', { config: chipConfig });
+  renderChips();
+  _renderChipManager();
+}
+
+function deleteCustomChip(id) {
+  chipConfig.custom = chipConfig.custom.filter(function(c) { return c.id !== id; });
+  sendToPython('save_chips', { config: chipConfig });
+  renderChips();
+  _renderChipManager();
+}
+
+function addCustomChip() {
+  var label  = document.getElementById('cm-new-label').value.trim();
+  var prompt = document.getElementById('cm-new-prompt').value.trim();
+  var errEl  = document.getElementById('cm-error');
+  if (!label)  { errEl.textContent = 'Please enter a button name.'; return; }
+  if (!prompt) { errEl.textContent = 'Please enter a prompt.'; return; }
+  if (prompt.indexOf('{content}') === -1) {
+    errEl.textContent = 'Add {content} to your prompt (where the card text goes).'; return;
+  }
+  errEl.textContent = '';
+  chipConfig.custom.push({ id: String(Date.now()), label: label, prompt: prompt });
+  document.getElementById('cm-new-label').value  = '';
+  document.getElementById('cm-new-prompt').value = '';
+  sendToPython('save_chips', { config: chipConfig });
+  renderChips();
+  _renderChipManager();
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function onProviderChange(resetModel) {
+  if (resetModel === undefined) resetModel = true;
+  var prov     = document.getElementById('s-provider').value;
+  var isOllama = prov === 'ollama';
+  document.getElementById('s-apikey-row').style.display    = isOllama ? 'none' : '';
+  document.getElementById('s-ollama-ep-row').style.display = isOllama ? '' : 'none';
+  document.getElementById('s-ollama-row').style.display    = isOllama ? '' : 'none';
+  var inp = document.getElementById('s-model');
+  var dl  = document.getElementById('s-model-list');
+  dl.innerHTML = '';
+  if (!isOllama) {
+    (MODELS[prov] || []).forEach(function(m) {
+      var o = document.createElement('option'); o.value = m; dl.appendChild(o);
+    });
+    if (resetModel && MODELS[prov] && MODELS[prov].length) inp.value = MODELS[prov][0];
+    inp.placeholder = 'Select or type a model...';
+  } else {
+    inp.placeholder = 'Fetching models...';
+    sendToPython('check_ollama', {});
+  }
+}
+
+function populateOllamaModels(models) {
+  var inp = document.getElementById('s-model');
+  var dl  = document.getElementById('s-model-list');
+  dl.innerHTML = '';
+  if (!models || !models.length) {
+    inp.placeholder = 'No models installed -- set up Ollama first';
+  } else {
+    models.forEach(function(m) { var o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+    inp.placeholder = 'Select or type a model...';
+    if (!inp.value) inp.value = models[0];
+  }
+}
+
+function setOllamaStatus(status, models) {
+  var el = document.getElementById('ollama-status-line');
+  if (status === 'running') {
+    el.innerHTML = '<span style="color:var(--success)">Running</span>';
+    if (models && models.length) populateOllamaModels(models);
+  } else {
+    el.innerHTML = '<span style="color:var(--error)">Not running</span>' +
+      ' &mdash; <a onclick="sendToPython(\'setup_ollama\',{})">Set up Ollama</a>';
+  }
+}
+
+function saveSettings() {
+  var data = {
+    provider:       document.getElementById('s-provider').value,
+    model:          document.getElementById('s-model').value.trim(),
+    apiKey:         document.getElementById('s-apikey').value.trim(),
+    language:       document.getElementById('s-language').value,
+    source:         document.getElementById('s-source').value,
+    ownPrompt:      '',
+    ollamaEndpoint: document.getElementById('s-ollama-ep').value.trim() || 'http://localhost:11434',
+    fontSize:       document.getElementById('s-fontsize').value || '13px'
+  };
+  setFontSize(data.fontSize);
+  console.log('AI Assistant: save_settings provider=' + data.provider + ' model=' + data.model);
+  sendToPython('save_settings', data);
+  var banner    = document.getElementById('setup-banner');
+  var configured = (data.provider === 'ollama') || !!data.apiKey;
+  if (configured) {
+    banner.style.display = 'none';
+    delete banner.dataset.showOnActive;
+  } else {
+    if (!document.body.classList.contains('empty')) {
+      banner.style.display = 'block';
+    } else {
+      banner.dataset.showOnActive = '1';
+    }
+  }
+  updateModelLabel();
+  closeSettings();
+}
+
+function updateModelLabel() {
+  var p = document.getElementById('s-provider').value;
+  var m = document.getElementById('s-model').value || '';
+  var names = {openai:'OpenAI',gemini:'Gemini',openrouter:'OpenRouter',anthropic:'Anthropic',ollama:'Ollama'};
+  var mn = m.split('/').pop();
+  document.getElementById('model-label').textContent = (names[p] || p) + (mn ? ' · ' + mn : '');
+}
+
+var _settingsListenerActive = false;
+var _infoListenerActive     = false;
+
+function toggleSettings() {
+  var p = document.getElementById('settings-panel');
+  if (p.classList.contains('open')) closeSettings(); else openSettings();
+}
+function openSettings() {
+  closeInfo();
+  document.getElementById('settings-panel').classList.add('open');
+  if (!_settingsListenerActive) {
+    setTimeout(function() {
+      document.addEventListener('click', _outsideClick);
+      _settingsListenerActive = true;
+    }, 30);
+  }
+}
+function closeSettings() {
+  document.getElementById('settings-panel').classList.remove('open');
+  document.removeEventListener('click', _outsideClick);
+  _settingsListenerActive = false;
+}
+function _outsideClick(e) {
+  var p = document.getElementById('settings-panel');
+  var b = document.getElementById('settings-btn');
+  if (!p.contains(e.target) && !b.contains(e.target)) closeSettings();
+}
+
+function toggleInfo() {
+  var p = document.getElementById('info-panel');
+  if (p.classList.contains('open')) closeInfo(); else openInfo();
+}
+function openInfo() {
+  closeSettings();
+  document.getElementById('info-panel').classList.add('open');
+  if (!_infoListenerActive) {
+    setTimeout(function() {
+      document.addEventListener('click', _outsideInfoClick);
+      _infoListenerActive = true;
+    }, 30);
+  }
+}
+function closeInfo() {
+  document.getElementById('info-panel').classList.remove('open');
+  document.removeEventListener('click', _outsideInfoClick);
+  _infoListenerActive = false;
+}
+function _outsideInfoClick(e) {
+  var p = document.getElementById('info-panel');
+  var b = document.getElementById('info-btn');
+  if (!p.contains(e.target) && !b.contains(e.target)) closeInfo();
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+
+// Send from the empty-state big input
+function trySendFromEmpty() {
+  var inp  = document.getElementById('start-user-input');
+  var text = inp.value.trim();
+  if (!text || busy) return;
+  inp.value = '';
+  autoResize(inp);
+  startChat();
+  addMsg('user', text);
+  setBusy(true);
+  sendToPython('send_message', { text: text });
+}
+
+// Send from the active-state regular input
+function trySend() {
+  var inp  = document.getElementById('user-input');
+  var text = inp.value.trim();
+  if (!text || busy) return;
+  startChat();
+  addMsg('user', text);
+  inp.value = '';
+  autoResize(inp);
+  setBusy(true);
+  sendToPython('send_message', { text: text });
+}
+
+function addMsg(role, rawText) {
+  var chat = document.getElementById('chat');
+  var row  = document.createElement('div');
+  row.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
+  var bub = document.createElement('div');
+  bub.className = 'bubble';
+  bub.innerHTML = renderMarkdown(rawText);
+  row.appendChild(bub);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ── Streaming (called from Python) ────────────────────────────────────────────
+function startAIBubble() {
+  hideTyping();
+  startChat();
+  var chat = document.getElementById('chat');
+  var row  = document.createElement('div');
+  row.id        = 'streaming-row';
+  row.className = 'msg ai';
+  var bub = document.createElement('div');
+  bub.id        = 'streaming-bubble';
+  bub.className = 'bubble';
+  row.appendChild(bub);
+  chat.appendChild(row);
+  _streamBubble = bub;
+  _streamRaw    = '';
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function appendChunk(chunk) {
+  if (!_streamBubble) return;
+  _streamRaw += chunk;
+  _streamBubble.innerHTML = renderMarkdown(_streamRaw);
+  var chat = document.getElementById('chat');
+  if (chat) chat.scrollTop = chat.scrollHeight;
+}
+
+function finalizeResponse() {
+  if (_streamBubble) {
+    var row = document.getElementById('streaming-row');
+    if (row) row.removeAttribute('id');
+    _streamBubble.removeAttribute('id');
+    _streamBubble.innerHTML = renderMarkdown(_streamRaw);
+  }
+  _streamBubble = null;
+  _streamRaw    = '';
+  setBusy(false);
+  var chat = document.getElementById('chat');
+  if (chat) chat.scrollTop = chat.scrollHeight;
+}
+
+function cancelStream() {
+  var row = document.getElementById('streaming-row');
+  if (row) row.remove();
+  _streamBubble = null;
+  _streamRaw    = '';
+  hideTyping();
+  setBusy(false);
+}
+
+function receiveErrorAsChat(text) {
+  hideTyping();
+  setBusy(false);
+  startChat();
+  var chat = document.getElementById('chat');
+  var row  = document.createElement('div');
+  row.className = 'msg ai';
+  var bub = document.createElement('div');
+  bub.className = 'bubble bubble--error';
+  row.appendChild(bub);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+  // Fast typewriter effect — batches chars so it's quick but still animated
+  var chars = text.split('');
+  var idx = 0;
+  function tick() {
+    if (idx >= chars.length) return;
+    var batch = Math.min(4, chars.length - idx);
+    bub.textContent = chars.slice(0, idx + batch).join('');
+    idx += batch;
+    chat.scrollTop = chat.scrollHeight;
+    if (idx < chars.length) setTimeout(tick, 16);
+  }
+  setTimeout(tick, 60);
+}
+
+function receiveResponse(text, isError) {
+  if (isError) { receiveErrorAsChat(text); return; }
+  hideTyping();
+  setBusy(false);
+  startChat();
+  var chat = document.getElementById('chat');
+  var row  = document.createElement('div');
+  row.className = 'msg ai';
+  var bub = document.createElement('div');
+  bub.className = 'bubble';
+  bub.innerHTML = renderMarkdown(text);
+  row.appendChild(bub);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function receiveChipPrompt(label) {
+  startChat();
+  var chat = document.getElementById('chat');
+  var ind  = document.createElement('div');
+  ind.className   = 'chip-indicator';
+  ind.textContent = label;
+  chat.appendChild(ind);
+  setBusy(true);
+  showTyping();
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function showTyping() {
+  if (document.getElementById('typing-row')) return;
+  var chat = document.getElementById('chat');
+  var row  = document.createElement('div');
+  row.id        = 'typing-row';
+  row.className = 'msg ai';
+  var bub = document.createElement('div');
+  bub.className = 'typing-bubble';
+  bub.innerHTML = '<div class="typing-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+  row.appendChild(bub);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function hideTyping() {
+  var el = document.getElementById('typing-row');
+  if (el) el.remove();
+}
+
+function clearChat() {
+  var chat = document.getElementById('chat');
+  chat.innerHTML = '';
+  _streamBubble = null;
+  _streamRaw    = '';
+  var startInp = document.getElementById('start-user-input');
+  startInp.value = '';
+  autoResize(startInp);
+  var activeInp = document.getElementById('user-input');
+  activeInp.value = '';
+  autoResize(activeInp);
+  document.getElementById('start-send-btn').disabled = true;
+  document.body.classList.add('empty');
+  setBusy(false);
+  sendToPython('clear_history', {});
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function setBusy(s) {
+  busy = s;
+  updateSendBtn();
+  updateStartSendBtn();
+}
+function updateSendBtn() {
+  var b = document.getElementById('send-btn');
+  var i = document.getElementById('user-input');
+  b.disabled = busy || !i.value.trim();
+}
+function updateStartSendBtn() {
+  var b = document.getElementById('start-send-btn');
+  var i = document.getElementById('start-user-input');
+  b.disabled = busy || !i.value.trim();
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 130) + 'px';
+}
+function safeSet(id, val) { var e = document.getElementById(id); if (e) e.value = val; }
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Markdown renderer ─────────────────────────────────────────────────────────
+function renderMarkdown(raw) {
+  var s = esc(raw);
+  s = s.replace(/```(\w*)\n?([\s\S]*?)```/g, function(_,__,code) {
+    return '<pre><code>' + code.trim() + '</code></pre>';
+  });
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+  s = s.replace(/(?:^|\n)[-•]\s+(.+)/g, '\n<li>$1</li>');
+  s = s.replace(/(<li>[\s\S]+?<\/li>)+/g, '<ul>$&</ul>');
+  s = s.replace(/(?:^|\n)\d+\.\s+(.+)/g, '\n<li>$1</li>');
+  s = s.replace(/(?:^|\n)#{1,3}\s+(.+)/g, '\n<strong>$1</strong>');
+  s = s.replace(/\n/g, '<br>');
+  return s;
+}
+</script>
+</body>
+</html>

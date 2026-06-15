@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pro Mind Map Tool - Complete (Dark Mode & Optimized Learning)</title>
+    <style>
+        :root {
+            --primary-color: #0071D3;
+            --primary-color-dark: #0056a4;
+            --secondary-color: #f7f7f7;
+            --danger-color: #dc3545;
+            --success-color: #28a745;
+            --text-color: #333;
+            --text-muted: #888;
+            --line-color: #b4b4b4;
+            --background-color: #f8f9fa;
+            --canvas-bg: #ffffff;
+            --grid-dot: #d7d7d7;
+            --node-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            --modal-bg: #ffffff;
+            --input-bg: #ffffff;
+            --input-border: #ccc;
+            --button-bg: #ffffff;
+            --button-text: #333;
+            --button-hover: #e6f2ff;
+            --header-border: #d4d4d4;
+            --scrollbar-thumb: #ccc;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary-color: #4da3ff; 
+                --primary-color-dark: #0056a4;
+                --secondary-color: #2C2C2C; 
+                --danger-color: #e74c3c;
+                --success-color: #2ecc71;
+                --text-color: #e0e0e0;
+                --text-muted: #aaaaaa;
+                --line-color: #555555;
+                --background-color: #191919; 
+                --canvas-bg: #191919; 
+                --grid-dot: #303030; 
+                --node-shadow: 0 4px 8px rgba(0,0,0,0.5);
+                --modal-bg: #2C2C2C; 
+                --input-bg: #404040; 
+                --input-border: #555;
+                --button-bg: #303030; 
+                --button-text: #e0e0e0;
+                --button-hover: #404040;
+                --header-border: #303030;
+                --scrollbar-thumb: #555;
+            }
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0; padding: 0; background-color: var(--background-color); color: var(--text-color);
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        .header {
+            background-color: var(--background-color);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            z-index: 10;
+            box-shadow: none;
+            border-bottom: 1px solid var(--header-border);
+            transition: transform 0.3s ease, background-color 0.3s;
+        }
+        .map-switcher { display: flex; align-items: center; flex-wrap: wrap; }
+        #fullscreen-btn { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+
+        #mindmap-select { 
+            padding: 5px; border-radius: 5px; border: 1px solid var(--input-border); 
+            background-color: var(--input-bg); color: var(--text-color);
+        }
+
+        .button {
+            background-color: var(--button-bg); color: var(--primary-color); border: 1px solid var(--input-border); padding: 8px 14px;
+            border-radius: 8px; cursor: pointer; font-weight: 600; margin-left: 5px;
+            transition: background-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.1s;
+            font-size: 0.88em;
+        }
+        .button:hover { background-color: var(--button-hover); box-shadow: 0 2px 8px rgba(0,0,0,0.10); }
+        .button:active { transform: scale(0.97); }
+
+        .button.primary { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .button.primary:hover { filter: brightness(1.12); box-shadow: 0 3px 10px rgba(0,113,211,0.3); }
+        .button.success { background-color: var(--success-color); color: white; border-color: var(--success-color); }
+        .button.success:hover { filter: brightness(0.92); box-shadow: 0 3px 10px rgba(40,167,69,0.3); }
+
+        .button.danger { background-color: var(--danger-color); color: white; border-color: var(--danger-color); }
+        .button.danger:hover { filter: brightness(0.92); }
+        
+        /* Hamburger Menu */
+        .hamburger-menu {
+            position: relative;
+            display: inline-block;
+            margin-left: 5px;
+        }
+        .hamburger-btn {
+            color: var(--button-text);
+            letter-spacing: 1px;
+        }
+        .hamburger-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            background: var(--modal-bg);
+            border: 1px solid var(--header-border);
+            border-radius: 12px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+            min-width: 195px;
+            z-index: 200;
+            padding: 6px;
+            animation: dropdownFade 0.15s ease;
+        }
+        @keyframes dropdownFade {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .hamburger-dropdown.open { display: block; }
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            color: var(--text-color);
+            transition: background-color 0.15s;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        .dropdown-item:hover { background-color: var(--button-hover); }
+        .dropdown-item.item-learn { color: var(--success-color); }
+        .dropdown-item.item-ai    { color: var(--primary-color); }
+        .dropdown-item.item-del   { color: var(--danger-color); }
+        .dropdown-icon {
+            font-size: 1em;
+            width: 18px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .dropdown-divider {
+            height: 1px;
+            background: var(--header-border);
+            margin: 5px 2px;
+        }
+        
+        .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
+
+        #modal-ai-helper-content {
+            text-align: left; font-size: 0.9em; line-height: 1.5; overflow-y: auto; padding-right: 15px; flex-grow: 1;
+        }
+        #modal-ai-helper-content h3 { margin-top: 15px; margin-bottom: 5px; color: var(--text-color); }
+        #modal-ai-helper-content p, #modal-ai-helper-content ul { margin-top: 0; }
+        #modal-ai-helper-content ul { padding-left: 20px; }
+        #ai-prompt-area, #ai-json-input, #json-textarea {
+            width: 100%; font-family: monospace; font-size: 0.9em; box-sizing: border-box; margin-top: 5px; border: 1px solid var(--input-border); border-radius: 4px; background-color: var(--input-bg); color: var(--text-color);
+        }
+        #ai-prompt-area { height: 180px; }
+        #ai-json-input { height: 150px; }
+        
+        #modal-info-content { text-align: left; font-size: 0.9em; line-height: 1.5; max-height: 70vh; overflow-y: auto; }
+        #modal-info-content h3 { margin-top: 15px; margin-bottom: 5px; color: var(--text-color); }
+        #modal-info-content p, #modal-info-content ul { margin-top: 0; }
+        #modal-info-content ul { padding-left: 20px; }
+        #modal-info-content strong { color: var(--danger-color); }
+
+        .map-switcher .button { padding: 5px 11px; font-size: 0.82em; font-weight: 500; color: var(--button-text); background-color: var(--button-bg); }
+        
+        #center-view-btn { position: fixed; bottom: 58px; right: 20px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: var(--button-text); background-color: var(--button-bg); transition: opacity 0.3s ease, box-shadow 0.2s; border-radius: 10px; }
+        #center-view-btn:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.22); }
+        .zoom-controls { position: fixed; bottom: 58px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; transition: opacity 0.3s ease; }
+        .zoom-btn { width: 42px; height: 42px; font-size: 22px; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: var(--button-text); background-color: var(--button-bg); margin: 0; border-radius: 10px; }
+        .zoom-btn:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.22); }
+        .history-controls { position: fixed; bottom: 178px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; transition: opacity 0.3s ease; }
+        .history-btn { width: 34px; height: 34px; font-size: 16px; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: var(--button-text); background-color: var(--button-bg); margin: 0; border-radius: 8px; }
+        .history-btn:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.22); }
+
+        .mindmap-container {
+            flex-grow: 1; position: relative; overflow: hidden; cursor: grab; background-color: var(--canvas-bg);
+            background-image: radial-gradient(var(--grid-dot) 1px, transparent 0);
+            background-size: 20px 20px; /* initial value — overridden dynamically by JS */
+            transition: background-color 0.3s;
+        }
+        
+        .mindmap-container:active { cursor: grabbing; }
+        #mindmap-viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+        #mindmap-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        .node { 
+            position: absolute; background-color: var(--secondary-color); border: 2px solid var(--primary-color); border-radius: 8px; padding: 10px 15px; cursor: grab; user-select: none; box-shadow: var(--node-shadow); min-width: 120px; max-width: 250px; width: auto; text-align: center; transition: box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, background-color 0.3s, border-color 0.3s; display: flex; align-items: center; justify-content: center; transform-origin: center center; color: var(--text-color);
+        }
+        .node.root { background-color: var(--primary-color); color: white; }
+        .node.selected { box-shadow: 0 0 0 4px var(--primary-color), var(--node-shadow); }
+        .node-textarea { 
+            width: 100%; border: none; background-color: transparent; resize: none; text-align: center; font: inherit; color: inherit; padding: 0; margin: 0; overflow-y: hidden; transition: color 0.3s ease, filter 0.3s ease; 
+        }
+        .node-textarea:focus { outline: none; }
+        .node.small { font-size: 0.8em; min-width: 80px; padding: 6px 10px; }
+        .node.medium { }
+        .node.large { font-size: 1.2em; min-width: 150px; padding: 12px 20px; }
+        
+        .node-controls { position: absolute; top: 50%; right: -40px; transform: translateY(-50%); display: flex; opacity: 0; transition: opacity 0.2s ease; pointer-events: none; }
+        .node:hover .node-controls, .node.selected .node-controls { opacity: 1; pointer-events: all; }
+        .control-btn.delete { 
+            background-color: var(--button-bg); color: var(--text-color); border: 1px solid var(--line-color); border-radius: 50%; width: 18px; height: 18px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-left: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: background-color 0.2s; 
+        }
+        .control-btn.delete:hover { background-color: var(--button-hover); }
+        
+        .drag-handle { position: absolute; top: 50%; right: -14px; transform: translateY(-50%); width: 16px; height: 16px; background-color: var(--primary-color-dark); border: 2px solid white; border-radius: 50%; cursor: crosshair; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 1; opacity: 0; transition: opacity 0.2s ease; pointer-events: all; }
+        .node:hover .drag-handle, .node.selected .drag-handle { opacity: 1; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s; backdrop-filter: blur(2px); }
+        .modal-overlay.visible { opacity: 1; visibility: visible; }
+        .modal-content { background: var(--modal-bg); padding: 28px 30px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); width: 90%; max-width: 650px; text-align: center; transform: scale(0.94); transition: transform 0.2s, background-color 0.3s; color: var(--text-color); border: 1px solid var(--header-border); }
+        .modal-overlay.visible .modal-content { transform: scale(1); }
+        .modal-content h2 { margin-top: 0; color: var(--text-color); font-size: 1.2em; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; flex-shrink: 0; }
+        .modal-buttons .button { margin-left: 0; padding: 9px 20px; border-radius: 9px; font-size: 0.9em; }
+        .modal-input { width: 100%; padding: 10px 13px; box-sizing: border-box; border: 1px solid var(--input-border); background-color: var(--input-bg); color: var(--text-color); border-radius: 9px; margin-bottom: 20px; font-family: inherit; font-size: 0.95em; }
+        .modal-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(0,113,211,0.15); }
+        #json-textarea { width: 100%; height: 200px; resize: vertical; box-sizing: border-box; border-radius: 9px; padding: 10px; font-size: 0.88em; }
+        #ai-prompt-area, #ai-json-input { border-radius: 9px; padding: 10px; }
+        #modal-error { color: var(--danger-color); margin-top: 10px; text-align: left; font-size: 0.9em; display: none; }
+
+        .context-menu { position: absolute; display: none; background: var(--modal-bg); color: var(--text-color); border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); z-index: 1001; padding: 8px; min-width: 160px; border: 1px solid var(--header-border); }
+        .context-menu-section { margin-bottom: 8px; }
+        .context-menu-section:last-child { margin-bottom: 0; }
+        .context-menu-title { font-weight: 600; font-size: 0.75em; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 4px; }
+        .context-menu-colors { display: flex; justify-content: space-around; padding: 2px 4px; gap: 4px; }
+        .color-swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2.5px solid var(--modal-bg); box-shadow: 0 1px 4px rgba(0,0,0,0.25); transition: transform 0.15s; }
+        .color-swatch:hover { transform: scale(1.18); }
+        .context-menu-item { padding: 9px 12px; cursor: pointer; border-radius: 8px; font-size: 0.9em; font-weight: 500; }
+        .context-menu-item:hover { background-color: var(--button-hover); }
+        
+        .hint-footer { position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; font-size: 0.74em; color: var(--text-muted); background: var(--background-color); padding: 6px 0; z-index: 9; transition: transform 0.3s ease, background-color 0.3s; border-top: 1px solid var(--header-border); letter-spacing: 0.01em; }
+        
+        #learning-ui { position: fixed; bottom: 0; left: 0; width: 100%; background-color: var(--background-color); color: var(--text-color); box-shadow: 0 -2px 10px rgba(0,0,0,0.1); padding: 15px 20px; box-sizing: border-box; z-index: 1002; display: none; flex-direction: column; align-items: center; gap: 10px; border-top: 1px solid var(--primary-color); }
+        #learning-prompt { font-weight: bold; }
+        #learning-controls { display: flex; gap: 10px; width: 100%; justify-content: center; }
+        #learning-controls .button { flex-grow: 1; max-width: 150px; }
+        #learning-stage-evaluate { display: none; }
+        
+        body.learning-mode .header { transform: translateY(-100%); }
+        body.learning-mode .hint-footer { transform: translateY(100%); }
+        body.learning-mode #center-view-btn,
+        body.learning-mode .history-controls { opacity: 0; pointer-events: none; }
+        body.learning-mode .zoom-controls { opacity: 1; pointer-events: auto; }
+        
+        .node .node-textarea.node-text-hidden { color: inherit; filter: blur(6px); opacity: 0.7; pointer-events: none; user-select: none; }
+
+        .node-hint-dot {
+            position: absolute; bottom: 4px; right: 6px;
+            width: 7px; height: 7px; border-radius: 50%;
+            background-color: #ffc107; opacity: 0.9;
+            pointer-events: none; flex-shrink: 0;
+        }
+        #learning-hint {
+            font-size: 0.82em; color: var(--text-muted);
+            font-style: italic; text-align: center;
+            min-height: 1.1em; transition: opacity 0.25s;
+            max-width: 480px;
+        }
+
+        /* Hint Edit Mode */
+        .node-hint-input {
+            display: none;
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: max(100%, 110px);
+            min-width: 110px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1.5px solid #ffc107;
+            background: var(--input-bg);
+            color: var(--text-color);
+            font-size: 0.76em;
+            font-family: inherit;
+            resize: none;
+            z-index: 200;
+            box-sizing: border-box;
+            text-align: left;
+            overflow: hidden;
+            line-height: 1.35;
+        }
+        .node-hint-input::placeholder { color: var(--text-muted); font-style: italic; }
+        .node-hint-input:focus { outline: none; border-color: #f5a623; box-shadow: 0 0 0 2px rgba(255,193,7,0.25); }
+        body.hint-edit-mode .node { overflow: visible; cursor: default !important; }
+        body.hint-edit-mode .node-hint-input { display: block; }
+        body.hint-edit-mode .node .drag-handle,
+        body.hint-edit-mode .node .node-controls { display: none !important; }
+        body.hint-edit-mode .node .node-textarea { pointer-events: none; }
+        body.learning-mode .node-hint-input { display: none !important; }
+
+        #hint-edit-panel {
+            position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+            background: var(--modal-bg); border: 1px solid #ffc107;
+            border-radius: 14px; padding: 10px 18px; display: none;
+            align-items: center; gap: 12px; z-index: 1500;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+            font-size: 0.88em; color: var(--text-color); white-space: nowrap;
+        }
+        #hint-edit-panel.visible { display: flex; }
+        .dropdown-item.item-hint { color: #b8860b; }
+        @media (prefers-color-scheme: dark) { .dropdown-item.item-hint { color: #ffc107; } }
+        .node.learning-current { box-shadow: 0 0 0 4px #ffc107, var(--node-shadow); cursor: default; z-index: 90; }
+        .node.learning-target { box-shadow: 0 0 0 6px var(--primary-color), var(--node-shadow); z-index: 91; transform: scale(1.05); }
+
+        /* Learning Options Overlay */
+        #learning-options-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            z-index: 2000; display: none; align-items: center; justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+        #learning-options-overlay.visible { display: flex; }
+        .learning-options-modal {
+            background: var(--modal-bg); border-radius: 16px;
+            padding: 28px 32px; max-width: 400px; width: 90%;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3); color: var(--text-color);
+        }
+        .learning-options-modal h2 { margin: 0 0 20px; font-size: 1.15em; font-weight: 700; }
+        .learn-option-group { margin-bottom: 16px; }
+        .learn-option-group .group-label {
+            font-weight: 600; font-size: 0.78em; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.06em;
+            display: block; margin-bottom: 7px;
+        }
+        .learn-option-row { display: flex; gap: 7px; flex-wrap: wrap; }
+        .learn-option-btn {
+            flex: 1; padding: 8px 10px; border: 1.5px solid var(--input-border);
+            border-radius: 8px; background: var(--input-bg); color: var(--text-color);
+            cursor: pointer; font-size: 0.85em; text-align: center;
+            transition: all 0.15s; font-family: inherit;
+        }
+        .learn-option-btn.active {
+            border-color: var(--primary-color);
+            background: rgba(0, 113, 211, 0.1);
+            color: var(--primary-color); font-weight: 600;
+        }
+        .learn-option-btn:hover:not(.active) { background: var(--button-hover); }
+        .learning-options-footer { display: flex; gap: 10px; margin-top: 22px; }
+        .learning-options-footer .button { flex: 1; }
+
+        /* Node Selection Mode */
+        .node.selected-for-learning { box-shadow: 0 0 0 3px #f5a623, var(--node-shadow) !important; }
+        body.selection-mode .node { cursor: pointer !important; }
+        body.selection-mode .node .node-textarea { pointer-events: none; user-select: none; }
+        body.selection-mode .node .drag-handle,
+        body.selection-mode .node .node-controls { display: none !important; }
+        body.selection-mode { cursor: crosshair; }
+
+        #selection-rect {
+            position: absolute; pointer-events: none; display: none; z-index: 500;
+            border: 1.5px dashed #f5a623;
+            background: rgba(245, 166, 35, 0.08);
+            border-radius: 2px;
+        }
+
+        #selection-panel {
+            position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+            background: var(--modal-bg); border: 1px solid var(--header-border);
+            border-radius: 14px; padding: 10px 18px; display: none;
+            align-items: center; gap: 12px; z-index: 1500;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+            font-size: 0.88em; color: var(--text-color); white-space: nowrap;
+        }
+        #selection-panel.visible { display: flex; }
+        #selection-count { font-weight: 600; min-width: 70px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="map-selector-container">
+            <select id="mindmap-select"></select>
+        </div>
+        <div class="map-switcher">
+            <button class="button primary" id="new-map-btn" data-i18n="new_map">New</button>
+            <div class="hamburger-menu">
+                <button class="button hamburger-btn" id="hamburger-btn" data-i18n-title="menu_title" title="Menu">&#9776;</button>
+                <div class="hamburger-dropdown" id="hamburger-dropdown">
+                    <button class="dropdown-item item-learn" id="start-learning-btn">
+                        <span class="dropdown-icon">▶</span> <span data-i18n="start_learning">Start Learning</span>
+                    </button>
+                    <button class="dropdown-item item-hint" id="edit-hints-btn">
+                        <span class="dropdown-icon">💡</span> <span>Edit Hints</span>
+                    </button>
+                    <button class="dropdown-item item-ai" id="ai-helper-btn">
+                        <span class="dropdown-icon">✦</span> <span data-i18n="create_with_ai">Create with AI</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" id="import-btn">
+                        <span class="dropdown-icon">↑</span> <span data-i18n="import_map">Import</span>
+                    </button>
+                    <button class="dropdown-item" id="export-btn">
+                        <span class="dropdown-icon">↓</span> <span data-i18n="export_map">Export</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item item-del" id="delete-map-btn">
+                        <span class="dropdown-icon">✕</span> <span data-i18n="delete_map">Delete Map</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" id="info-btn">
+                        <span class="dropdown-icon">ℹ</span> <span data-i18n="information">Information</span>
+                    </button>
+                </div>
+            </div>
+            <button class="button" id="fullscreen-btn" data-i18n-title="fullscreen_enter" title="Fullscreen"
+                    onclick="__synapseFsToggle()">
+                <svg id="fullscreen-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <polyline points="9 21 3 21 3 15"></polyline>
+                    <line x1="21" y1="3" x2="14" y2="10"></line>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="mindmap-container" id="mindmap-container">
+        <canvas id="mindmap-canvas"></canvas>
+        <div id="mindmap-viewport"></div>
+        <div id="selection-rect"></div>
+    </div>
+    
+    <div class="history-controls">
+        <button class="button history-btn" id="undo-btn" title="Undo (Ctrl+Z)">↩</button>
+        <button class="button history-btn" id="redo-btn" title="Redo (Ctrl+Y)">↪</button>
+    </div>
+
+    <button class="button" id="center-view-btn" data-i18n="center_view">Center View</button>
+    <div class="zoom-controls"> 
+        <button class="button zoom-btn" id="zoom-in-btn">+</button> 
+        <button class="button zoom-btn" id="zoom-out-btn">−</button> 
+    </div>
+    
+    <div id="learning-ui">
+        <div id="learning-prompt"></div>
+        <div id="learning-hint"></div>
+        <div id="learning-controls">
+            <div id="learning-stage-guess">
+                <button class="button primary" id="reveal-answer-btn" data-i18n="reveal">Reveal</button>
+            </div>
+            <div id="learning-stage-evaluate">
+                <button class="button danger" id="answer-incorrect-btn" data-i18n="didnt_know">Didn't know</button>
+                <button class="button success" id="answer-correct-btn" data-i18n="i_knew_it">I knew it!</button>
+            </div>
+            <button class="button" id="stop-learning-btn" data-i18n="stop_learning">Stop</button>
+        </div>
+    </div>
+
+    <!-- Learning Options Modal -->
+    <div id="learning-options-overlay">
+        <div class="learning-options-modal">
+            <h2 data-i18n="learning_setup">Learning Setup</h2>
+            <div class="learn-option-group">
+                <label class="group-label" data-i18n="scope">Scope</label>
+                <div class="learn-option-row" id="scope-options">
+                    <button class="learn-option-btn active" data-value="all" data-i18n="entire_map">Entire Map</button>
+                    <button class="learn-option-btn" data-value="select" data-i18n="select_nodes">Select Nodes</button>
+                </div>
+            </div>
+            <div class="learn-option-group">
+                <label class="group-label" data-i18n="order">Order</label>
+                <div class="learn-option-row" id="order-options">
+                    <button class="learn-option-btn active" data-value="sequential" data-i18n="top_down">Top-Down</button>
+                    <button class="learn-option-btn" data-value="random" data-i18n="random_order">Random</button>
+                </div>
+            </div>
+            <div class="learn-option-group">
+                <label class="group-label" data-i18n="wrong_penalty">Wrong Answer Penalty</label>
+                <div class="learn-option-row" id="penalty-options">
+                    <button class="learn-option-btn active" data-value="none" data-i18n="skip">Skip</button>
+                    <button class="learn-option-btn" data-value="soon" data-i18n="retry_soon">Retry Soon</button>
+                    <button class="learn-option-btn" data-value="later" data-i18n="revisit_later">Revisit Later</button>
+                </div>
+            </div>
+            <div class="learning-options-footer">
+                <button class="button" id="learn-options-cancel-btn" data-i18n="cancel">Cancel</button>
+                <button class="button primary" id="learn-options-start-btn" data-i18n="start">Start</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hint Edit Panel -->
+    <div id="hint-edit-panel">
+        <span>💡 Hints bearbeiten</span>
+        <button class="button primary" id="hint-save-btn">Speichern</button>
+        <button class="button" id="hint-cancel-btn">Abbrechen</button>
+    </div>
+
+    <!-- Node Selection Panel -->
+    <div id="selection-panel">
+        <span data-i18n="tap_to_select">Tap nodes to select:</span>
+        <span id="selection-count">0 selected</span>
+        <button class="button primary" id="selection-start-btn" disabled data-i18n="start">Start</button>
+        <button class="button" id="selection-cancel-btn" data-i18n="cancel">Cancel</button>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-title"></h2>
+            <div id="modal-info-content"></div>
+            <div id="modal-ai-helper-content"></div> 
+            <p id="modal-text"></p>
+            <input type="text" id="modal-input" class="modal-input" placeholder="Enter here...">
+            <textarea id="json-textarea"></textarea>
+            <div id="modal-error"></div>
+            <div class="modal-buttons">
+                <button class="button" id="modal-cancel">Cancel</button>
+                <button class="button" id="modal-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="context-menu" id="context-menu"></div>
+    <footer class="hint-footer" data-i18n="footer_hint">Right-click on a node for options. Drag the blue dot to create new nodes.</footer>
+
+    <script>
+        const TUTORIAL_DATA = {
+          "name": "MindMap Tutorial",
+          "nodes": [
+            { "id": 1, "text": "Welcome to the Mind Map Tool! ", "parent": null, "x": 1193, "y": -93, "width": 194, "height": 73, "size": "large" },
+            { "id": 2, "text": "Basic Controls ", "parent": 1, "x": 1191, "y": 149, "width": 194, "height": 51, "color": "#28a745", "size": "large" },
+            { "id": 3, "text": "Pan View: Click and drag the empty background to move around.", "parent": 2, "x": 453, "y": 401, "width": 154, "height": 119, "color": "#28a745" },
+            { "id": 4, "text": "Zoom View: Use your mouse wheel or the +/- buttons.", "parent": 2, "x": 730, "y": 400, "width": 154, "height": 100, "color": "#28a745" },
+            { "id": 5, "text": "Move Node: Click and drag any node to reposition it.", "parent": 2, "x": 1178, "y": 401, "width": 154, "height": 100, "color": "#28a745" },
+            { "id": 6, "text": "Center View: Click the 'Center View' button to focus on the root node.", "parent": 2, "x": 951, "y": 399, "width": 154, "height": 138, "color": "#28a745" },
+            { "id": 7, "text": "Managing Nodes", "parent": 1, "x": 990, "y": -208, "width": 194, "height": 51, "color": "#dc3545", "size": "large" },
+            { "id": 8, "text": "Create Child Node: Drag the blue dot from an existing node.", "parent": 7, "x": 587, "y": -404, "width": 154, "height": 100, "color": "#dc3545" },
+            { "id": 9, "text": "Edit Text: Double-click the text inside a node to change it.", "parent": 7, "x": 839, "y": -402, "width": 154, "height": 119, "color": "#dc3545" },
+            { "id": 10, "text": "Delete Node: Hover over a node and click the small '-' button.", "parent": 7, "x": 1089, "y": -399, "width": 154, "height": 119, "color": "#dc3545" },
+            { "id": 11, "text": "Customize Nodes (Right-Click!)", "parent": 7, "x": 878, "y": -116, "width": 154, "height": 81, "color": "#dc3545" },
+            { "id": 12, "text": "Change Color: Right-click a node and select a color swatch.", "parent": 11, "x": 667, "y": -120, "width": 104, "height": 91, "color": "#dc3545", "size": "small" },
+            { "id": 13, "text": "Change Size: Right-click and choose Small, Medium, or Large.", "parent": 11, "x": 894, "y": -2, "width": 104, "height": 106, "color": "#dc3545", "size": "small" },
+            { "id": 14, "text": "Special Features", "parent": 1, "x": 1490, "y": 87, "width": 194, "height": 51, "color": "#6f42c1", "size": "large" },
+            { "id": 15, "text": "Create with AI", "parent": 14, "x": 1513, "y": 229, "width": 154, "height": 43, "color": "#6f42c1" },
+            { "id": 16, "text": "1. Click 'Create with AI' button in the header.", "parent": 15, "x": 1761, "y": 229, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
+            { "id": 17, "text": "2. Copy the provided prompt and paste it into an AI (like ChatGPT).", "parent": 15, "x": 1770, "y": 311, "width": 104, "height": 106, "color": "#6f42c1", "size": "small" },
+            { "id": 18, "text": "3. Copy the AI's JSON response and paste it back into the tool.", "parent": 15, "x": 1766, "y": 427, "width": 104, "height": 106, "color": "#6f42c1", "size": "small" },
+            { "id": 19, "text": "Start Learning", "parent": 14, "x": 1782, "y": 86, "width": 154, "height": 43, "color": "#6f42c1" },
+            { "id": 20, "text": "Turns your map into an active recall session!", "parent": 19, "x": 2103, "y": -32, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
+            { "id": 21, "text": "It hides child nodes and asks you to remember them.", "parent": 19, "x": 2104, "y": 64, "width": 104, "height": 91, "color": "#6f42c1", "size": "small" },
+            { "id": 22, "text": "Rate yourself to reinforce your memory.", "parent": 19, "x": 2208, "y": 333, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
+            { "id": 23, "text": "Data & Maps", "parent": 1, "x": 1548, "y": -247, "width": 194, "height": 51, "color": "#ffc107", "size": "large" },
+            { "id": 24, "text": "Use the dropdown list at the top left to switch between maps.", "parent": 23, "x": 1368, "y": -397, "width": 154, "height": 119, "color": "#ffc107" },
+            { "id": 25, "text": "'New Map' / 'Delete Map' buttons manage your collection.", "parent": 23, "x": 1568, "y": -154, "width": 154, "height": 100, "color": "#ffc107", "size": "medium" },
+            { "id": 26, "text": "Imp. / Exp. (Backup!)", "parent": 23, "x": 1628, "y": -390, "width": 154, "height": 62, "color": "#ffc107" },
+            { "id": 27, "text": "Use 'Exp.' to save your map as a JSON file. This is your backup!", "parent": 26, "x": 1867, "y": -354, "width": 104, "height": 106, "size": "small", "color": "#ffc107" },
+            { "id": 28, "text": "Use 'Imp.' to load a map from a JSON file.", "parent": 26, "x": 1865, "y": -470, "width": 104, "height": 76, "size": "small", "color": "#ffc107" }
+          ]
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('mindmap-container');
+            const viewport = document.getElementById('mindmap-viewport');
+            const canvas = document.getElementById('mindmap-canvas');
+            const ctx = canvas.getContext('2d');
+            const mindmapSelect = document.getElementById('mindmap-select');
+            const newMapBtn = document.getElementById('new-map-btn');
+            const aiHelperBtn = document.getElementById('ai-helper-btn'); 
+            const deleteMapBtn = document.getElementById('delete-map-btn');
+            const importBtn = document.getElementById('import-btn');
+            const exportBtn = document.getElementById('export-btn');
+            const infoBtn = document.getElementById('info-btn');
+            const undoBtn = document.getElementById('undo-btn');
+            const redoBtn = document.getElementById('redo-btn');
+            
+            let nodes = [];
+            let activeMindmapId = null;
+
+            let historyStack = [];
+            let redoStack = [];
+
+            function pushState() {
+                historyStack.push(JSON.stringify(nodes));
+                redoStack = [];
+                if (historyStack.length > 50) historyStack.shift(); 
+            }
+
+            function undo() {
+                if (historyStack.length === 0) return;
+                redoStack.push(JSON.stringify(nodes));
+                const state = JSON.parse(historyStack.pop());
+                applyState(state);
+            }
+
+            function redo() {
+                if (redoStack.length === 0) return;
+                historyStack.push(JSON.stringify(nodes));
+                const state = JSON.parse(redoStack.pop());
+                applyState(state);
+            }
+
+            function applyState(state) {
+                nodes = state;
+                viewport.innerHTML = '';
+                nodes.forEach(createNodeElement);
+                drawLines();
+                saveCurrentMindmap();
+            }
+            
+            function getMindmaps() { return JSON.parse(localStorage.getItem('mindmaps')) || {}; }
+            function saveMindmaps(mindmaps) { localStorage.setItem('mindmaps', JSON.stringify(mindmaps)); }
+            function saveCurrentMindmap() {
+                if(activeMindmapId) {
+                    const mindmaps = getMindmaps();
+                    if(mindmaps[activeMindmapId]) {
+                        mindmaps[activeMindmapId].nodes = nodes;
+                        saveMindmaps(mindmaps);
+                    }
+                }
+            }
+            
+            function init() {
+                loadMindmapList();
+                const lastOpened = localStorage.getItem('lastOpenedMindmap');
+                const mindmaps = getMindmaps();
+                
+                if (lastOpened && mindmaps[lastOpened]) {
+                    loadMindmap(lastOpened);
+                } else if (Object.keys(mindmaps).length > 0) {
+                    loadMindmap(Object.keys(mindmaps)[0]);
+                } else {
+                    loadTutorialMap();
+                }
+                setupEventListeners();
+                setupLearningOptionButtons();
+                updateLineColors();
+            }
+            
+            function loadTutorialMap() {
+                const id = `map_tutorial_${Date.now()}`;
+                const mindmaps = {};
+                mindmaps[id] = TUTORIAL_DATA;
+                saveMindmaps(mindmaps);
+                loadMindmapList();
+                loadMindmap(id);
+            }
+            
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                drawLines();
+            });
+            function updateLineColors() {
+                drawLines();
+            }
+
+            function showInfoModal() {
+                const infoContent = `
+                    <h3>Basic Controls</h3>
+                    <ul>
+                        <li><b>Pan View:</b> Click and drag on the empty background.</li>
+                        <li><b>Zoom View:</b> Use the mouse wheel or the +/- buttons.</li>
+                        <li><b>Move Node:</b> Click and drag any node.</li>
+                        <li><b>Create Child Node:</b> Click and drag the blue dot on a node.</li>
+                        <li><b>Undo/Redo:</b> Use the arrows at the top right or Ctrl+Z / Ctrl+Y.</li>
+                        <li><b>Edit Text:</b> Double-click the text inside a node.</li>
+                    </ul>
+                    <h3>Features</h3>
+                    <ul>
+                        <li><b>New Map / Delete Map:</b> Manage your mind maps.</li>
+                        <li><b>Create with AI:</b> Generate a mind map from a topic using AI.</li>
+                        <li><b>Start Learning:</b> Review mode with active recall.</li>
+                    </ul>
+                `;
+                const modal = { overlay: document.getElementById('modal-overlay'), title: document.getElementById('modal-title'), infoContent: document.getElementById('modal-info-content'), text: document.getElementById('modal-text'), input: document.getElementById('modal-input'), jsonTextarea: document.getElementById('json-textarea'), aiHelperContent: document.getElementById('modal-ai-helper-content'), confirmBtn: document.getElementById('modal-confirm'), cancelBtn: document.getElementById('modal-cancel') };
+                modal.title.textContent = "Mind Map Information";
+                modal.infoContent.innerHTML = infoContent;
+                modal.infoContent.style.display = 'block';
+                modal.text.style.display = 'none';
+                modal.input.style.display = 'none';
+                modal.jsonTextarea.style.display = 'none';
+                modal.aiHelperContent.style.display = 'none';
+                document.getElementById('modal-error').style.display = 'none';
+                modal.confirmBtn.style.display = 'none';
+                modal.cancelBtn.textContent = 'Close';
+                modal.overlay.classList.add('visible');
+                modal.cancelBtn.onclick = () => {
+                    modal.overlay.classList.remove('visible');
+                    modal.confirmBtn.style.display = 'inline-block';
+                };
+            }
+
+            function getAiPromptTemplate() {
+                return `You are an expert assistant that creates mind maps in a specific JSON format.
+The output MUST be a valid JSON object and nothing else. Do not add explanations.
+
+The JSON structure must be:
+{
+  "name": "Name of the Mind Map",
+  "nodes": [
+    { "id": 1, "text": "Central Topic", "parent": null },
+    { "id": 2, "text": "Main Branch 1", "parent": 1 },
+    { "id": 3, "text": "Sub-point 1.1", "parent": 2 }
+  ]
+}
+Generate the mind map JSON now.`;
+            }
+
+            function showAiHelperModal() {
+                const modal = { overlay: document.getElementById('modal-overlay'), title: document.getElementById('modal-title'), aiHelperContent: document.getElementById('modal-ai-helper-content'), confirmBtn: document.getElementById('modal-confirm'), cancelBtn: document.getElementById('modal-cancel'), modalError: document.getElementById('modal-error') };
+                ['modal-info-content', 'modal-text', 'modal-input', 'json-textarea'].forEach(id => document.getElementById(id).style.display = 'none');
+                modal.title.textContent = "Create Mind Map with AI";
+                modal.aiHelperContent.style.display = 'block';
+                modal.aiHelperContent.innerHTML = `
+                    <p>Step 1: Customize and Copy the Prompt</p>
+                    <textarea id="ai-prompt-area"></textarea>
+                    <button class="button" id="copy-prompt-btn" style="margin-left: 0; margin-top: 5px;">Copy Prompt</button>
+                    <h3>Step 2: Paste the AI-Generated JSON</h3>
+                    <textarea id="ai-json-input" placeholder="Paste JSON here..."></textarea>
+                `;
+                document.getElementById('ai-prompt-area').value = getAiPromptTemplate();
+                document.getElementById('copy-prompt-btn').onclick = () => {
+                    navigator.clipboard.writeText(document.getElementById('ai-prompt-area').value);
+                    const btn = document.getElementById('copy-prompt-btn'); btn.textContent = 'Copied!';
+                    setTimeout(() => { btn.textContent = 'Copy Prompt'; }, 2000);
+                };
+                modal.confirmBtn.style.display = 'inline-block';
+                modal.confirmBtn.textContent = "Import Mind Map";
+                modal.cancelBtn.textContent = "Cancel";
+                modal.confirmBtn.onclick = handleAiImport;
+                modal.cancelBtn.onclick = () => modal.overlay.classList.remove('visible');
+                modal.overlay.classList.add('visible');
+            }
+
+            function autoLayoutNodes(nodes) {
+                const root = nodes.find(n => n.parent === null);
+                if (!root) return;
+                const childrenMap = new Map();
+                nodes.forEach(node => {
+                    if (node.parent !== null) {
+                        if (!childrenMap.has(node.parent)) childrenMap.set(node.parent, []);
+                        childrenMap.get(node.parent).push(node);
+                    }
+                });
+                const containerRect = container.getBoundingClientRect();
+                const vSpacing = 100; const hSpacing = 180;
+                function positionNodes(node, x, y, level) {
+                    node.x = x; node.y = y;
+                    const children = childrenMap.get(node.id) || [];
+                    const totalWidth = (children.length - 1) * hSpacing;
+                    let startX = x - totalWidth / 2;
+                    children.forEach((child, index) => {
+                        positionNodes(child, startX + index * hSpacing, y + vSpacing, level + 1);
+                    });
+                }
+                positionNodes(root, containerRect.width / 2 - 75, 50, 0);
+            }
+
+            function handleAiImport() {
+                const jsonText = document.getElementById('ai-json-input').value;
+                try {
+                    const data = JSON.parse(jsonText);
+                    autoLayoutNodes(data.nodes);
+                    const id = `map_${Date.now()}`;
+                    const mindmaps = getMindmaps();
+                    mindmaps[id] = data;
+                    saveMindmaps(mindmaps);
+                    loadMindmapList();
+                    loadMindmap(id);
+                    document.getElementById('modal-overlay').classList.remove('visible');
+                } catch (e) { alert("Invalid JSON"); }
+            }
+
+            function loadMindmapList() {
+                mindmapSelect.innerHTML = '';
+                const mindmaps = getMindmaps();
+                for (const id in mindmaps) {
+                    const option = document.createElement('option');
+                    option.value = id; option.textContent = mindmaps[id].name;
+                    mindmapSelect.appendChild(option);
+                }
+            }
+            
+            async function createNewMindmap() {
+                const name = await new Promise(resolve => {
+                    setupModal({ title: "Create New Mind Map", text: "Please enter a name.", showInput: true, confirmText: "Create", onConfirm: () => resolve(document.getElementById('modal-input').value) });
+                });
+                if (name) {
+                    pushState();
+                    const id = `map_${Date.now()}`;
+                    const containerRect = container.getBoundingClientRect();
+                    const newMap = { name, nodes: [{ id: 1, text: 'Central Topic', x: containerRect.width / 2 - 75, y: containerRect.height / 2 - 25, parent: null, color: 'var(--primary-color)', size: 'large' }] };
+                    const mindmaps = getMindmaps();
+                    mindmaps[id] = newMap;
+                    saveMindmaps(mindmaps);
+                    loadMindmapList();
+                    loadMindmap(id);
+                    document.getElementById('modal-overlay').classList.remove('visible');
+                }
+            }
+            
+            const centerViewBtn = document.getElementById('center-view-btn');
+            const zoomInBtn = document.getElementById('zoom-in-btn');
+            const zoomOutBtn = document.getElementById('zoom-out-btn');
+            const contextMenu = document.getElementById('context-menu');
+            let selectedNodeId = null;
+            let contextNodeId = null;
+            let view = { x: 0, y: 0, scale: 1 };
+            let isPanning = false;
+            let panStart = { x: 0, y: 0 };
+            let isCreatingNode = false;
+            let creationStartNodeId = null;
+            let creationLineEnd = { x: 0, y: 0 };
+            const learningUI = document.getElementById('learning-ui');
+            const startLearningBtn = document.getElementById('start-learning-btn');
+            const stopLearningBtn = document.getElementById('stop-learning-btn');
+            const learningPrompt = document.getElementById('learning-prompt');
+            const stageGuess = document.getElementById('learning-stage-guess');
+            const stageEvaluate = document.getElementById('learning-stage-evaluate');
+            const revealBtn = document.getElementById('reveal-answer-btn');
+            const correctBtn = document.getElementById('answer-correct-btn');
+            const incorrectBtn = document.getElementById('answer-incorrect-btn');
+            let isLearningMode = false;
+            let isSelectionMode = false;
+            let learningQueue = [];
+            let wrongQueue = [];
+            let currentLearningNode = null;
+            let learnOptions = { scope: 'all', order: 'sequential', penalty: 'none' };
+            let selectedForLearning = new Set();
+            const modal = { overlay: document.getElementById('modal-overlay'), title: document.getElementById('modal-title'), infoContent: document.getElementById('modal-info-content'), aiHelperContent: document.getElementById('modal-ai-helper-content'), text: document.getElementById('modal-text'), input: document.getElementById('modal-input'), jsonTextarea: document.getElementById('json-textarea'), modalError: document.getElementById('modal-error'), confirmBtn: document.getElementById('modal-confirm'), cancelBtn: document.getElementById('modal-cancel'), };
+            
+            function setupModal(config) {
+                modal.title.textContent = config.title;
+                modal.text.style.display = config.text ? 'block' : 'none';
+                modal.text.textContent = config.text || '';
+                modal.input.style.display = config.showInput ? 'block' : 'none';
+                modal.jsonTextarea.style.display = config.showJsonArea ? 'block' : 'none';
+                modal.infoContent.style.display = 'none';
+                modal.aiHelperContent.style.display = 'none'; 
+                modal.modalError.style.display = 'none';
+                modal.confirmBtn.style.display = 'inline-block';
+                modal.confirmBtn.textContent = config.confirmText;
+                modal.confirmBtn.onclick = config.onConfirm;
+                modal.cancelBtn.textContent = config.cancelText || "Cancel";
+                modal.cancelBtn.onclick = () => modal.overlay.classList.remove('visible');
+                modal.overlay.classList.add('visible');
+            }
+            function showImportModal() { modal.jsonTextarea.value = ''; modal.jsonTextarea.readOnly = false; setupModal({ title: "Import from JSON", text: "Paste your mind map JSON data below.", showJsonArea: true, confirmText: "Import", onConfirm: handleImport }); }
+            function showExportModal() { if (!activeMindmapId) return; const mindmap = getMindmaps()[activeMindmapId]; modal.jsonTextarea.value = JSON.stringify(mindmap, null, 2); modal.jsonTextarea.readOnly = true; setupModal({ title: "Export to JSON", text: "Copy the JSON data below.", showJsonArea: true, confirmText: "Copy to Clipboard", cancelText: "Close", onConfirm: handleCopyToClipboard }); }
+            function handleImport() { try { pushState(); const data = JSON.parse(modal.jsonTextarea.value); const id = `map_${Date.now()}`; const mindmaps = getMindmaps(); mindmaps[id] = data; saveMindmaps(mindmaps); loadMindmapList(); loadMindmap(id); modal.overlay.classList.remove('visible'); } catch (e) { alert("Import failed"); } }
+            function handleCopyToClipboard() { navigator.clipboard.writeText(modal.jsonTextarea.value).then(() => { modal.confirmBtn.textContent = "Copied!"; setTimeout(() => { modal.confirmBtn.textContent = "Copy to Clipboard"; }, 2000); }); }
+            function centerOnNode(nodeId, immediate = false) { const node = nodes.find(n => n.id === nodeId); if (!node || !node.width) return; const containerRect = container.getBoundingClientRect(); const targetX = (containerRect.width / 2) - (node.x + node.width / 2) * view.scale; const targetY = (containerRect.height / 2) - (node.y + node.height / 2) * view.scale; if (immediate) { view.x = targetX; view.y = targetY; updateView(); return; } const startX = view.x; const startY = view.y; const duration = 400; let startTime = null; function animate(currentTime) { if (!startTime) startTime = currentTime; const elapsed = currentTime - startTime; const progress = Math.min(elapsed / duration, 1); const ease = t => t<.5 ? 2*t*t : -1+(4-2*t)*t; view.x = startX + (targetX - startX) * ease(progress); view.y = startY + (targetY - startY) * ease(progress); updateView(); if (progress < 1) requestAnimationFrame(animate); } requestAnimationFrame(animate); }
+            function centerOnRootNode() { const rootNode = nodes.find(node => node.parent === null); if (rootNode) centerOnNode(rootNode.id); }
+            
+            function setupEventListeners() {
+                container.addEventListener('mousedown', (e) => { startSelectionDrag(e); startPan(e); });
+                container.addEventListener('mousemove', (e) => { updateSelectionDrag(e); pan(e); });
+                container.addEventListener('mouseup', (e) => { finishSelectionDrag(e); endPan(); });
+                container.addEventListener('mouseleave', (e) => { finishSelectionDrag(e); endPan(); });
+                container.addEventListener('wheel', zoom, { passive: false });
+                newMapBtn.onclick = createNewMindmap;
+                deleteMapBtn.onclick = deleteCurrentMindmap;
+                importBtn.onclick = showImportModal;
+                exportBtn.onclick = showExportModal;
+                centerViewBtn.onclick = centerOnRootNode;
+                zoomInBtn.onclick = () => applyZoom(1.25);
+                zoomOutBtn.onclick = () => applyZoom(1 / 1.25);
+                undoBtn.onclick = undo;
+                redoBtn.onclick = redo;
+                mindmapSelect.onchange = (e) => loadMindmap(e.target.value);
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('resize', updateView);
+                document.addEventListener('click', hideContextMenu);
+                document.getElementById('edit-hints-btn').onclick = enterHintEditMode;
+                document.getElementById('hint-save-btn').onclick = saveAndExitHintEditMode;
+                document.getElementById('hint-cancel-btn').onclick = exitHintEditMode;
+                startLearningBtn.onclick = showLearningOptionsModal;
+                stopLearningBtn.onclick = stopLearningMode;
+                revealBtn.onclick = revealAnswer;
+                correctBtn.onclick = () => handleAnswer(true);
+                incorrectBtn.onclick = () => handleAnswer(false);
+                infoBtn.onclick = showInfoModal;
+                aiHelperBtn.onclick = showAiHelperModal;
+
+                // Hamburger menu
+                const hamburgerBtn = document.getElementById('hamburger-btn');
+                const hamburgerDropdown = document.getElementById('hamburger-dropdown');
+                hamburgerBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    hamburgerDropdown.classList.toggle('open');
+                });
+                // Close dropdown on outside click or on item click
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.hamburger-menu')) {
+                        hamburgerDropdown.classList.remove('open');
+                    }
+                });
+                hamburgerDropdown.querySelectorAll('.dropdown-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        hamburgerDropdown.classList.remove('open');
+                    });
+                });
+            }
+
+            let isHintEditMode = false;
+
+            function enterHintEditMode() {
+                if (isLearningMode || isSelectionMode) return;
+                isHintEditMode = true;
+                document.body.classList.add('hint-edit-mode');
+                document.getElementById('hint-edit-panel').classList.add('visible');
+                nodes.forEach(node => {
+                    const inp = document.querySelector(`#node-${node.id} .node-hint-input`);
+                    if (inp) {
+                        inp.value = node.hint || '';
+                        inp.style.height = 'auto';
+                        inp.style.height = (inp.scrollHeight || 28) + 'px';
+                    }
+                });
+            }
+
+            function saveAndExitHintEditMode() {
+                pushState();
+                nodes.forEach(node => {
+                    const inp = document.querySelector(`#node-${node.id} .node-hint-input`);
+                    if (inp) node.hint = inp.value.trim();
+                    updateHintIndicator(node.id);
+                });
+                saveCurrentMindmap();
+                exitHintEditMode();
+            }
+
+            function exitHintEditMode() {
+                isHintEditMode = false;
+                document.body.classList.remove('hint-edit-mode');
+                document.getElementById('hint-edit-panel').classList.remove('visible');
+            }
+
+            function updateHintIndicator(nodeId) {
+                const nodeEl = document.getElementById(`node-${nodeId}`);
+                if (!nodeEl) return;
+                const existing = nodeEl.querySelector('.node-hint-dot');
+                const node = nodes.find(n => n.id === nodeId);
+                if (node && node.hint) {
+                    if (!existing) {
+                        const dot = document.createElement('div');
+                        dot.className = 'node-hint-dot';
+                        nodeEl.appendChild(dot);
+                    }
+                } else {
+                    existing?.remove();
+                }
+            }
+
+            function showContextMenu(e, nodeId) {
+                if (isLearningMode) return; e.preventDefault(); e.stopPropagation(); contextNodeId = nodeId;
+                contextMenu.innerHTML = `<div class="context-menu-section"><div class="context-menu-title">Color</div><div class="context-menu-colors"><div class="color-swatch" data-color="#0071D3" style="background-color: #0071D3;"></div><div class="color-swatch" data-color="#28a745" style="background-color: #28a745;"></div><div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;"></div><div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;"></div><div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;"></div></div></div><div class="context-menu-section"><div class="context-menu-title">Size</div><div class="context-menu-item" data-size="small">Small</div><div class="context-menu-item" data-size="medium">Medium</div><div class="context-menu-item" data-size="large">Large</div></div>`;
+                contextMenu.style.display = 'block'; 
+                const rect = container.getBoundingClientRect(); 
+                let left = e.clientX - rect.left; let top = e.clientY - rect.top; 
+                contextMenu.style.left = `${left}px`; contextMenu.style.top = `${top}px`; 
+            }
+            function hideContextMenu() { if (contextMenu.style.display === 'block') { contextMenu.style.display = 'none'; contextNodeId = null; } }
+            
+            contextMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const node = nodes.find(n => n.id === contextNodeId);
+                const nodeEl = document.getElementById(`node-${contextNodeId}`);
+                if (!node || !nodeEl) return;
+                if (e.target.dataset.color || e.target.dataset.size) pushState();
+                if (e.target.dataset.color) { node.color = e.target.dataset.color; nodeEl.style.borderColor = node.color; saveCurrentMindmap(); }
+                if (e.target.dataset.size) { node.size = e.target.dataset.size; nodeEl.classList.remove('small', 'medium', 'large'); nodeEl.classList.add(node.size); nodeEl.querySelector('textarea')?.dispatchEvent(new Event('input')); saveCurrentMindmap(); }
+                hideContextMenu();
+            });
+
+            function startPan(e) { if (isLearningMode || isSelectionMode || e.target.closest('.node') || e.button !== 0) return; hideContextMenu(); isPanning = true; panStart.x = e.clientX - view.x; panStart.y = e.clientY - view.y; container.style.cursor = 'grabbing'; }
+            function pan(e) { if (isPanning && !isLearningMode) { e.preventDefault(); view.x = e.clientX - panStart.x; view.y = e.clientY - panStart.y; updateView(); } }
+            function endPan() { isPanning = false; if (!isLearningMode) container.style.cursor = 'grab'; }
+            function applyZoom(zoomFactor, zoomCenterX, zoomCenterY) { const rect = container.getBoundingClientRect(); const centerX = typeof zoomCenterX === 'undefined' ? rect.width / 2 : zoomCenterX; const centerY = typeof zoomCenterY === 'undefined' ? rect.height / 2 : zoomCenterY; const newScale = view.scale * zoomFactor; if (newScale < 0.2 || newScale > 3) return; const worldX = (centerX - view.x) / view.scale; const worldY = (centerY - view.y) / view.scale; view.x = centerX - worldX * newScale; view.y = centerY - worldY * newScale; view.scale = newScale; updateView(); }
+            function zoom(e) { e.preventDefault(); const zoomFactor = 1 - (e.deltaY * 0.0005); const rect = container.getBoundingClientRect(); applyZoom(zoomFactor, e.clientX - rect.left, e.clientY - rect.top); }
+            
+            async function deleteCurrentMindmap() { 
+                if (!activeMindmapId) return; 
+                const confirmed = confirm("Delete this map?"); 
+                if (confirmed) { 
+                    const mindmaps = getMindmaps(); delete mindmaps[activeMindmapId]; saveMindmaps(mindmaps); 
+                    viewport.innerHTML = ''; nodes = []; drawLines(); 
+                    if (Object.keys(mindmaps).length > 0) { loadMindmapList(); loadMindmap(Object.keys(mindmaps)[0]); } else createNewMindmap(); 
+                } 
+            }
+            function loadMindmap(id) { 
+                activeMindmapId = id; mindmapSelect.value = id; localStorage.setItem('lastOpenedMindmap', id); 
+                nodes = getMindmaps()[id].nodes; 
+                historyStack = []; redoStack = [];
+                viewport.innerHTML = ''; nodes.forEach(createNodeElement); 
+                updateView(); 
+                setTimeout(() => { const rootNode = nodes.find(n => n.parent === null); if(rootNode) centerOnNode(rootNode.id, true);}, 50); 
+            }
+            function updateNodeDimensions(node) { const nodeEl = document.getElementById(`node-${node.id}`); if (nodeEl) { node.width = nodeEl.offsetWidth; node.height = nodeEl.offsetHeight; } }
+            
+            function createNodeElement(node) { 
+                const nodeEl = document.createElement('div'); nodeEl.id = `node-${node.id}`; nodeEl.className = 'node'; nodeEl.classList.add(node.size || 'medium'); 
+                nodeEl.style.left = `${node.x}px`; nodeEl.style.top = `${node.y}px`; nodeEl.style.borderColor = node.color || 'var(--primary-color)'; 
+                if (node.parent === null) nodeEl.classList.add('root'); 
+                nodeEl.addEventListener('contextmenu', (e) => showContextMenu(e, node.id)); 
+                const textArea = document.createElement('textarea'); textArea.className = 'node-textarea'; textArea.value = node.text; textArea.rows = 1; 
+                textArea.addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; updateNodeDimensions(node); drawLines(); }); 
+                textArea.addEventListener('change', () => { pushState(); node.text = textArea.value; saveCurrentMindmap(); }); 
+                nodeEl.appendChild(textArea); 
+                const dragHandle = document.createElement('div'); dragHandle.className = 'drag-handle'; 
+                dragHandle.addEventListener('mousedown', (e) => startNodeCreation(e, node.id)); 
+                nodeEl.appendChild(dragHandle); 
+                const controls = document.createElement('div'); controls.className = 'node-controls'; 
+                if (node.parent !== null) { 
+                    const deleteBtn = document.createElement('button'); deleteBtn.className = 'control-btn delete'; deleteBtn.innerHTML = '−'; 
+                    deleteBtn.onclick = (e) => { e.stopPropagation(); deleteNode(node.id); }; 
+                    controls.appendChild(deleteBtn); 
+                } 
+                nodeEl.appendChild(controls);
+                if (node.hint) { const dot = document.createElement('div'); dot.className = 'node-hint-dot'; nodeEl.appendChild(dot); }
+                const hintInput = document.createElement('textarea');
+                hintInput.className = 'node-hint-input';
+                hintInput.placeholder = 'Hint…';
+                hintInput.value = node.hint || '';
+                hintInput.rows = 1;
+                hintInput.addEventListener('mousedown', e => e.stopPropagation());
+                hintInput.addEventListener('input', () => { hintInput.style.height = 'auto'; hintInput.style.height = hintInput.scrollHeight + 'px'; });
+                nodeEl.appendChild(hintInput);
+                viewport.appendChild(nodeEl);
+                setTimeout(() => { textArea.dispatchEvent(new Event('input')); updateNodeDimensions(node); drawLines(); }, 0); 
+                makeDraggable(nodeEl, node); 
+            }
+            
+            function makeDraggable(el, node) { 
+                el.onmousedown = (e) => {
+                    if (isHintEditMode) return;
+                    if (isSelectionMode) { e.stopPropagation(); handleSelectionModeClick(node.id); return; }
+                    if (isLearningMode || e.target.closest('.drag-handle, .control-btn, .node-textarea') || isPanning || e.button !== 0) return; 
+                    e.stopPropagation(); hideContextMenu(); 
+                    let startX = e.clientX, startY = e.clientY; 
+                    let hasMoved = false;
+                    el.style.cursor = 'grabbing'; selectNode(node.id); 
+                    function elementDrag(e) { 
+                        if(!hasMoved) { pushState(); hasMoved = true; }
+                        e.preventDefault(); 
+                        node.x += (e.clientX - startX) / view.scale; node.y += (e.clientY - startY) / view.scale; 
+                        startX = e.clientX; startY = e.clientY; 
+                        el.style.left = `${node.x}px`; el.style.top = `${node.y}px`; drawLines(); 
+                    } 
+                    function closeDragElement() { 
+                        document.removeEventListener('mousemove', elementDrag); 
+                        document.removeEventListener('mouseup', closeDragElement); 
+                        el.style.cursor = 'grab'; saveCurrentMindmap(); 
+                    } 
+                    document.addEventListener('mousemove', elementDrag); 
+                    document.addEventListener('mouseup', closeDragElement); 
+                }; 
+            }
+            
+            function handleKeyDown(e) { 
+                if (modal.overlay.classList.contains('visible') || isLearningMode) return; 
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+                if (!selectedNodeId) return;
+                if (e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); deleteNode(selectedNodeId); } 
+            }
+            
+            function addNode(parentId, position) { 
+                pushState();
+                const parentNode = nodes.find(n => n.id === parentId); if (!parentNode) return; 
+                const newId = (nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) : 0) + 1; 
+                const newNode = { id: newId, text: 'New Node', x: position.x - 68, y: position.y - 21, parent: parentId, color: parentNode.color, size: 'medium' }; 
+                nodes.push(newNode); createNodeElement(newNode); saveCurrentMindmap(); selectNode(newId); 
+                setTimeout(() => document.querySelector(`#node-${newId} textarea`)?.focus(), 0); 
+            }
+            async function deleteNode(nodeId) { 
+                const nodeToDelete = nodes.find(n => n.id === nodeId); if (!nodeToDelete || nodeToDelete.parent === null) return; 
+                if (confirm("Delete node?")) { 
+                    pushState();
+                    function recursiveDelete(id) { 
+                        nodes.filter(n => n.parent === id).forEach(child => recursiveDelete(child.id)); 
+                        document.getElementById(`node-${id}`)?.remove(); nodes = nodes.filter(n => n.id !== id); 
+                    } 
+                    recursiveDelete(nodeId); saveCurrentMindmap(); drawLines(); 
+                } 
+            }
+            function getMouseWorldPosition(e) { const rect = container.getBoundingClientRect(); return { x: (e.clientX - rect.left - view.x) / view.scale, y: (e.clientY - rect.top - view.y) / view.scale }; }
+            function startNodeCreation(e, nodeId) { if (isLearningMode) return; e.stopPropagation(); isCreatingNode = true; creationStartNodeId = nodeId; creationLineEnd = getMouseWorldPosition(e); document.addEventListener('mousemove', handleNodeCreationDrag); document.addEventListener('mouseup', finishNodeCreation); drawLines(); }
+            function handleNodeCreationDrag(e) { if (!isCreatingNode) return; e.preventDefault(); creationLineEnd = getMouseWorldPosition(e); drawLines(); }
+            function finishNodeCreation(e) { if (!isCreatingNode) return; addNode(creationStartNodeId, getMouseWorldPosition(e)); isCreatingNode = false; creationStartNodeId = null; document.removeEventListener('mousemove', handleNodeCreationDrag); document.removeEventListener('mouseup', finishNodeCreation); drawLines(); }
+            function selectNode(id) { if (selectedNodeId) document.getElementById(`node-${selectedNodeId}`)?.classList.remove('selected'); selectedNodeId = id; document.getElementById(`node-${selectedNodeId}`)?.classList.add('selected'); }
+            function updateView() {
+                viewport.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+                // Grid dots: scale, pan, and fade with zoom level
+                const gridSize = 20 * view.scale;
+                container.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+                container.style.backgroundPosition = `${view.x % gridSize}px ${view.y % gridSize}px`;
+                const dotOpacity = Math.min(1, Math.max(0, (view.scale - 0.2) / 0.5));
+                const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const dotColor = isDark
+                    ? `rgba(48, 48, 48, ${dotOpacity})`
+                    : `rgba(215, 215, 215, ${dotOpacity})`;
+                container.style.backgroundImage = `radial-gradient(${dotColor} 1px, transparent 0)`;
+                drawLines();
+            }
+            
+            function drawLines() { 
+                const rect = container.getBoundingClientRect(); canvas.width = rect.width; canvas.height = rect.height; ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                const style = getComputedStyle(document.body); const lineColor = style.getPropertyValue('--line-color').trim(); const primaryColor = style.getPropertyValue('--primary-color').trim();
+                ctx.save(); ctx.translate(view.x, view.y); ctx.scale(view.scale, view.scale); ctx.strokeStyle = lineColor; ctx.lineWidth = 2 / view.scale; 
+                nodes.forEach(node => { if (node.parent !== null) { const parent = nodes.find(p => p.id === node.parent); if (parent && node.width && parent.width) { ctx.beginPath(); ctx.moveTo(parent.x + parent.width / 2, parent.y + parent.height / 2); ctx.lineTo(node.x + node.width / 2, node.y + node.height / 2); ctx.stroke(); } } }); 
+                if (isCreatingNode) { const startNode = nodes.find(n => n.id === creationStartNodeId); if (startNode && startNode.width) { ctx.strokeStyle = primaryColor; ctx.setLineDash([6 / view.scale, 4 / view.scale]); ctx.beginPath(); ctx.moveTo(startNode.x + startNode.width / 2, startNode.y + startNode.height / 2); ctx.lineTo(creationLineEnd.x, creationLineEnd.y); ctx.stroke(); } } 
+                ctx.restore(); 
+            }
+
+            // ---- Learning Options Modal ----
+            function showLearningOptionsModal() {
+                if (nodes.length < 2) return;
+                document.querySelectorAll('#scope-options .learn-option-btn').forEach(b => b.classList.toggle('active', b.dataset.value === learnOptions.scope));
+                document.querySelectorAll('#order-options .learn-option-btn').forEach(b => b.classList.toggle('active', b.dataset.value === learnOptions.order));
+                document.querySelectorAll('#penalty-options .learn-option-btn').forEach(b => b.classList.toggle('active', b.dataset.value === learnOptions.penalty));
+                document.getElementById('learning-options-overlay').classList.add('visible');
+            }
+            function hideLearningOptionsModal() {
+                document.getElementById('learning-options-overlay').classList.remove('visible');
+            }
+            function setupLearningOptionButtons() {
+                ['scope-options', 'order-options', 'penalty-options'].forEach(groupId => {
+                    document.getElementById(groupId).querySelectorAll('.learn-option-btn').forEach(btn => {
+                        btn.onclick = () => {
+                            btn.closest('.learn-option-row').querySelectorAll('.learn-option-btn').forEach(b => b.classList.remove('active'));
+                            btn.classList.add('active');
+                            const key = groupId.replace('-options', '');
+                            learnOptions[key] = btn.dataset.value;
+                        };
+                    });
+                });
+                document.getElementById('learn-options-cancel-btn').onclick = hideLearningOptionsModal;
+                document.getElementById('learn-options-start-btn').onclick = () => {
+                    hideLearningOptionsModal();
+                    if (learnOptions.scope === 'select') {
+                        enterNodeSelectionMode();
+                    } else {
+                        _doStartLearning(null);
+                    }
+                };
+                document.getElementById('selection-start-btn').onclick = () => {
+                    const selected = [...selectedForLearning]; // capture before clear
+                    exitNodeSelectionMode();
+                    _doStartLearning(selected);
+                };
+                document.getElementById('selection-cancel-btn').onclick = exitNodeSelectionMode;
+            }
+
+            // ---- Node Selection Mode ----
+            let selDragStart = null;
+            let isDragSelecting = false;
+
+            function enterNodeSelectionMode() {
+                isSelectionMode = true;
+                selectedForLearning.clear();
+                document.body.classList.add('selection-mode');
+                document.getElementById('selection-panel').classList.add('visible');
+                updateSelectionCount();
+            }
+            function exitNodeSelectionMode() {
+                isSelectionMode = false;
+                isDragSelecting = false;
+                document.getElementById('selection-rect').style.display = 'none';
+                document.body.classList.remove('selection-mode');
+                document.getElementById('selection-panel').classList.remove('visible');
+                document.querySelectorAll('.node.selected-for-learning').forEach(el => el.classList.remove('selected-for-learning'));
+                selectedForLearning.clear();
+            }
+
+            function startSelectionDrag(e) {
+                if (!isSelectionMode || e.target.closest('.node') || e.button !== 0) return;
+                e.stopPropagation();
+                const rect = container.getBoundingClientRect();
+                selDragStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                isDragSelecting = true;
+                const selRect = document.getElementById('selection-rect');
+                selRect.style.left = selDragStart.x + 'px';
+                selRect.style.top = selDragStart.y + 'px';
+                selRect.style.width = '0px';
+                selRect.style.height = '0px';
+                selRect.style.display = 'block';
+            }
+            function updateSelectionDrag(e) {
+                if (!isDragSelecting) return;
+                const rect = container.getBoundingClientRect();
+                const cur = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                const x = Math.min(selDragStart.x, cur.x);
+                const y = Math.min(selDragStart.y, cur.y);
+                const selRect = document.getElementById('selection-rect');
+                selRect.style.left = x + 'px';
+                selRect.style.top = y + 'px';
+                selRect.style.width = Math.abs(cur.x - selDragStart.x) + 'px';
+                selRect.style.height = Math.abs(cur.y - selDragStart.y) + 'px';
+            }
+            function finishSelectionDrag(e) {
+                if (!isDragSelecting) return;
+                isDragSelecting = false;
+                const selRect = document.getElementById('selection-rect');
+                selRect.style.display = 'none';
+                const rect = container.getBoundingClientRect();
+                const cur = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                if (Math.abs(cur.x - selDragStart.x) < 5 && Math.abs(cur.y - selDragStart.y) < 5) return;
+                // Convert screen rect to world coords
+                const x1 = (Math.min(selDragStart.x, cur.x) - view.x) / view.scale;
+                const y1 = (Math.min(selDragStart.y, cur.y) - view.y) / view.scale;
+                const x2 = (Math.max(selDragStart.x, cur.x) - view.x) / view.scale;
+                const y2 = (Math.max(selDragStart.y, cur.y) - view.y) / view.scale;
+                nodes.forEach(node => {
+                    const nw = node.width || 100;
+                    const nh = node.height || 40;
+                    if (node.x < x2 && node.x + nw > x1 && node.y < y2 && node.y + nh > y1) {
+                        selectedForLearning.add(node.id);
+                        document.getElementById(`node-${node.id}`)?.classList.add('selected-for-learning');
+                    }
+                });
+                updateSelectionCount();
+                selDragStart = null;
+            }
+            function updateSelectionCount() {
+                document.getElementById('selection-count').textContent = `${selectedForLearning.size} selected`;
+                document.getElementById('selection-start-btn').disabled = selectedForLearning.size === 0;
+            }
+            function handleSelectionModeClick(nodeId) {
+                if (selectedForLearning.has(nodeId)) {
+                    selectedForLearning.delete(nodeId);
+                    document.getElementById(`node-${nodeId}`)?.classList.remove('selected-for-learning');
+                } else {
+                    selectedForLearning.add(nodeId);
+                    document.getElementById(`node-${nodeId}`)?.classList.add('selected-for-learning');
+                }
+                updateSelectionCount();
+            }
+
+            // ---- Build flat DFS list ----
+            function buildDFSList(filterIds) {
+                const result = [];
+                const rootNode = nodes.find(n => n.parent === null);
+                if (!rootNode) return result;
+                function dfs(nodeId) {
+                    if (filterIds === null || filterIds.includes(nodeId)) result.push(nodeId);
+                    nodes.filter(n => n.parent === nodeId).forEach(child => dfs(child.id));
+                }
+                dfs(rootNode.id);
+                // Remove the root itself — it's always shown as context, never tested
+                const idx = result.indexOf(rootNode.id);
+                if (idx !== -1) result.splice(idx, 1);
+                return result;
+            }
+
+            // ---- Start Learning ----
+            function _doStartLearning(nodeIdList) {
+                // Use DFS ordering to preserve tree structure; filter to selection if provided
+                let queue = buildDFSList(nodeIdList);
+                if (learnOptions.order === 'random') {
+                    for (let i = queue.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [queue[i], queue[j]] = [queue[j], queue[i]];
+                    }
+                }
+                if (queue.length === 0) return;
+                learningQueue = queue;
+                wrongQueue = [];
+                currentLearningNode = null;
+                isLearningMode = true;
+                document.body.classList.add('learning-mode');
+                learningUI.style.display = 'flex';
+                document.querySelectorAll('.node .node-textarea').forEach(ta => ta.classList.add('node-text-hidden'));
+                presentQuestion();
+            }
+
+            // ---- Present question ----
+            function presentQuestion() {
+                document.querySelectorAll('.node').forEach(el => el.classList.remove('learning-current', 'learning-target'));
+                if (learningQueue.length === 0 && wrongQueue.length > 0) {
+                    learningQueue = [...wrongQueue];
+                    wrongQueue = [];
+                    if (learnOptions.order === 'random') {
+                        for (let i = learningQueue.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [learningQueue[i], learningQueue[j]] = [learningQueue[j], learningQueue[i]];
+                        }
+                    }
+                    learningPrompt.textContent = '📋 Reviewing missed cards…';
+                    setTimeout(presentQuestion, 1100);
+                    return;
+                }
+                if (learningQueue.length === 0) {
+                    learningPrompt.textContent = '🎉 Done! Great work!';
+                    setTimeout(stopLearningMode, 2500);
+                    return;
+                }
+                const nodeId = learningQueue[0];
+                currentLearningNode = nodes.find(n => n.id === nodeId);
+                if (!currentLearningNode) { learningQueue.shift(); presentQuestion(); return; }
+                document.querySelectorAll('.node .node-textarea').forEach(ta => ta.classList.add('node-text-hidden'));
+                const parentNode = nodes.find(n => n.id === currentLearningNode.parent);
+                if (parentNode) {
+                    const parentEl = document.getElementById(`node-${parentNode.id}`);
+                    if (parentEl) { parentEl.classList.add('learning-current'); parentEl.querySelector('.node-textarea')?.classList.remove('node-text-hidden'); }
+                }
+                const targetEl = document.getElementById(`node-${nodeId}`);
+                if (targetEl) { targetEl.classList.add('learning-target'); targetEl.querySelector('.node-textarea')?.classList.add('node-text-hidden'); centerOnNode(nodeId); }
+                const remaining = learningQueue.length + wrongQueue.length;
+                learningPrompt.textContent = `Recall the highlighted node  ·  ${remaining} remaining`;
+                const hintEl = document.getElementById('learning-hint');
+                if (currentLearningNode.hint) {
+                    hintEl.textContent = '💡 ' + currentLearningNode.hint;
+                    hintEl.style.opacity = '1';
+                } else {
+                    hintEl.textContent = '';
+                    hintEl.style.opacity = '0';
+                }
+                stageGuess.style.display = 'block';
+                stageEvaluate.style.display = 'none';
+            }
+
+            function revealAnswer() {
+                if (!currentLearningNode) return;
+                document.getElementById(`node-${currentLearningNode.id}`)?.querySelector('.node-textarea')?.classList.remove('node-text-hidden');
+                centerOnNode(currentLearningNode.id);
+                learningPrompt.textContent = 'Did you recall it correctly?';
+                const hintEl = document.getElementById('learning-hint');
+                hintEl.textContent = '';
+                hintEl.style.opacity = '0';
+                stageGuess.style.display = 'none';
+                stageEvaluate.style.display = 'flex';
+            }
+            function handleAnswer(wasCorrect) {
+                if (!currentLearningNode) return;
+                const nodeId = learningQueue.shift();
+                if (!wasCorrect) {
+                    if (learnOptions.penalty === 'soon') {
+                        learningQueue.splice(Math.min(3, learningQueue.length), 0, nodeId);
+                    } else if (learnOptions.penalty === 'later') {
+                        wrongQueue.push(nodeId);
+                    }
+                    // 'none' → just skip
+                }
+                presentQuestion();
+            }
+            function stopLearningMode() {
+                isLearningMode = false; learningQueue = []; wrongQueue = []; currentLearningNode = null;
+                document.body.classList.remove('learning-mode');
+                learningUI.style.display = 'none';
+                document.querySelectorAll('.node').forEach(el => {
+                    el.classList.remove('learning-current', 'learning-target');
+                    el.querySelector('.node-textarea')?.classList.remove('node-text-hidden');
+                });
+                centerOnRootNode();
+            }
+
+            init();
+        });
+    </script>
+
+    <script>
+        /* ── Fullscreen toggle ─────────────────────────────────────────── */
+        window.__mindmapFs = false;
+
+        var _FS_SVG_EXPAND = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>';
+        var _FS_SVG_COLLAPSE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="10" y1="14" x2="3" y2="21"></line><line x1="21" y1="3" x2="14" y2="10"></line></svg>';
+
+        function __synapseFsToggle() {
+            window.location.href = window.__mindmapFs ? 'mindmap://exitfullscreen' : 'mindmap://fullscreen';
+        }
+
+        function __synapseSetFullscreen(active, t) {
+            window.__mindmapFs = !!active;
+            var btn = document.getElementById('fullscreen-btn');
+            if (!btn) return;
+            btn.innerHTML = active ? _FS_SVG_COLLAPSE : _FS_SVG_EXPAND;
+            btn.title = active ? (t && t.fullscreen_exit || 'Exit Fullscreen') : (t && t.fullscreen_enter || 'Fullscreen');
+            btn.setAttribute('data-i18n-title', active ? 'fullscreen_exit' : 'fullscreen_enter');
+        }
+
+        /* ── i18n ──────────────────────────────────────────────────────── */
+        window.__SYNAPSE_MM_I18N__ = null;
+
+        function applyMindmapI18n() {
+            var t = window.__SYNAPSE_MM_I18N__;
+            if (!t) return;
+            document.querySelectorAll('[data-i18n]').forEach(function(el) {
+                var key = el.getAttribute('data-i18n');
+                if (t[key] !== undefined) el.textContent = t[key];
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+                var key = el.getAttribute('data-i18n-title');
+                if (t[key] !== undefined) el.title = t[key];
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+                var key = el.getAttribute('data-i18n-placeholder');
+                if (t[key] !== undefined) el.placeholder = t[key];
+            });
+        }
+    </script>
+</body>
+</html>

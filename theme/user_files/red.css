@@ -1,0 +1,117 @@
+/* --- START OF FILE theme/user_files/medical_theme.css --- */
+/* Medical Theme Anki - v35 (Standard + Custom Dashboard Support) */
+
+/* === Farbvariablen === */
+:root {
+    --primary-cyan: #08a1c6;
+    --primary-cyan-dark: #0680a0;
+    --secondary-teal: #7bcac5;
+    --secondary-teal-dark: #63a3a0;
+    --button-specific-blue: #0071D3; /* Nur noch für Zähler relevant */
+    --counter-new-color: var(--button-specific-blue);
+    --counter-review-color: #46a80b;
+    --medical-text-dark: #2d3748;
+    --medical-text-light: #ffffff;
+    --medical-bg-paper: #ffffff;
+    --medical-bg-accent: #eef3f7;
+    --medical-border-color: #d1dce5;
+    --border-radius: 6px;
+    --deck-border-radius: 12px;
+    --box-shadow-light: 0 2px 5px rgba(0, 113, 211, 0.1);
+    --box-shadow-hover: 0 4px 8px rgba(0, 113, 211, 0.15);
+}
+
+/* === Nachtmodus Farbvariablen === */
+body.nightMode {
+    --primary-cyan: #10b9e6;
+    --primary-cyan-dark: #0ca8d1;
+    --secondary-teal: #88d4d0;
+    --secondary-teal-dark: #7bcac5;
+    --button-specific-blue: #0071D3;
+    --medical-text-dark: #c9d1d9;
+    --medical-text-light: #ffffff;
+    --medical-bg-paper: #303030;
+    --medical-bg-subtle: #22272e;
+    --medical-bg-accent: #2a313a;
+    --medical-border-color: #444c56;
+    --box-shadow-light: 0 2px 5px rgba(0, 0, 0, 0.2);
+    --box-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* === Globale Stile === */
+body {
+    color: var(--medical-text-dark);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/* === Hintergrundgradienten === */
+/* Hier wurde 'body:has(#custom-dashboard)' hinzugefügt, damit dein Deck Overview den Gradienten bekommt */
+body.deckbrowser,
+body.overview,
+body.review,
+body:has(#custom-dashboard) {
+    background: linear-gradient(0deg, hsla(0, 0%, 96%, 1) 0%, hsla(359, 21%, 84%, 1) 50%, hsla(0, 0%, 96%, 1) 100%) !important;
+    background-attachment: fixed !important;
+}
+
+body.nightMode.deckbrowser,
+body.nightMode.overview,
+body.nightMode.review,
+body.nightMode:has(#custom-dashboard) {
+    background: linear-gradient(0deg, hsla(0, 0%, 17%, 1) 0%, hsla(359, 17%, 25%, 1) 50%, hsla(0, 0%, 17%, 1) 100%) !important;
+    background-attachment: fixed !important;
+}
+
+/* === Deck Browser - Container === */
+.deckbrowser .decks-container,
+.deckbrowser > center > table {
+    background: var(--medical-bg-paper) !important;
+    border-radius: var(--deck-border-radius) !important;
+    box-shadow: none !important; border: 1px solid var(--medical-border-color) !important;
+    overflow: hidden; box-sizing: border-box; position: relative; z-index: 1; margin-top: 15px; margin-bottom: 15px;
+    min-width: 860px !important; max-width: 860px !important; width: 860px !important; margin-left: auto !important; margin-right: auto !important;
+}
+body.nightMode .deckbrowser .decks-container,
+body.nightMode .deckbrowser > center > table {
+    background: var(--medical-bg-paper) !important;
+    border-radius: var(--deck-border-radius) !important;
+    box-shadow: none !important; border: 1px solid var(--medical-border-color) !important;
+    overflow: hidden; box-sizing: border-box; position: relative; z-index: 1; margin-top: 15px; margin-bottom: 15px; min-width: 860px !important; max-width: 860px !important; width: 860px !important; margin-left: auto !important; margin-right: auto !important;
+}
+
+/* === Deck Browser Zählerfarben === */
+.deckbrowser td.count-fg.new-count, .deckbrowser span.new-count { color: var(--counter-new-color) !important; }
+.deckbrowser td.count-fg.review-count, .deckbrowser span.review-count { color: var(--counter-review-color) !important; }
+
+/* === Deck Browser - Kompakte Zähler-Spalten === */
+.deckbrowser td.count-fg,
+.deckbrowser th.count-label {
+    width: 65px !important;
+    min-width: 65px !important;
+    max-width: 65px !important;
+    text-align: right !important;
+    padding-left: 0 !important;
+}
+
+/* === Deck Overview === */
+.overview .deck-desc {
+    background-color: var(--medical-bg-paper) !important;
+    padding: 20px; border-radius: var(--border-radius);
+    border: 1px solid var(--medical-border-color); margin-top: 20px; box-shadow: var(--box-shadow-light); line-height: 1.6;
+    position: relative; z-index: 1;
+}
+body.nightMode .overview .deck-desc {
+    background-color: var(--medical-bg-subtle) !important;
+}
+.overview h1 {
+    color: var(--button-specific-blue); font-weight: 600; margin-bottom: 15px;
+    position: relative; z-index: 1;
+}
+
+/* === BOTTOM BAR CONTAINER === */
+#outer {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 12px 0 !important;
+}

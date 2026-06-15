@@ -1,0 +1,23 @@
+# Credentials - never commit these
+_secrets.py
+
+# Chromium/Qt browser profiles generated at runtime
+ai_v2_profile/
+website_web_profile/
+
+# Runtime data files (generated per user, not part of the addon)
+addon_settings.json
+study_plan_config.json
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE folders
+.idea/
+.vscode/
