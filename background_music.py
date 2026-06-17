@@ -47,6 +47,22 @@ except ImportError:
     _has_multimedia = False
     QDialog = object
 
+# --- QtWebEngine (for streaming services: SoundCloud / YouTube Music) ---
+_has_webengine = False
+try:
+    if constants.qt_version == 6:
+        from PyQt6.QtWebEngineWidgets import QWebEngineView
+        from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage
+        _has_webengine = True
+    elif constants.qt_version == 5:
+        from PyQt5.QtWebEngineWidgets import (
+            QWebEngineView, QWebEngineProfile, QWebEnginePage,
+        )
+        _has_webengine = True
+except ImportError:
+    _has_webengine = False
+    QWebEngineView = QWebEngineProfile = QWebEnginePage = object  # type: ignore
+
 # --- Anki Imports ---
 try:
     from aqt import mw
@@ -128,6 +144,14 @@ def _build_music_style(night: bool) -> str:
         background-color: {c['grey_light']};
     }}
     QPushButton#BtnDelTrack:disabled {{ color: {c['grey_mid']}; background-color: {c['surface']}; border-color: {c['grey_light']}; }}
+    QFrame#StreamDivider {{ background-color: {c['grey_light']}; border: none; max-height: 1px; min-height: 1px; }}
+    QLabel#StreamLabel {{ color: {c['grey_mid']}; font-size: 10px; font-weight: 700; }}
+    QPushButton#BtnStream {{
+        background-color: {c['surface']}; border: 1px solid {c['grey_mid']}; border-radius: 8px;
+        padding: 7px 8px; min-height: 16px; font-size: 12px; font-weight: 600; color: {c['text']};
+    }}
+    QPushButton#BtnStream:hover {{ background-color: {c['grey_light']}; border-color: {c['blue']}; }}
+    QPushButton#BtnStream:pressed {{ background-color: {c['grey_mid']}; }}
 """
 
 # Styles computed per-instance at widget creation time (not cached here).
@@ -254,7 +278,7 @@ class MiniMusicPlayer(QDialog):
         super().__init__(parent)
         self.setWindowTitle(_("Focus Music"))
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowCloseButtonHint)
-        self.setFixedSize(260, 375)
+        self.setFixedSize(260, 470 if _has_webengine else 375)
         
         self.player: Optional[QMediaPlayer] = None
         self.audio_output: Optional[QAudioOutput] = None
@@ -382,6 +406,32 @@ class MiniMusicPlayer(QDialog):
         self.slider_vol.valueChanged.connect(self.change_volume)
         vol_layout.addWidget(self.slider_vol)
         card_layout.addLayout(vol_layout)
+
+        # --- Streaming services (only when QtWebEngine is available) ---
+        if _has_webengine:
+            card_layout.addSpacing(4)
+            divider = QFrame()
+            divider.setObjectName("StreamDivider")
+            divider.setFrameShape(QFrame.Shape.HLine if constants.qt_version == 6 else QFrame.HLine)
+            card_layout.addWidget(divider)
+
+            stream_lbl = QLabel(_("STREAMING"))
+            stream_lbl.setObjectName("StreamLabel")
+            card_layout.addWidget(stream_lbl)
+
+            stream_row = QHBoxLayout()
+            stream_row.setSpacing(8)
+            self.btn_soundcloud = QPushButton(_("SoundCloud"))
+            self.btn_soundcloud.setObjectName("BtnStream")
+            self.btn_soundcloud.setCursor(cursor)
+            self.btn_soundcloud.clicked.connect(lambda: self._open_stream("soundcloud"))
+            self.btn_ytmusic = QPushButton(_("YT Music"))
+            self.btn_ytmusic.setObjectName("BtnStream")
+            self.btn_ytmusic.setCursor(cursor)
+            self.btn_ytmusic.clicked.connect(lambda: self._open_stream("ytmusic"))
+            stream_row.addWidget(self.btn_soundcloud)
+            stream_row.addWidget(self.btn_ytmusic)
+            card_layout.addLayout(stream_row)
 
         main_layout.addWidget(self.card)
         
@@ -582,6 +632,15 @@ class MiniMusicPlayer(QDialog):
         self.on_track_changed()
         if tooltip: tooltip(f'"{title}" removed.')
 
+    def _open_stream(self, service_id: str) -> None:
+        """Open a streaming service, pausing local playback to avoid overlap."""
+        try:
+            if self.player and self.is_playing():
+                self.player.pause()
+        except Exception:
+            pass
+        open_streaming_service(service_id)
+
     def refresh_theme(self) -> None:
         """Re-apply the current theme stylesheet (called after a colour-theme change)."""
         is_night = False
@@ -594,6 +653,112 @@ class MiniMusicPlayer(QDialog):
     def closeEvent(self, event):
         event.ignore()
         self.hide()
+
+# --- Streaming services (SoundCloud / YouTube Music) ---
+
+# id -> (display title, start URL, blocked main-frame hosts)
+# Blocking main YouTube keeps the YouTube Music player a focus tool, not a
+# doorway back into the YouTube rabbit hole.
+STREAMING_SERVICES = {
+    "soundcloud": ("SoundCloud", "https://soundcloud.com/discover", []),
+    "ytmusic":    ("YouTube Music", "https://music.youtube.com/",
+                   ["www.youtube.com", "m.youtube.com", "youtube.com", "youtu.be"]),
+}
+
+_web_music_windows: dict = {}      # service_id -> WebMusicWindow
+_music_web_profile: Optional["QWebEngineProfile"] = None
+
+
+class _MusicWebPage(QWebEnginePage):
+    """Web page that refuses to navigate the main frame to blocked hosts."""
+
+    def __init__(self, profile, parent=None, blocked_hosts=None):
+        super().__init__(profile, parent)
+        self._blocked = set(blocked_hosts or [])
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):  # noqa: N802
+        try:
+            host = url.host()
+        except Exception:
+            host = ""
+        if is_main_frame and host in self._blocked:
+            if tooltip:
+                tooltip(_("Stay focused — main YouTube is blocked here."))
+            return False
+        try:
+            return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+        except Exception:
+            return True
+
+
+def _get_music_web_profile() -> Optional["QWebEngineProfile"]:
+    """Return a persistent web profile so streaming-service logins survive
+    restarts (mirrors the website sidebar's profile handling)."""
+    global _music_web_profile
+    if _music_web_profile is not None:
+        return _music_web_profile
+    if not _has_webengine or mw is None:
+        return None
+    try:
+        profile_dir = os.path.join(constants.addon_path, "music_web_profile")
+        os.makedirs(profile_dir, exist_ok=True)
+        prof = QWebEngineProfile(f"profile_{constants.ADDON_NAME_LAUNCHER}_Music_v1", mw)
+        prof.setPersistentStoragePath(profile_dir)
+        prof.setPersistentCookiesPolicy(
+            QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies
+        )
+        prof.setHttpCacheType(QWebEngineProfile.HttpCacheType.DiskHttpCache)
+        _music_web_profile = prof
+    except Exception:
+        traceback.print_exc()
+        _music_web_profile = None
+    return _music_web_profile
+
+
+class WebMusicWindow(QDialog):
+    """A resizable window embedding a streaming-service web player."""
+
+    def __init__(self, title: str, url: str, blocked_hosts=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        flags = (Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint
+                 | Qt.WindowType.WindowMinMaxButtonsHint)
+        self.setWindowFlags(flags)
+        self.resize(480, 720)
+        self.setMinimumSize(360, 480)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.view = QWebEngineView(self)
+        prof = _get_music_web_profile()
+        if prof is not None:
+            self.view.setPage(_MusicWebPage(prof, self.view, blocked_hosts))
+        self.view.setUrl(QUrl(url))
+        layout.addWidget(self.view)
+
+    def closeEvent(self, event):
+        # Hide instead of close so playback continues in the background.
+        event.ignore()
+        self.hide()
+
+
+def open_streaming_service(service_id: str) -> None:
+    if not _has_webengine:
+        if tooltip:
+            tooltip(_("Streaming player unavailable (QtWebEngine missing)."))
+        return
+    info = STREAMING_SERVICES.get(service_id)
+    if not info:
+        return
+    title, url, blocked = info
+    win = _web_music_windows.get(service_id)
+    if win is None:
+        win = WebMusicWindow(title, url, blocked, mw if mw else None)
+        _web_music_windows[service_id] = win
+    win.show()
+    win.raise_()
+    win.activateWindow()
+
 
 # --- Global Control ---
 
@@ -626,3 +791,10 @@ def cleanup_music_player():
             _music_window.player.stop()
         _music_window.close()
         _music_window = None
+    for win in list(_web_music_windows.values()):
+        try:
+            win.hide()
+            win.deleteLater()
+        except Exception:
+            pass
+    _web_music_windows.clear()

@@ -4,6 +4,7 @@ _secrets.py
 # Chromium/Qt browser profiles generated at runtime
 ai_v2_profile/
 website_web_profile/
+music_web_profile/
 
 # Runtime data files (generated per user, not part of the addon)
 addon_settings.json
