@@ -949,7 +949,7 @@ function saveSettings() {
   console.log('AI Assistant: save_settings provider=' + data.provider + ' model=' + data.model);
   sendToPython('save_settings', data);
   var banner    = document.getElementById('setup-banner');
-  var configured = (data.provider === 'ollama') || !!data.apiKey;
+  var configured = (data.provider === 'ollama') || (data.provider === 'claude_cli') || !!data.apiKey;
   if (configured) {
     banner.style.display = 'none';
     delete banner.dataset.showOnActive;
