@@ -21,7 +21,7 @@ try:
         from PyQt6.QtWidgets import (QWidget, QDialog, QVBoxLayout, QHBoxLayout,
                                      QPushButton, QLabel, QSlider, QComboBox, QFrame,
                                      QLineEdit, QFileDialog)
-        from PyQt6.QtGui import QAction, QIcon, QPixmap, QPainter, QColor, QFont
+        from PyQt6.QtGui import QAction, QIcon, QPixmap, QPainter, QColor, QFont, QPen
         from PyQt6.QtCore import QUrl, Qt, QSize, QTimer
         from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
         _has_multimedia = True
@@ -31,7 +31,7 @@ try:
         from PyQt5.QtWidgets import (QWidget, QDialog, QVBoxLayout, QHBoxLayout,
                                      QPushButton, QLabel, QSlider, QComboBox, QFrame,
                                      QLineEdit, QFileDialog)
-        from PyQt5.QtGui import QAction, QIcon, QPixmap, QPainter, QColor, QFont
+        from PyQt5.QtGui import QAction, QIcon, QPixmap, QPainter, QColor, QFont, QPen
         from PyQt5.QtCore import QUrl, Qt, QSize, QTimer
         try:
             from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
@@ -203,6 +203,30 @@ _SERVICE_ART = {
     "soundcloud": ("#ff5500", "SoundCloud"),
     "ytmusic":    ("#ff0000", "YouTube\nMusic"),
 }
+
+def _make_dash_icon(color: str = "#9aa0a6", px: int = 20) -> "QIcon":
+    """A centred horizontal dash icon — a sane 'minimise to bar' glyph."""
+    if QPixmap is object:
+        return QIcon()
+    try:
+        transparent = Qt.GlobalColor.transparent if constants.qt_version == 6 else Qt.transparent
+        antialias = QPainter.RenderHint.Antialiasing if constants.qt_version == 6 else QPainter.Antialiasing
+        cap = Qt.PenCapStyle.RoundCap if constants.qt_version == 6 else Qt.RoundCap
+        pix = QPixmap(px, px)
+        pix.fill(transparent)
+        p = QPainter(pix)
+        p.setRenderHint(antialias)
+        pen = QPen(QColor(color))
+        pen.setWidth(2)
+        pen.setCapStyle(cap)
+        p.setPen(pen)
+        y = px // 2
+        p.drawLine(int(px * 0.28), y, int(px * 0.72), y)
+        p.end()
+        return QIcon(pix)
+    except Exception:
+        return QIcon()
+
 
 def _make_service_art(service_id: str, size) -> Optional["QPixmap"]:
     """Draw a branded album-art tile for a streaming service (no logo assets)."""
@@ -422,7 +446,7 @@ class MiniMusicPlayer(QDialog):
         self.btn_minimise = QPushButton()
         self.btn_minimise.setObjectName("BtnAddTrack")
         self.btn_minimise.setFixedSize(24, 24)
-        self.btn_minimise.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_TitleBarMinButton))
+        self.btn_minimise.setIcon(_make_dash_icon())
         self.btn_minimise.setToolTip(_("Minimise to a compact bar"))
         self.btn_minimise.setCursor(cursor)
         self.btn_minimise.clicked.connect(lambda: self._set_minimised(True))
@@ -877,6 +901,7 @@ class MiniMusicPlayer(QDialog):
             if self._active_stream is not None:
                 try:
                     self._active_stream.media_pause()
+                    self._active_stream.set_muted(True)
                 except Exception:
                     pass
             # Restore the current local track's artwork and state.
@@ -1143,6 +1168,16 @@ class WebMusicWindow(QDialog):
             "}catch(y){}})()" % json.dumps(sel)
         )
 
+    def set_muted(self, muted: bool) -> None:
+        # Guaranteed silence: page-level mute works no matter where the audio
+        # element lives (SoundCloud's resists a plain element.pause()).
+        try:
+            page = self.view.page()
+            if page:
+                page.setAudioMuted(bool(muted))
+        except Exception:
+            pass
+
     def query_now_playing(self, callback) -> None:
         self._run_js(_NOWPLAYING_JS, callback)
 
@@ -1161,11 +1196,12 @@ def open_streaming_service(service_id: str) -> Optional["WebMusicWindow"]:
     if not info:
         return None
     title, url, blocked = info
-    # Only one service playing at a time: pause & hide any other open window.
+    # Only one service audible at a time: pause + mute & hide any other window.
     for other_id, other in _web_music_windows.items():
         if other_id != service_id and other is not None:
             try:
                 other.media_pause()
+                other.set_muted(True)
                 other.hide()
             except Exception:
                 pass
@@ -1173,6 +1209,7 @@ def open_streaming_service(service_id: str) -> Optional["WebMusicWindow"]:
     if win is None:
         win = WebMusicWindow(service_id, title, url, blocked, mw if mw else None)
         _web_music_windows[service_id] = win
+    win.set_muted(False)
     win.show()
     win.raise_()
     win.activateWindow()
