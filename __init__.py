@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os, sys, json, traceback, shutil
+from functools import partial
 from typing import Optional, Union, Any, Dict
 
 # --- Import Sub-Modules ---
@@ -52,6 +53,7 @@ except ImportError: pass
 modules_loaded = False
 try:
     from . import mode
+    from . import launcher_widget
     from .launcher_widget import SidebarWidget
     from .pomodoro import init_pomodoro, cleanup_pomodoro
     from .website_sidebar import cleanup_website_sidebar
@@ -89,6 +91,7 @@ gamification_manager: Optional[GamificationManager] = None
 gamification_sidebar: Optional[GamificationSidebar] = None
 learning_plan_manager: Optional[LearningPlanManager] = None
 deadline_manager: Optional[DeadlineManager] = None
+_feature_shortcut_objs: list = []  # live QShortcut objects for sidebar-feature keybinds
 
 # --- Settings Handling ---
 def get_default_settings() -> Dict[str, Any]:
@@ -96,8 +99,10 @@ def get_default_settings() -> Dict[str, Any]:
         "onboarding_completed": False,
         "theme_enabled": True,
         "active_theme": "medical_theme.css",
-        "fact_theme": "Medical", 
+        "fact_theme": "Medical",
         "sidebar_visibility_mode": "always_show",
+        "sidebar_side": "left",          # Which edge the launcher icon strip is glued to: "left" | "right"
+        "feature_shortcuts": {},         # Optional keyboard shortcuts per sidebar feature, e.g. {"ai": "Ctrl+Shift+A"}
         "gamification_widgets_enabled": True, "daily_widgets_enabled": True, 
         "deadline_bar_enabled": True, "statistics_widget_enabled": True,
         "deck_overview_enabled": True,
@@ -125,24 +130,169 @@ def save_addon_settings():
             json.dump(addon_settings, f, indent=4)
     except Exception as e: print(f"SynapsePro1 ERROR: Save settings: {e}")
 
+# --- Feature panel docks (the side panels that open from the launcher) ---
+# Feature panels always open on the RIGHT region of the screen. The launcher
+# icon strip is glued to whichever edge the user picks ("sidebar_side"); when
+# the launcher is also on the right, it stays outermost and panels open to its
+# left (inner side).
+def _feature_panel_dock_names() -> list:
+    return [
+        getattr(constants, "AI_ASSISTANT_DOCK_OBJECT_NAME", ""),
+        getattr(constants, "WEBSITE_DOCK_OBJECT_NAME", ""),
+        getattr(constants, "NOTEBOOK_DOCK_OBJECT_NAME", ""),
+        getattr(constants, "MINDMAP_DOCK_OBJECT_NAME", ""),
+    ]
+
+def place_feature_dock(dock):
+    """Dock a feature panel on the RIGHT region of the screen.
+
+    Registered onto ``constants.place_feature_dock`` so the individual feature
+    modules (AI, website, notebook, mind-map) can position their docks
+    consistently without each needing to know the launcher side. When the
+    launcher is also on the right, the launcher stays glued to the outer edge
+    and the panel opens to its left (inner side).
+    """
+    if not mw or QDockWidget is object or Qt is None:
+        return
+    try:
+        side = addon_settings.get("sidebar_side", "left")
+        mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        # If the launcher strip is on the right too, keep it glued to the outer
+        # edge and let the feature open to its left (inner side).
+        if side == "right" and launcher_dock_widget is not None:
+            try:
+                mw.splitDockWidget(dock, launcher_dock_widget, Qt.Orientation.Horizontal)
+            except Exception:
+                pass
+        # Re-evaluate launcher visibility whenever this panel shows/hides, so a
+        # panel opened mid-review reveals the launcher (and closing re-hides it).
+        try:
+            dock.visibilityChanged.connect(lambda *_: update_launcher_review_visibility())
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"SynapsePro: place_feature_dock error: {e}")
+
+def _any_feature_panel_visible() -> bool:
+    if not mw or QDockWidget is object:
+        return False
+    try:
+        for name in _feature_panel_dock_names():
+            if not name:
+                continue
+            d = mw.findChild(QDockWidget, name)
+            if d is not None and d.isVisible():
+                return True
+        if gamification_sidebar is not None and gamification_sidebar.isVisible():
+            return True
+    except Exception:
+        pass
+    return False
+
+def update_launcher_review_visibility():
+    """While reviewing with 'Hide while Reviewing', show the launcher only if a
+    feature panel is open (so the other sidebar options stay reachable)."""
+    if not launcher_dock_widget or not mw:
+        return
+    try:
+        mode_v = addon_settings.get("sidebar_visibility_mode", "always_show")
+        if mode_v == "hide_review" and mw.state == "review":
+            launcher_dock_widget.setVisible(_any_feature_panel_visible())
+    except RuntimeError:
+        pass
+
 # --- State Change Notification (Show/Hide Sidebar) ---
 def on_state_change(new_state: str, old_state: str):
     global launcher_dock_widget
-    if not launcher_dock_widget: 
+    if not launcher_dock_widget:
         return
-    
+
     try:
         mode = addon_settings.get("sidebar_visibility_mode", "always_show")
-        
+
         if mode == "hide_review":
             if new_state == "review":
-                launcher_dock_widget.setVisible(False)
+                # Keep the launcher visible if a feature panel is already open,
+                # so its other options remain reachable mid-review.
+                launcher_dock_widget.setVisible(_any_feature_panel_visible())
             else:
                 launcher_dock_widget.setVisible(True)
-                
-        
+
+
     except RuntimeError:
         pass
+
+# --- Sidebar-feature keyboard shortcuts ---
+def _run_feature_shortcut(feature_key: str):
+    """Trigger the same action as clicking a launcher icon, from a keybind."""
+    try:
+        if feature_key == "ai":
+            from .ai_assistant import toggle_ai_assistant_dock
+            toggle_ai_assistant_dock()
+        elif feature_key == "website":
+            from .website_sidebar import toggle_website_dock
+            toggle_website_dock()
+        elif feature_key == "notebook":
+            from .notebook_sidebar import toggle_notebook_dock
+            toggle_notebook_dock()
+        elif feature_key == "mindmap":
+            from .mindmap_sidebar import toggle_mindmap_dock
+            toggle_mindmap_dock()
+        elif feature_key == "gamification":
+            toggle_gamification_sidebar()
+        elif feature_key == "music":
+            from . import background_music
+            btn = getattr(sidebar_widget_instance, "_music_button", None)
+            background_music.toggle_music_menu(btn)
+        elif feature_key == "pomodoro":
+            from . import pomodoro
+            if hasattr(pomodoro, "start_pause_action"):
+                pomodoro.start_pause_action()
+        elif feature_key == "study_plan":
+            show_configuration_dialog()
+    except Exception as e:
+        print(f"SynapsePro: feature shortcut '{feature_key}' error: {e}")
+    # A panel may have just opened/closed — re-evaluate launcher visibility.
+    update_launcher_review_visibility()
+
+def register_feature_shortcuts():
+    """(Re)create global QShortcuts from addon_settings['feature_shortcuts']."""
+    global _feature_shortcut_objs
+    if not mw:
+        return
+    try:
+        if constants.qt_version == 6:
+            from PyQt6.QtGui import QShortcut, QKeySequence
+        else:
+            from PyQt5.QtWidgets import QShortcut
+            from PyQt5.QtGui import QKeySequence
+    except Exception as e:
+        print(f"SynapsePro: could not import QShortcut: {e}")
+        return
+
+    # Tear down any previously-registered shortcuts.
+    for sc in _feature_shortcut_objs:
+        try:
+            sc.setParent(None)
+            sc.deleteLater()
+        except Exception:
+            pass
+    _feature_shortcut_objs = []
+
+    shortcuts = addon_settings.get("feature_shortcuts", {}) or {}
+    for fkey, seq in shortcuts.items():
+        if not seq:
+            continue
+        try:
+            sc = QShortcut(QKeySequence(seq), mw)
+            try:
+                sc.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            except Exception:
+                pass
+            sc.activated.connect(partial(_run_feature_shortcut, fkey))
+            _feature_shortcut_objs.append(sc)
+        except Exception as e:
+            print(f"SynapsePro: could not register shortcut '{seq}' for '{fkey}': {e}")
 
 # --- Startup & Logic ---
 def _apply_onboarding_result(result: dict):
@@ -346,6 +496,9 @@ def show_settings_dialog():
 
             deck_overview.update_settings(addon_settings)
 
+            # Re-apply keyboard shortcuts for sidebar features (live, no restart).
+            register_feature_shortcuts()
+
             if mw:
                 on_state_change(mw.state, mw.state)
 
@@ -358,6 +511,7 @@ def toggle_gamification_sidebar():
     if gamification_sidebar:
         if gamification_sidebar.isVisible(): gamification_sidebar.hide()
         else: gamification_sidebar.update_display(); gamification_sidebar.show(); gamification_sidebar.raise_()
+        update_launcher_review_visibility()
 
 def show_configuration_dialog():
     try:
@@ -442,30 +596,49 @@ def _init_ui_delayed():
     if addon_settings.get("daily_widgets_enabled", True) and not learning_plan_manager:
         learning_plan_manager = LearningPlanManager(study_plan_config_json_path); mw.learning_plan_manager = learning_plan_manager
 
-    if addon_settings.get("gamification_sidebar_enabled", True) and not gamification_sidebar and gamification_manager:
-        gamification_sidebar = GamificationSidebar(manager=gamification_manager, parent=mw)
-        mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, gamification_sidebar)
-        gamification_sidebar.setVisible(False)
+    # --- Launcher icon strip (created first so feature panels can dock
+    #     relative to it and stay on the inner side). ---
+    sidebar_side = addon_settings.get("sidebar_side", "left")
+    launcher_area = (
+        Qt.DockWidgetArea.RightDockWidgetArea if sidebar_side == "right"
+        else Qt.DockWidgetArea.LeftDockWidgetArea
+    )
 
-    if addon_settings.get("notebook_enabled", True):
-        setup_notebook_sidebar()
-
-    # Left Sidebar (Launcher)
     launcher_dock_name = "MobesaLauncherSidebarDock_v2"
     existing = mw.findChild(QDockWidget, launcher_dock_name)
     if existing: existing.deleteLater()
-    
+
     launcher_dock_widget = QDockWidget("", mw)
     launcher_dock_widget.setObjectName(launcher_dock_name)
     sidebar_widget_instance = SidebarWidget(parent=launcher_dock_widget, settings_dialog_trigger=show_settings_dialog, settings=addon_settings)
     launcher_dock_widget.setWidget(sidebar_widget_instance)
     launcher_dock_widget.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-    launcher_dock_widget.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea)
+    launcher_dock_widget.setAllowedAreas(launcher_area)
     launcher_dock_widget.setTitleBarWidget(QWidget())
     launcher_dock_widget.setFixedWidth(constants.SIDEBAR_WIDTH)
-    mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, launcher_dock_widget)
-    
+    mw.addDockWidget(launcher_area, launcher_dock_widget)
+
+    # Expose the panel-placement helper so feature modules dock consistently,
+    # and let the launcher notify us when a feature panel shows/hides.
+    constants.place_feature_dock = place_feature_dock
+    try:
+        launcher_widget.feature_visibility_callback = update_launcher_review_visibility
+    except Exception:
+        pass
+
+    # Gamification sidebar — a feature panel, so it opens on the left too.
+    if addon_settings.get("gamification_sidebar_enabled", True) and not gamification_sidebar and gamification_manager:
+        gamification_sidebar = GamificationSidebar(manager=gamification_manager, parent=mw)
+        place_feature_dock(gamification_sidebar)
+        gamification_sidebar.setVisible(False)
+
+    if addon_settings.get("notebook_enabled", True):
+        setup_notebook_sidebar()
+
     on_state_change(mw.state, "")
+
+    # Register any user-configured keyboard shortcuts for sidebar features.
+    register_feature_shortcuts()
 
     # Sub-Features Init
     if addon_settings.get("pomodoro_enabled", True): 
@@ -480,8 +653,14 @@ def _init_ui_delayed():
 
 def on_profile_close():
     global launcher_dock_widget, sidebar_widget_instance, gamification_manager, gamification_sidebar, learning_plan_manager, deadline_manager
+    global _feature_shortcut_objs
     if gamification_manager: gamification_manager.save_data()
     if deadline_manager: deadline_manager.save_data()
+
+    for sc in _feature_shortcut_objs:
+        try: sc.setParent(None); sc.deleteLater()
+        except Exception: pass
+    _feature_shortcut_objs = []
     
     cleanup_pomodoro(); cleanup_website_sidebar()
     cleanup_music_player(); cleanup_ai_assistant_sidebar()

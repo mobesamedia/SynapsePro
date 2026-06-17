@@ -951,7 +951,15 @@ def _ensure_dock() -> QDockWidget:
 
     _dock.visibilityChanged.connect(_on_visibility_changed)
 
-    mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, _dock)
+    try:
+        from . import constants as _constants
+        _place = getattr(_constants, "place_feature_dock", None)
+    except Exception:
+        _place = None
+    if callable(_place):
+        _place(_dock)
+    else:
+        mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, _dock)
     return _dock
 
 

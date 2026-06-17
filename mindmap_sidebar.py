@@ -285,7 +285,11 @@ def setup_mindmap_dock():
         
         mindmap_dock.visibilityChanged.connect(panel.on_visibility_changed)
 
-        if Qt: mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, mindmap_dock)
+        _place = getattr(constants, "place_feature_dock", None)
+        if callable(_place):
+            _place(mindmap_dock)
+        elif Qt:
+            mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, mindmap_dock)
         mindmap_dock.setVisible(False)
 
     except Exception as e:

@@ -25,21 +25,22 @@ try:
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QDialogButtonBox,
                                      QCheckBox, QWidget, QGridLayout, QFrame, QComboBox,
                                      QGroupBox, QScrollArea, QPushButton, QHBoxLayout,
-                                     QSizePolicy, QApplication)
-        from PyQt6.QtGui import QPixmap, QDesktopServices
+                                     QSizePolicy, QApplication, QKeySequenceEdit, QLineEdit)
+        from PyQt6.QtGui import QPixmap, QDesktopServices, QKeySequence
         from PyQt6.QtCore import Qt, QUrl, QTimer
     elif constants.qt_version == 5:
         from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, QDialogButtonBox,
                                      QCheckBox, QWidget, QGridLayout, QFrame, QComboBox,
                                      QGroupBox, QScrollArea, QPushButton, QHBoxLayout,
-                                     QSizePolicy, QApplication)
-        from PyQt5.QtGui import QPixmap, QDesktopServices
+                                     QSizePolicy, QApplication, QKeySequenceEdit, QLineEdit)
+        from PyQt5.QtGui import QPixmap, QDesktopServices, QKeySequence
         from PyQt5.QtCore import Qt, QUrl, QTimer
     else:
         raise ImportError("No valid Qt version found for SettingsDialog")
 except ImportError as e:
     print(f"SettingsDialog Error: Failed to import required modules: {e}")
     QDialog, QVBoxLayout, QLabel, QDialogButtonBox, QCheckBox, QWidget, QGridLayout, QFrame, Qt, QPixmap, QComboBox, QGroupBox, QScrollArea, QPushButton, QHBoxLayout, QDesktopServices, QUrl, QSizePolicy, QApplication, QTimer = (object,) * 20
+    QKeySequenceEdit, QKeySequence, QLineEdit = object, object, object
 
 # --- Night Mode Detection ---
 is_night_mode = False
@@ -111,6 +112,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.current_config = current_config
         self.checkboxes = {}
+        self.shortcut_edits = {}  # shortcut feature-key -> QKeySequenceEdit
         self._info_image_label = None
         self._info_pixmap_original = None
         self._compact_mode = False
@@ -688,27 +690,50 @@ class SettingsDialog(QDialog):
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(2)
+        layout.setSpacing(5)
 
         header = QLabel(_("Sidebar"))
         header.setObjectName("SubHeaderLabel")
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
 
+        # --- Sidebar side (which edge the icon strip is glued to) ----------
+        side_row = QHBoxLayout()
+        side_row.setSpacing(8)
+        side_lbl = QLabel(_("Sidebar Side:"))
+        side_lbl.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        side_row.addWidget(side_lbl)
+        self.sidebar_side_combo = QComboBox()
+        self.sidebar_side_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.sidebar_side_combo.addItem(_("Left"), "left")
+        self.sidebar_side_combo.addItem(_("Right"), "right")
+        s_idx = self.sidebar_side_combo.findData(self.current_config.get("sidebar_side", "left"))
+        self.sidebar_side_combo.setCurrentIndex(s_idx if s_idx != -1 else 0)
+        side_row.addWidget(self.sidebar_side_combo, 1)
+        layout.addLayout(side_row)
+
+        kb_hint = QLabel(_("Toggle each feature below, and optionally set a keyboard shortcut on the right."))
+        kb_hint.setObjectName("HintText")
+        kb_hint.setWordWrap(True)
+        layout.addWidget(kb_hint)
+        layout.addSpacing(4)
+
+        # Each entry: (setting key, label, shortcut feature-key).
+        # A shortcut key of None means no keybind editor for that row.
         features = [
-            ("mindmap_enabled", _("Mind Map")),
-            ("gamification_sidebar_enabled", _("Gamification Sidebar")),
-            ("music_player_enabled", _("Music Player")),
-            ("pomodoro_enabled", _("Pomodoro Timer")),
-            ("ai_assistant_enabled", _("AI Assistant")),
-            ("website_viewer_enabled", _("Website Viewer")),
-            ("notebook_enabled", _("Notebook")),
+            ("mindmap_enabled", _("Mind Map"), "mindmap"),
+            ("gamification_sidebar_enabled", _("Gamification Sidebar"), "gamification"),
+            ("music_player_enabled", _("Music Player"), "music"),
+            ("pomodoro_enabled", _("Pomodoro Timer"), "pomodoro"),
+            ("ai_assistant_enabled", _("AI Assistant"), "ai"),
+            ("website_viewer_enabled", _("Website Viewer"), "website"),
+            ("notebook_enabled", _("Notebook"), "notebook"),
         ]
-        for key, text in features:
-            self.add_checkbox(key, text, layout)
+        for key, text, shortcut_key in features:
+            self.add_feature_row(key, text, layout, shortcut_key)
 
         layout.addSpacing(8)
-        hint = QLabel(_("You need to restart Anki to see the changes of the Sidebar Settings."))
+        hint = QLabel(_("You need to restart Anki to see the changes of the Sidebar Settings (shortcuts apply immediately)."))
         hint.setObjectName("HintText")
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -726,6 +751,97 @@ class SettingsDialog(QDialog):
             pass
         self.checkboxes[key] = cb
         layout.addWidget(cb)
+
+    def add_feature_row(self, key, text, layout, shortcut_key):
+        """A feature toggle (checkbox) with an optional keyboard-shortcut editor
+        on the right, plus a small clear button."""
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(6)
+
+        cb = QCheckBox(text)
+        cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        cb.setChecked(bool(self.current_config.get(key, True)))
+        try:
+            cb.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        except Exception:
+            pass
+        self.checkboxes[key] = cb
+        row.addWidget(cb, 1)
+
+        if shortcut_key and QKeySequenceEdit is not object:
+            c = _palette(is_night_mode)
+            surface = c.get("surface", "#FFFFFF")
+            border  = c.get("grey_mid", "#D1D1D6")
+            focus   = c.get("blue_bright", "#007AFF")
+            text_c  = c.get("text", "#1D1D1F")
+            muted   = c.get("text_muted", "#86868B")
+            hover   = c.get("hover_subtle", "#F0F0F0")
+
+            kse = QKeySequenceEdit()
+            kse.setFixedSize(124, 28)
+            kse.setToolTip(_("Click, then press a key combination (e.g. Ctrl+Shift+A)."))
+            existing = (self.current_config.get("feature_shortcuts", {}) or {}).get(shortcut_key, "")
+            if existing:
+                try:
+                    kse.setKeySequence(QKeySequence(existing))
+                except Exception:
+                    pass
+            # Themed pill that matches the dialog's combos/inputs; turns the
+            # accent colour while it is capturing a key combo.
+            kse.setStyleSheet(f"""
+                QKeySequenceEdit {{
+                    background: transparent;
+                    border: none;
+                }}
+                QKeySequenceEdit QLineEdit {{
+                    background-color: {surface};
+                    border: 1px solid {border};
+                    border-radius: 8px;
+                    padding: 2px 8px;
+                    color: {text_c};
+                    font-size: 12px;
+                    selection-background-color: {focus};
+                    selection-color: white;
+                }}
+                QKeySequenceEdit QLineEdit:focus {{
+                    border: 1px solid {focus};
+                }}
+            """)
+            # Placeholder hint so an empty field reads clearly.
+            if QLineEdit is not object:
+                try:
+                    _le = kse.findChild(QLineEdit)
+                    if _le is not None:
+                        _le.setPlaceholderText(_("Set shortcut…"))
+                        _le.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                except Exception:
+                    pass
+            self.shortcut_edits[shortcut_key] = kse
+            row.addWidget(kse, 0)
+
+            clear_btn = QPushButton("✕")
+            clear_btn.setToolTip(_("Clear shortcut"))
+            clear_btn.setFixedSize(28, 28)
+            clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            clear_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {muted};
+                    border: none;
+                    border-radius: 14px;
+                    font-size: 13px;
+                    padding: 0px;
+                    min-width: 0px;
+                }}
+                QPushButton:hover {{ background-color: {hover}; color: {text_c}; }}
+                QPushButton:pressed {{ background-color: {border}; }}
+            """)
+            clear_btn.clicked.connect(kse.clear)
+            clear_btn.clicked.connect(lambda: kse.setFocus())
+            row.addWidget(clear_btn, 0)
+
+        layout.addLayout(row)
 
     def add_button_row(self):
         """Save / Cancel row. Lives OUTSIDE the scroll area so it is always
@@ -880,8 +996,20 @@ class SettingsDialog(QDialog):
             "custom_theme_colors": getattr(self, "_custom_theme_colors", {}),
             "stats_time_range": int(self.stats_range_combo.currentData() or 7),
             "sidebar_visibility_mode": self.sidebar_vis_combo.currentData() or "always_show",
+            "sidebar_side": self.sidebar_side_combo.currentData() or "left",
             "language": self.language_combo.currentData() or "auto",
         }
         for key, cb in self.checkboxes.items():
             settings[key] = cb.isChecked()
+
+        # Collect per-feature keyboard shortcuts (only non-empty ones).
+        feature_shortcuts = {}
+        for fkey, kse in getattr(self, "shortcut_edits", {}).items():
+            try:
+                seq = kse.keySequence().toString()
+            except Exception:
+                seq = ""
+            if seq:
+                feature_shortcuts[fkey] = seq
+        settings["feature_shortcuts"] = feature_shortcuts
         return settings

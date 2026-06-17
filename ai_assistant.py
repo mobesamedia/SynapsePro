@@ -1269,7 +1269,11 @@ def _setup_sidebar() -> bool:
         _webview.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         _dock.setWidget(_webview)
         _dock.setVisible(False)
-        mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, _dock)
+        _place = getattr(constants, "place_feature_dock", None)
+        if callable(_place):
+            _place(_dock)
+        else:
+            mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, _dock)
 
         # Hooks
         if not _hooks_connected and gui_hooks:

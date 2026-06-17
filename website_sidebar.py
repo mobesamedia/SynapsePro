@@ -444,8 +444,12 @@ def create_website_dock() -> Optional[QDockWidget]:
 
         sidebar_dock.setWidget(container_widget)
         sidebar_dock.setVisible(False)
-        add_dock_area_enum = Qt.DockWidgetArea if hasattr(Qt, 'DockWidgetArea') else Qt
-        mw.addDockWidget(add_dock_area_enum.RightDockWidgetArea, sidebar_dock)
+        _place = getattr(constants, "place_feature_dock", None)
+        if callable(_place):
+            _place(sidebar_dock)
+        else:
+            add_dock_area_enum = Qt.DockWidgetArea if hasattr(Qt, 'DockWidgetArea') else Qt
+            mw.addDockWidget(add_dock_area_enum.RightDockWidgetArea, sidebar_dock)
         print(f"WS Info: New dock created and added successfully.")
 
     except Exception as e:

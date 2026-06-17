@@ -87,6 +87,12 @@ if TYPE_CHECKING:
     from .study_plan_trigger import trigger_gamification_sidebar_action, trigger_study_plan_action
 
 
+# Optional callback invoked whenever a feature panel dock shows/hides.
+# Set by __init__.py so the launcher can be auto-revealed mid-review when a
+# panel is open. Left as None when running standalone.
+feature_visibility_callback = None
+
+
 class SidebarWidget(QWidget):
     def __init__(self, parent: Optional['QWidget'] = None, settings_dialog_trigger: Optional[Callable] = None, settings: Optional[Dict[str, Any]] = None):
         if QWidget is object: return
@@ -317,6 +323,14 @@ class SidebarWidget(QWidget):
 
     def _update_button_active_state_from_ref(self, is_visible: bool, button_weak_ref: weakref.ReferenceType['PushButtonType']):
         if button := button_weak_ref(): self._update_button_active_state(is_visible, button)
+        # Notify the host (__init__) so it can re-reveal the launcher mid-review
+        # when a feature panel is open.
+        cb = globals().get("feature_visibility_callback")
+        if callable(cb):
+            try:
+                cb()
+            except Exception:
+                pass
 
     def _update_button_active_state(self, is_visible: bool, button: 'PushButtonType'):
         if not button or not button.isCheckable() or not button.property("isMainIconButton"): return
