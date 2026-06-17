@@ -1035,10 +1035,11 @@ class WebMusicWindow(QDialog):
         )
 
     def media_pause(self) -> None:
-        # Pause the actual media element (not a toggle) so audio truly stops.
+        # Pause *every* media element (not a toggle) so audio truly stops —
+        # SoundCloud/YT Music may have more than one audio/video element.
         self._run_js(
-            "(function(){var e=document.querySelector('video,audio');"
-            "if(e){try{e.pause();}catch(x){}}})()"
+            "(function(){try{document.querySelectorAll('video,audio')"
+            ".forEach(function(e){try{e.pause();}catch(x){}});}catch(y){}})()"
         )
 
     def query_now_playing(self, callback) -> None:
