@@ -63,6 +63,17 @@ except ImportError:
     _has_webengine = False
     QWebEngineView = QWebEngineProfile = QWebEnginePage = object  # type: ignore
 
+# --- QtNetwork (fetching track artwork) ---
+try:
+    if constants.qt_version == 6:
+        from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+    elif constants.qt_version == 5:
+        from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest
+    else:
+        QNetworkAccessManager = QNetworkRequest = object  # type: ignore
+except ImportError:
+    QNetworkAccessManager = QNetworkRequest = object  # type: ignore
+
 # --- Anki Imports ---
 try:
     from aqt import mw
@@ -330,6 +341,8 @@ class MiniMusicPlayer(QDialog):
         self._backend_error = False
         self._mode = "local"          # "local" | "soundcloud" | "ytmusic"
         self._active_stream = None
+        self._last_art_url = None     # de-dupes artwork downloads
+        self._art_net = QNetworkAccessManager(self) if QNetworkAccessManager is not object else None
 
         self.init_backend()
         self.init_ui()
@@ -739,6 +752,7 @@ class MiniMusicPlayer(QDialog):
         self.btn_add_track.setVisible(not streaming)
         self.btn_del_track.setVisible(not streaming)
         self._update_source_buttons()
+        self._last_art_url = None      # force artwork re-fetch for the new source
 
         if streaming:
             try:
@@ -746,6 +760,8 @@ class MiniMusicPlayer(QDialog):
                     self.player.pause()
             except Exception:
                 pass
+            # Provider tile shows immediately; real artwork replaces it if/when
+            # it downloads successfully (otherwise the tile stays as fallback).
             art = _make_service_art(mode, self.img_label.size())
             if art is not None and not art.isNull():
                 self.img_label.setPixmap(art)
@@ -811,16 +827,58 @@ class MiniMusicPlayer(QDialog):
         win = self._active_stream
         if win is None or self._mode == "local":
             return
-        def _set(title):
-            text = (title or "").strip() or _("Streaming")
+        def _apply(info):
+            if not isinstance(info, dict):
+                info = {}
+            text = (info.get("title") or "").strip() or _("Streaming")
             metrics = self.now_playing_lbl.fontMetrics()
             elide = Qt.TextElideMode.ElideRight if constants.qt_version == 6 else Qt.ElideRight
             self.now_playing_lbl.setText(
                 metrics.elidedText(text, elide, self.now_playing_lbl.width() or 220))
+            art = (info.get("art") or "").strip()
+            if art:
+                if art != self._last_art_url:
+                    self._fetch_artwork(art)
+            elif self._last_art_url is not None:
+                # Track has no artwork — fall back to the provider tile.
+                self._last_art_url = None
+                tile = _make_service_art(self._mode, self.img_label.size())
+                if tile is not None and not tile.isNull():
+                    self.img_label.setPixmap(tile)
         try:
-            win.query_title(_set)
+            win.query_now_playing(_apply)
         except Exception:
             pass
+
+    def _fetch_artwork(self, url: str) -> None:
+        """Download the current track's artwork and show it as the album art."""
+        if self._art_net is None or not url.lower().startswith(("http://", "https://")):
+            return
+        self._last_art_url = url
+        try:
+            reply = self._art_net.get(QNetworkRequest(QUrl(url)))
+        except Exception:
+            return
+        reply.finished.connect(lambda: self._on_art_reply(reply, url))
+
+    def _on_art_reply(self, reply, url: str) -> None:
+        try:
+            # Ignore if we've since changed track/source or left streaming.
+            if self._mode == "local" or url != self._last_art_url:
+                return
+            data = reply.readAll()
+            pix = QPixmap()
+            if pix.loadFromData(bytes(data)) and not pix.isNull():
+                ratio = Qt.AspectRatioMode.KeepAspectRatio if constants.qt_version == 6 else Qt.KeepAspectRatio
+                smooth = Qt.TransformationMode.SmoothTransformation if constants.qt_version == 6 else Qt.SmoothTransformation
+                self.img_label.setPixmap(pix.scaled(self.img_label.size(), ratio, smooth))
+        except Exception:
+            pass
+        finally:
+            try:
+                reply.deleteLater()
+            except Exception:
+                pass
 
     def refresh_theme(self) -> None:
         """Re-apply the current theme stylesheet (called after a colour-theme change)."""
@@ -856,12 +914,16 @@ CONTROL_SELECTORS = {
                    "next": ".next-button"},
 }
 
-# Returns "Title — Artist" from the Media Session API (set by both services),
-# falling back to the document title.
-_TITLE_JS = (
-    "(function(){try{var m=navigator.mediaSession&&navigator.mediaSession.metadata;"
-    "if(m&&m.title){return m.title+(m.artist?(' \\u2014 '+m.artist):'');}}"
-    "catch(e){}return document.title||'';})()"
+# Returns {title, art} from the Media Session API (set by both services):
+# "Title — Artist" plus the largest available artwork URL. Falls back to the
+# document title when no media metadata is present.
+_NOWPLAYING_JS = (
+    "(function(){var r={title:'',art:''};try{"
+    "var m=navigator.mediaSession&&navigator.mediaSession.metadata;"
+    "if(m){r.title=m.title+(m.artist?(' \\u2014 '+m.artist):'');"
+    "if(m.artwork&&m.artwork.length){var a=m.artwork[m.artwork.length-1];"
+    "r.art=(a&&a.src)||'';}}}catch(e){}"
+    "if(!r.title){r.title=document.title||'';}return r;})()"
 )
 
 _web_music_windows: dict = {}      # service_id -> WebMusicWindow
@@ -979,8 +1041,8 @@ class WebMusicWindow(QDialog):
             "if(e){try{e.pause();}catch(x){}}})()"
         )
 
-    def query_title(self, callback) -> None:
-        self._run_js(_TITLE_JS, callback)
+    def query_now_playing(self, callback) -> None:
+        self._run_js(_NOWPLAYING_JS, callback)
 
     def closeEvent(self, event):
         # Hide instead of close so playback continues in the background.
