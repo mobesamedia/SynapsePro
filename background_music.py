@@ -120,6 +120,11 @@ def _build_music_style(night: bool) -> str:
         border-radius: 12px;
         border: 1px solid {c['grey_light']};
     }}
+    QWidget#MiniBar {{
+        background-color: {c['surface']};
+        border-radius: 12px;
+        border: 1px solid {c['grey_light']};
+    }}
     QLabel {{ color: {c['text']}; font-weight: 600; font-size: 13px; }}
     QComboBox {{
         background-color: {c['surface']}; color: {c['text']}; border: 1px solid {c['grey_mid']};
@@ -171,6 +176,12 @@ def _build_music_style(night: bool) -> str:
     }}
     QPushButton#BtnStreamCtl:hover {{ background-color: {c['grey_light']}; border-color: {c['blue']}; }}
     QPushButton#BtnStreamCtl:pressed {{ background-color: {c['grey_mid']}; }}
+    QPushButton#BtnMiniCtl {{
+        background-color: {c['surface']}; border: 1px solid {c['grey_mid']}; border-radius: 13px;
+        min-width: 26px; max-width: 26px; min-height: 26px; max-height: 26px; padding: 0px;
+    }}
+    QPushButton#BtnMiniCtl:hover {{ background-color: {c['grey_light']}; border-color: {c['blue']}; }}
+    QPushButton#BtnMiniCtl:pressed {{ background-color: {c['grey_mid']}; }}
 """
 
 # Styles computed per-instance at widget creation time (not cached here).
@@ -404,10 +415,17 @@ class MiniMusicPlayer(QDialog):
 
         cursor = Qt.CursorShape.PointingHandCursor if constants.qt_version == 6 else Qt.PointingHandCursor
 
-        # --- Top-right: + and − buttons ---
+        # --- Top row: minimise (left) · + / − (right) ---
         top_row = QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)
         top_row.setSpacing(5)
+        self.btn_minimise = QPushButton("▁")
+        self.btn_minimise.setObjectName("BtnAddTrack")
+        self.btn_minimise.setFixedSize(24, 24)
+        self.btn_minimise.setToolTip(_("Minimise to a compact bar"))
+        self.btn_minimise.setCursor(cursor)
+        self.btn_minimise.clicked.connect(lambda: self._set_minimised(True))
+        top_row.addWidget(self.btn_minimise)
         top_row.addStretch()
         self.btn_add_track = QPushButton("+")
         self.btn_add_track.setObjectName("BtnAddTrack")
@@ -424,7 +442,9 @@ class MiniMusicPlayer(QDialog):
         self.btn_del_track.clicked.connect(self._delete_current_user_track)
         top_row.addWidget(self.btn_add_track)
         top_row.addWidget(self.btn_del_track)
-        main_layout.addLayout(top_row)
+        self.top_bar = QWidget()
+        self.top_bar.setLayout(top_row)
+        main_layout.addWidget(self.top_bar)
 
         self.card = QFrame()
         self.card.setObjectName("CardFrame")
@@ -531,6 +551,49 @@ class MiniMusicPlayer(QDialog):
 
         main_layout.addWidget(self.card)
 
+        # --- Compact bar (hidden until minimised) ---
+        self.mini_bar = QWidget()
+        self.mini_bar.setObjectName("MiniBar")
+        mb = QHBoxLayout(self.mini_bar)
+        mb.setContentsMargins(8, 5, 8, 5)
+        mb.setSpacing(5)
+        self.mini_thumb = QLabel()
+        self.mini_thumb.setFixedSize(34, 34)
+        self.mini_thumb.setScaledContents(True)
+        self.mini_thumb.setStyleSheet("border:none;background:transparent;border-radius:6px;")
+        self.mini_title = QLabel("")
+        self.mini_title.setObjectName("NowPlayingLabel")
+        self.mini_title.setWordWrap(False)
+        self.mini_prev = QPushButton()
+        self.mini_prev.setObjectName("BtnMiniCtl")
+        self.mini_prev.setCursor(cursor)
+        self.mini_prev.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_MediaSkipBackward))
+        self.mini_prev.clicked.connect(self._on_prev)
+        self.mini_play = QPushButton()
+        self.mini_play.setObjectName("BtnMiniCtl")
+        self.mini_play.setCheckable(True)
+        self.mini_play.setCursor(cursor)
+        self.mini_play.clicked.connect(self._on_play)
+        self.mini_next = QPushButton()
+        self.mini_next.setObjectName("BtnMiniCtl")
+        self.mini_next.setCursor(cursor)
+        self.mini_next.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_MediaSkipForward))
+        self.mini_next.clicked.connect(self._on_next)
+        self.btn_restore = QPushButton("⤢")
+        self.btn_restore.setObjectName("BtnMiniCtl")
+        self.btn_restore.setCursor(cursor)
+        self.btn_restore.setToolTip(_("Expand player"))
+        self.btn_restore.clicked.connect(lambda: self._set_minimised(False))
+        mb.addWidget(self.mini_thumb)
+        mb.addWidget(self.mini_title, 1)
+        mb.addWidget(self.mini_prev)
+        mb.addWidget(self.mini_play)
+        mb.addWidget(self.mini_next)
+        mb.addWidget(self.btn_restore)
+        self.mini_bar.setVisible(False)
+        main_layout.addWidget(self.mini_bar)
+
+        self._minimised = False
         self._update_source_buttons()
         self._apply_track_change_step1()
 
@@ -596,7 +659,9 @@ class MiniMusicPlayer(QDialog):
         if img_path:
             pix = QPixmap(img_path)
             if not pix.isNull():
-                self.img_label.setPixmap(pix.scaled(self.img_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation if constants.qt_version == 6 else Qt.SmoothTransformation))
+                self._apply_art(pix)
+        # Local track name shows in the compact bar's title slot.
+        self._set_now_playing(self.track_combo.currentText())
 
         if constants.qt_version == 6:
             self.player.setSource(QUrl(""))
@@ -638,6 +703,39 @@ class MiniMusicPlayer(QDialog):
         icon = self.style().standardIcon(self.style().StandardPixmap.SP_MediaPause if is_playing else self.style().StandardPixmap.SP_MediaPlay)
         self.btn_play.setIcon(icon)
         self.btn_play.setChecked(is_playing)
+        if hasattr(self, "mini_play"):
+            self.mini_play.setIcon(icon)
+            self.mini_play.setChecked(is_playing)
+
+    def _set_minimised(self, flag: bool) -> None:
+        self._minimised = flag
+        self.top_bar.setVisible(not flag)
+        self.card.setVisible(not flag)
+        self.mini_bar.setVisible(flag)
+        if flag:
+            self.setFixedSize(260, 64)
+        else:
+            self.setFixedSize(260, 510 if _has_webengine else 375)
+
+    def _apply_art(self, pix) -> None:
+        """Set the album art on both the full card and the compact bar."""
+        if pix is None or pix.isNull():
+            return
+        ratio = Qt.AspectRatioMode.KeepAspectRatio if constants.qt_version == 6 else Qt.KeepAspectRatio
+        smooth = Qt.TransformationMode.SmoothTransformation if constants.qt_version == 6 else Qt.SmoothTransformation
+        self.img_label.setPixmap(pix.scaled(self.img_label.size(), ratio, smooth))
+        if hasattr(self, "mini_thumb"):
+            self.mini_thumb.setPixmap(pix)   # scaledContents fits it to 40x40
+
+    def _elide_into(self, label, text) -> None:
+        metrics = label.fontMetrics()
+        elide = Qt.TextElideMode.ElideRight if constants.qt_version == 6 else Qt.ElideRight
+        label.setText(metrics.elidedText(text, elide, label.width() or 180))
+
+    def _set_now_playing(self, text) -> None:
+        self._elide_into(self.now_playing_lbl, text)
+        if hasattr(self, "mini_title"):
+            self._elide_into(self.mini_title, text)
 
     def toggle_playback(self):
         if not self.player: return
@@ -764,8 +862,8 @@ class MiniMusicPlayer(QDialog):
             # it downloads successfully (otherwise the tile stays as fallback).
             art = _make_service_art(mode, self.img_label.size())
             if art is not None and not art.isNull():
-                self.img_label.setPixmap(art)
-            self.now_playing_lbl.setText(_("Loading…"))
+                self._apply_art(art)
+            self._set_now_playing(_("Loading…"))
             self.update_play_icon(True)
             if hasattr(self, "_np_timer"):
                 self._np_timer.start()
@@ -777,6 +875,7 @@ class MiniMusicPlayer(QDialog):
             if self._active_stream is not None:
                 try:
                     self._active_stream.media_pause()
+                    self._active_stream.set_muted(True)
                 except Exception:
                     pass
             # Restore the current local track's artwork and state.
@@ -831,10 +930,7 @@ class MiniMusicPlayer(QDialog):
             if not isinstance(info, dict):
                 info = {}
             text = (info.get("title") or "").strip() or _("Streaming")
-            metrics = self.now_playing_lbl.fontMetrics()
-            elide = Qt.TextElideMode.ElideRight if constants.qt_version == 6 else Qt.ElideRight
-            self.now_playing_lbl.setText(
-                metrics.elidedText(text, elide, self.now_playing_lbl.width() or 220))
+            self._set_now_playing(text)
             art = (info.get("art") or "").strip()
             if art:
                 if art != self._last_art_url:
@@ -844,7 +940,7 @@ class MiniMusicPlayer(QDialog):
                 self._last_art_url = None
                 tile = _make_service_art(self._mode, self.img_label.size())
                 if tile is not None and not tile.isNull():
-                    self.img_label.setPixmap(tile)
+                    self._apply_art(tile)
         try:
             win.query_now_playing(_apply)
         except Exception:
@@ -869,9 +965,7 @@ class MiniMusicPlayer(QDialog):
             data = reply.readAll()
             pix = QPixmap()
             if pix.loadFromData(bytes(data)) and not pix.isNull():
-                ratio = Qt.AspectRatioMode.KeepAspectRatio if constants.qt_version == 6 else Qt.KeepAspectRatio
-                smooth = Qt.TransformationMode.SmoothTransformation if constants.qt_version == 6 else Qt.SmoothTransformation
-                self.img_label.setPixmap(pix.scaled(self.img_label.size(), ratio, smooth))
+                self._apply_art(pix)
         except Exception:
             pass
         finally:
@@ -1042,6 +1136,16 @@ class WebMusicWindow(QDialog):
             ".forEach(function(e){try{e.pause();}catch(x){}});}catch(y){}})()"
         )
 
+    def set_muted(self, muted: bool) -> None:
+        # Page-level mute is frame-proof: it silences the whole page even when
+        # the audio element lives somewhere querySelectorAll can't reach.
+        try:
+            page = self.view.page()
+            if page:
+                page.setAudioMuted(bool(muted))
+        except Exception:
+            pass
+
     def query_now_playing(self, callback) -> None:
         self._run_js(_NOWPLAYING_JS, callback)
 
@@ -1060,11 +1164,12 @@ def open_streaming_service(service_id: str) -> Optional["WebMusicWindow"]:
     if not info:
         return None
     title, url, blocked = info
-    # Only one streaming service at a time: pause & hide any other open window.
+    # Only one service audible at a time: pause, mute & hide any other window.
     for other_id, other in _web_music_windows.items():
         if other_id != service_id and other is not None:
             try:
                 other.media_pause()
+                other.set_muted(True)
                 other.hide()
             except Exception:
                 pass
@@ -1072,6 +1177,7 @@ def open_streaming_service(service_id: str) -> Optional["WebMusicWindow"]:
     if win is None:
         win = WebMusicWindow(service_id, title, url, blocked, mw if mw else None)
         _web_music_windows[service_id] = win
+    win.set_muted(False)
     win.show()
     win.raise_()
     win.activateWindow()
