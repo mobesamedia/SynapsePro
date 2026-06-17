@@ -419,9 +419,10 @@ class MiniMusicPlayer(QDialog):
         top_row = QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)
         top_row.setSpacing(5)
-        self.btn_minimise = QPushButton("▁")
+        self.btn_minimise = QPushButton()
         self.btn_minimise.setObjectName("BtnAddTrack")
         self.btn_minimise.setFixedSize(24, 24)
+        self.btn_minimise.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_TitleBarMinButton))
         self.btn_minimise.setToolTip(_("Minimise to a compact bar"))
         self.btn_minimise.setCursor(cursor)
         self.btn_minimise.clicked.connect(lambda: self._set_minimised(True))
@@ -579,9 +580,10 @@ class MiniMusicPlayer(QDialog):
         self.mini_next.setCursor(cursor)
         self.mini_next.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_MediaSkipForward))
         self.mini_next.clicked.connect(self._on_next)
-        self.btn_restore = QPushButton("⤢")
+        self.btn_restore = QPushButton()
         self.btn_restore.setObjectName("BtnMiniCtl")
         self.btn_restore.setCursor(cursor)
+        self.btn_restore.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_TitleBarMaxButton))
         self.btn_restore.setToolTip(_("Expand player"))
         self.btn_restore.clicked.connect(lambda: self._set_minimised(False))
         mb.addWidget(self.mini_thumb)
@@ -875,7 +877,6 @@ class MiniMusicPlayer(QDialog):
             if self._active_stream is not None:
                 try:
                     self._active_stream.media_pause()
-                    self._active_stream.set_muted(True)
                 except Exception:
                     pass
             # Restore the current local track's artwork and state.
@@ -1129,22 +1130,18 @@ class WebMusicWindow(QDialog):
         )
 
     def media_pause(self) -> None:
-        # Pause *every* media element (not a toggle) so audio truly stops —
-        # SoundCloud/YT Music may have more than one audio/video element.
+        # Pause via the site's *own* play/pause control if something is playing.
+        # Pausing the raw <audio> element isn't enough — SoundCloud's player JS
+        # re-syncs the element back to its internal "playing" state and resumes.
+        # Clicking the site's control flips that internal state, so it stays put.
+        sel = CONTROL_SELECTORS.get(self.service_id, {}).get("play", "")
         self._run_js(
-            "(function(){try{document.querySelectorAll('video,audio')"
-            ".forEach(function(e){try{e.pause();}catch(x){}});}catch(y){}})()"
+            "(function(){try{var playing=false;"
+            "document.querySelectorAll('video,audio').forEach(function(e){"
+            "try{if(!e.paused&&!e.ended){playing=true;}e.pause();}catch(x){}});"
+            "if(playing){var b=document.querySelector(%s);if(b){b.click();}}"
+            "}catch(y){}})()" % json.dumps(sel)
         )
-
-    def set_muted(self, muted: bool) -> None:
-        # Page-level mute is frame-proof: it silences the whole page even when
-        # the audio element lives somewhere querySelectorAll can't reach.
-        try:
-            page = self.view.page()
-            if page:
-                page.setAudioMuted(bool(muted))
-        except Exception:
-            pass
 
     def query_now_playing(self, callback) -> None:
         self._run_js(_NOWPLAYING_JS, callback)
@@ -1164,12 +1161,11 @@ def open_streaming_service(service_id: str) -> Optional["WebMusicWindow"]:
     if not info:
         return None
     title, url, blocked = info
-    # Only one service audible at a time: pause, mute & hide any other window.
+    # Only one service playing at a time: pause & hide any other open window.
     for other_id, other in _web_music_windows.items():
         if other_id != service_id and other is not None:
             try:
                 other.media_pause()
-                other.set_muted(True)
                 other.hide()
             except Exception:
                 pass
@@ -1177,7 +1173,6 @@ def open_streaming_service(service_id: str) -> Optional["WebMusicWindow"]:
     if win is None:
         win = WebMusicWindow(service_id, title, url, blocked, mw if mw else None)
         _web_music_windows[service_id] = win
-    win.set_muted(False)
     win.show()
     win.raise_()
     win.activateWindow()
