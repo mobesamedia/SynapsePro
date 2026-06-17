@@ -997,6 +997,14 @@ def open_streaming_service(service_id: str) -> Optional["WebMusicWindow"]:
     if not info:
         return None
     title, url, blocked = info
+    # Only one streaming service at a time: pause & hide any other open window.
+    for other_id, other in _web_music_windows.items():
+        if other_id != service_id and other is not None:
+            try:
+                other.media_pause()
+                other.hide()
+            except Exception:
+                pass
     win = _web_music_windows.get(service_id)
     if win is None:
         win = WebMusicWindow(service_id, title, url, blocked, mw if mw else None)
