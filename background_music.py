@@ -152,6 +152,13 @@ def _build_music_style(night: bool) -> str:
     }}
     QPushButton#BtnStream:hover {{ background-color: {c['grey_light']}; border-color: {c['blue']}; }}
     QPushButton#BtnStream:pressed {{ background-color: {c['grey_mid']}; }}
+    QLabel#NowPlayingLabel {{ color: {c['text']}; font-size: 11px; font-weight: 600; }}
+    QPushButton#BtnStreamCtl {{
+        background-color: {c['surface']}; border: 1px solid {c['grey_mid']}; border-radius: 16px;
+        min-width: 32px; max-width: 32px; min-height: 32px; max-height: 32px; padding: 0px;
+    }}
+    QPushButton#BtnStreamCtl:hover {{ background-color: {c['grey_light']}; border-color: {c['blue']}; }}
+    QPushButton#BtnStreamCtl:pressed {{ background-color: {c['grey_mid']}; }}
 """
 
 # Styles computed per-instance at widget creation time (not cached here).
@@ -278,7 +285,7 @@ class MiniMusicPlayer(QDialog):
         super().__init__(parent)
         self.setWindowTitle(_("Focus Music"))
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowCloseButtonHint)
-        self.setFixedSize(260, 470 if _has_webengine else 375)
+        self.setFixedSize(260, 560 if _has_webengine else 375)
         
         self.player: Optional[QMediaPlayer] = None
         self.audio_output: Optional[QAudioOutput] = None
@@ -432,6 +439,48 @@ class MiniMusicPlayer(QDialog):
             stream_row.addWidget(self.btn_soundcloud)
             stream_row.addWidget(self.btn_ytmusic)
             card_layout.addLayout(stream_row)
+
+            # Now-playing strip (revealed once a stream is opened)
+            self.now_playing_lbl = QLabel("")
+            self.now_playing_lbl.setObjectName("NowPlayingLabel")
+            self.now_playing_lbl.setAlignment(
+                Qt.AlignmentFlag.AlignCenter if constants.qt_version == 6 else Qt.AlignCenter)
+            self.now_playing_lbl.setWordWrap(False)
+            self.now_playing_lbl.setVisible(False)
+            card_layout.addWidget(self.now_playing_lbl)
+
+            np_row = QHBoxLayout()
+            np_row.setSpacing(10)
+            self.btn_prev = QPushButton()
+            self.btn_prev.setObjectName("BtnStreamCtl")
+            self.btn_prev.setCursor(cursor)
+            self.btn_prev.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_MediaSkipBackward))
+            self.btn_prev.clicked.connect(lambda: self._stream_control("prev"))
+            self.btn_stream_play = QPushButton()
+            self.btn_stream_play.setObjectName("BtnStreamCtl")
+            self.btn_stream_play.setCursor(cursor)
+            self.btn_stream_play.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_MediaPlay))
+            self.btn_stream_play.clicked.connect(lambda: self._stream_control("play"))
+            self.btn_next = QPushButton()
+            self.btn_next.setObjectName("BtnStreamCtl")
+            self.btn_next.setCursor(cursor)
+            self.btn_next.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_MediaSkipForward))
+            self.btn_next.clicked.connect(lambda: self._stream_control("next"))
+            np_row.addStretch()
+            np_row.addWidget(self.btn_prev)
+            np_row.addWidget(self.btn_stream_play)
+            np_row.addWidget(self.btn_next)
+            np_row.addStretch()
+            self.np_controls = QWidget()
+            self.np_controls.setLayout(np_row)
+            self.np_controls.setVisible(False)
+            card_layout.addWidget(self.np_controls)
+
+            # Poll the active stream for its current track title.
+            self._active_stream = None
+            self._np_timer = QTimer(self)
+            self._np_timer.setInterval(1500)
+            self._np_timer.timeout.connect(self._poll_now_playing)
 
         main_layout.addWidget(self.card)
         
@@ -639,7 +688,42 @@ class MiniMusicPlayer(QDialog):
                 self.player.pause()
         except Exception:
             pass
-        open_streaming_service(service_id)
+        win = open_streaming_service(service_id)
+        if win is not None:
+            self._active_stream = win
+            self.now_playing_lbl.setVisible(True)
+            self.now_playing_lbl.setText(_("Loading…"))
+            self.np_controls.setVisible(True)
+            self._poll_now_playing()
+            self._np_timer.start()
+
+    def _stream_control(self, action: str) -> None:
+        win = self._active_stream
+        if win is None:
+            return
+        if action == "prev":
+            win.media_prev()
+        elif action == "next":
+            win.media_next()
+        elif action == "play":
+            win.media_play()
+        # Title updates shortly after a skip lands.
+        QTimer.singleShot(600, self._poll_now_playing)
+
+    def _poll_now_playing(self) -> None:
+        win = self._active_stream
+        if win is None:
+            return
+        def _set(title):
+            text = (title or "").strip() or _("Streaming")
+            metrics = self.now_playing_lbl.fontMetrics()
+            elide = Qt.TextElideMode.ElideRight if constants.qt_version == 6 else Qt.ElideRight
+            self.now_playing_lbl.setText(
+                metrics.elidedText(text, elide, self.now_playing_lbl.width() or 220))
+        try:
+            win.query_title(_set)
+        except Exception:
+            pass
 
     def refresh_theme(self) -> None:
         """Re-apply the current theme stylesheet (called after a colour-theme change)."""
@@ -664,6 +748,24 @@ STREAMING_SERVICES = {
     "ytmusic":    ("YouTube Music", "https://music.youtube.com/",
                    ["www.youtube.com", "m.youtube.com", "youtube.com", "youtu.be"]),
 }
+
+# DOM selectors used to drive each service's own transport controls.
+CONTROL_SELECTORS = {
+    "soundcloud": {"prev": ".skipControl__previous",
+                   "play": ".playControl",
+                   "next": ".skipControl__next"},
+    "ytmusic":    {"prev": ".previous-button",
+                   "play": "#play-pause-button",
+                   "next": ".next-button"},
+}
+
+# Returns "Title — Artist" from the Media Session API (set by both services),
+# falling back to the document title.
+_TITLE_JS = (
+    "(function(){try{var m=navigator.mediaSession&&navigator.mediaSession.metadata;"
+    "if(m&&m.title){return m.title+(m.artist?(' \\u2014 '+m.artist):'');}}"
+    "catch(e){}return document.title||'';})()"
+)
 
 _web_music_windows: dict = {}      # service_id -> WebMusicWindow
 _music_web_profile: Optional["QWebEngineProfile"] = None
@@ -718,14 +820,19 @@ def _get_music_web_profile() -> Optional["QWebEngineProfile"]:
 class WebMusicWindow(QDialog):
     """A resizable window embedding a streaming-service web player."""
 
-    def __init__(self, title: str, url: str, blocked_hosts=None, parent=None):
+    def __init__(self, service_id: str, title: str, url: str, blocked_hosts=None, parent=None):
         super().__init__(parent)
+        self.service_id = service_id
         self.setWindowTitle(title)
-        flags = (Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint
+        # Stay on top so it surfaces above the always-on-top mini player when
+        # opened; the user can minimise it and keep controlling via the player.
+        flags = (Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint
+                 | Qt.WindowType.WindowCloseButtonHint
                  | Qt.WindowType.WindowMinMaxButtonsHint)
         self.setWindowFlags(flags)
-        self.resize(480, 720)
-        self.setMinimumSize(360, 480)
+        # Wide enough for the desktop layout so there's no horizontal scroll.
+        self.resize(940, 680)
+        self.setMinimumSize(480, 480)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -736,28 +843,58 @@ class WebMusicWindow(QDialog):
         self.view.setUrl(QUrl(url))
         layout.addWidget(self.view)
 
+    # --- Transport control via the page's own buttons ---
+    def _run_js(self, code: str, callback=None) -> None:
+        try:
+            page = self.view.page()
+            if not page:
+                return
+            if callback is not None:
+                page.runJavaScript(code, callback)
+            else:
+                page.runJavaScript(code)
+        except Exception:
+            pass
+
+    def _click(self, action: str) -> None:
+        sel = CONTROL_SELECTORS.get(self.service_id, {}).get(action)
+        if not sel:
+            return
+        self._run_js(
+            "(function(){var b=document.querySelector(%s);"
+            "if(b){b.click();return true;}return false;})()" % json.dumps(sel)
+        )
+
+    def media_prev(self):  self._click("prev")
+    def media_next(self):  self._click("next")
+    def media_play(self):  self._click("play")
+
+    def query_title(self, callback) -> None:
+        self._run_js(_TITLE_JS, callback)
+
     def closeEvent(self, event):
         # Hide instead of close so playback continues in the background.
         event.ignore()
         self.hide()
 
 
-def open_streaming_service(service_id: str) -> None:
+def open_streaming_service(service_id: str) -> Optional["WebMusicWindow"]:
     if not _has_webengine:
         if tooltip:
             tooltip(_("Streaming player unavailable (QtWebEngine missing)."))
-        return
+        return None
     info = STREAMING_SERVICES.get(service_id)
     if not info:
-        return
+        return None
     title, url, blocked = info
     win = _web_music_windows.get(service_id)
     if win is None:
-        win = WebMusicWindow(title, url, blocked, mw if mw else None)
+        win = WebMusicWindow(service_id, title, url, blocked, mw if mw else None)
         _web_music_windows[service_id] = win
     win.show()
     win.raise_()
     win.activateWindow()
+    return win
 
 
 # --- Global Control ---
