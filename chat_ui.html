@@ -324,6 +324,7 @@ body:not(.empty) #disclaimer{display:block}
         <option value="gemini">Google Gemini</option>
         <option value="openrouter">OpenRouter</option>
         <option value="anthropic">Anthropic Claude</option>
+        <option value="claude_cli">Claude CLI (Local, no key)</option>
         <option value="ollama">Ollama (Local)</option>
       </select>
     </div>
@@ -532,6 +533,7 @@ var MODELS = {
     'deepseek/deepseek-chat-v3-0324:free','mistralai/mistral-7b-instruct:free'
   ],
   anthropic:  ['claude-haiku-4-5-20251001','claude-sonnet-4-6','claude-opus-4-6'],
+  claude_cli: ['sonnet','opus','haiku'],
   ollama:     []
 };
 
@@ -889,7 +891,8 @@ function onProviderChange(resetModel) {
   if (resetModel === undefined) resetModel = true;
   var prov     = document.getElementById('s-provider').value;
   var isOllama = prov === 'ollama';
-  document.getElementById('s-apikey-row').style.display    = isOllama ? 'none' : '';
+  var keyless  = isOllama || prov === 'claude_cli';
+  document.getElementById('s-apikey-row').style.display    = keyless ? 'none' : '';
   document.getElementById('s-ollama-ep-row').style.display = isOllama ? '' : 'none';
   document.getElementById('s-ollama-row').style.display    = isOllama ? '' : 'none';
   var inp = document.getElementById('s-model');
@@ -946,7 +949,7 @@ function saveSettings() {
   console.log('AI Assistant: save_settings provider=' + data.provider + ' model=' + data.model);
   sendToPython('save_settings', data);
   var banner    = document.getElementById('setup-banner');
-  var configured = (data.provider === 'ollama') || !!data.apiKey;
+  var configured = (data.provider === 'ollama') || (data.provider === 'claude_cli') || !!data.apiKey;
   if (configured) {
     banner.style.display = 'none';
     delete banner.dataset.showOnActive;

@@ -12,7 +12,9 @@ Bridge: JS → Python via console.log("PYCALL:action:json")
 import json
 import os
 import re
+import shutil
 import socket
+import subprocess
 import threading
 import traceback
 import urllib.error
@@ -257,8 +259,34 @@ def _load_settings() -> Dict[str, Any]:
         "fontSize":       _cfg_get(CK_FONT_SIZE, "13px"),
     }
 
+def _claude_cli_path() -> Optional[str]:
+    """Locate the local `claude` (Claude Code) CLI binary.
+
+    Anki launches with a minimal PATH that often omits user bin dirs, so we
+    fall back to the common install locations before giving up.
+    """
+    found = shutil.which("claude")
+    if found:
+        return found
+    candidates = [
+        os.path.expanduser("~/.local/bin/claude"),
+        os.path.expanduser("~/.claude/local/claude"),
+        "/opt/homebrew/bin/claude",
+        "/usr/local/bin/claude",
+        "/usr/bin/claude",
+    ]
+    for path in candidates:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
 def _is_configured(provider: str, api_key: str) -> bool:
-    return provider == "ollama" or bool(api_key and api_key.strip())
+    if provider == "ollama":
+        return True
+    if provider == "claude_cli":
+        return _claude_cli_path() is not None
+    return bool(api_key and api_key.strip())
 
 def _save_settings_dict(data: Dict[str, Any]) -> None:
     provider  = data.get("provider", "openai")
@@ -546,6 +574,79 @@ def _stream_ollama(
                 pass
 
 
+def _stream_claude_cli(
+    model: str,
+    messages: list,
+    on_chunk: Callable[[str], None],
+) -> None:
+    """Stream a reply from the local Claude Code CLI (`claude -p`).
+
+    No API key required — uses the user's existing Claude Code login. The
+    system prompt is passed via --append-system-prompt; the conversation is
+    flattened into a single prompt delivered on stdin. Output streams to the
+    webview as it is generated.
+    """
+    binary = _claude_cli_path()
+    if not binary:
+        raise RuntimeError(
+            "Claude CLI not found. Install Claude Code and make sure the "
+            "`claude` command works in your terminal, then try again."
+        )
+    print(f"AI Assistant: streaming Claude CLI, model={model}, bin={binary}")
+
+    system = next((m["content"] for m in messages if m["role"] == "system"), None)
+    convo  = [m for m in messages if m["role"] != "system"]
+    # Flatten the conversation into one prompt (CLI -p takes a single prompt).
+    parts: List[str] = []
+    for m in convo:
+        role = "Assistant" if m["role"] == "assistant" else "User"
+        parts.append(f"{role}: {m['content']}")
+    prompt = "\n\n".join(parts).strip() or "Hello"
+
+    cmd = [binary, "-p", "--output-format", "text"]
+    if model:
+        cmd += ["--model", model]
+    if system:
+        cmd += ["--append-system-prompt", system]
+
+    env = dict(os.environ)
+    # Anki's webview can leave these set in ways that confuse subprocesses.
+    env.pop("PYTHONHOME", None)
+    env.pop("PYTHONPATH", None)
+
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+        text=True,
+        bufsize=1,
+    )
+    try:
+        assert proc.stdin is not None and proc.stdout is not None
+        proc.stdin.write(prompt)
+        proc.stdin.close()
+        for line in proc.stdout:
+            if line:
+                on_chunk(line)
+        ret = proc.wait(timeout=300)
+        if ret != 0:
+            err = (proc.stderr.read() if proc.stderr else "").strip()
+            raise RuntimeError(
+                err or f"Claude CLI exited with code {ret}."
+            )
+    finally:
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            try:
+                if stream:
+                    stream.close()
+            except Exception:
+                pass
+        if proc.poll() is None:
+            proc.kill()
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Thread helper & JS runner
 # ══════════════════════════════════════════════════════════════════════════════
@@ -588,7 +689,7 @@ def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
         ollama_ep = settings.get("ollamaEndpoint", OLLAMA_EP_DEFAULT)
         full_text: List[str] = []
 
-        if not model:
+        if not model and provider != "claude_cli":
             err = "No model selected. Please configure a model in Settings."
             _js_on_main(f"receiveResponse({json.dumps(err)}, true);")
             return
@@ -621,6 +722,8 @@ def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
                 _stream_anthropic(api_key, model, messages, on_chunk)
             elif provider == "ollama":
                 _stream_ollama(model, messages, ollama_ep, on_chunk)
+            elif provider == "claude_cli":
+                _stream_claude_cli(model, messages, on_chunk)
             else:
                 raise RuntimeError(f"Unknown provider: '{provider}'")
 
