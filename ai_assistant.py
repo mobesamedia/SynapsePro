@@ -130,6 +130,7 @@ def _get_theme_accent(is_dark: bool) -> str:
 DOCK_NAME     = "AIAssistantSidebarDock_Integrated_v1"
 HTML_FILENAME = "chat_ui.html"
 OLLAMA_EP_DEFAULT = "http://localhost:11434"
+LLAMA_EP_DEFAULT  = "http://localhost:8080"
 
 PREFERRED_FRONT = ["Vorderseite","Front","Question","Text","Frage","Prompt","Front Side"]
 PREFERRED_BACK  = ["Rückseite","Back","Answer","Antwort","Back Side"]
@@ -159,6 +160,9 @@ CK_KEY_OR     = _PFX + "key_openrouter"
 CK_KEY_ANTH   = _PFX + "key_anthropic"
 CK_OLLAMA_EP  = _PFX + "ollama_endpoint"
 CK_OLLAMA_MDL = _PFX + "ollama_model"
+CK_LLAMA_EP   = _PFX + "llama_endpoint"
+CK_LLAMA_MDL  = _PFX + "llama_model"
+CK_KEY_LLAMA  = _PFX + "key_llama"
 CK_LANGUAGE   = _PFX + "language"
 CK_SOURCE     = _PFX + "source"
 CK_OWN_PROMPT = _PFX + "own_prompt"
@@ -241,7 +245,15 @@ def _load_settings() -> Dict[str, Any]:
     current_key    = key_map.get(provider, "")
     ollama_ep      = _cfg_get(CK_OLLAMA_EP, OLLAMA_EP_DEFAULT)
     ollama_model   = _cfg_get(CK_OLLAMA_MDL, "")
-    effective_model = ollama_model if provider == "ollama" else _cfg_get(CK_MODEL, "")
+    llama_ep       = _cfg_get(CK_LLAMA_EP, LLAMA_EP_DEFAULT)
+    llama_model    = _cfg_get(CK_LLAMA_MDL, "")
+    if provider == "ollama":
+        effective_model = ollama_model
+    elif provider == "llamaserver":
+        effective_model = llama_model
+        current_key     = _cfg_get(CK_KEY_LLAMA, "")
+    else:
+        effective_model = _cfg_get(CK_MODEL, "")
     return {
         "provider":     provider,
         "model":        effective_model,
@@ -250,6 +262,7 @@ def _load_settings() -> Dict[str, Any]:
         "source":       _cfg_get(CK_SOURCE,    "Front & Back"),
         "ownPrompt":    _cfg_get(CK_OWN_PROMPT, DEFAULT_OWN_PROMPT),
         "ollamaEndpoint": ollama_ep,
+        "llamaEndpoint":  llama_ep,
         "isDark":         _detect_night_mode(),
         "isConfigured":   _is_configured(provider, current_key),
         "chipsConfig":    _cfg_get(CK_CHIPS, _DEFAULT_CHIPS),
@@ -258,13 +271,15 @@ def _load_settings() -> Dict[str, Any]:
     }
 
 def _is_configured(provider: str, api_key: str) -> bool:
-    return provider == "ollama" or bool(api_key and api_key.strip())
+    # Local providers (Ollama, llama.cpp server) don't require an API key.
+    return provider in ("ollama", "llamaserver") or bool(api_key and api_key.strip())
 
 def _save_settings_dict(data: Dict[str, Any]) -> None:
     provider  = data.get("provider", "openai")
     api_key   = data.get("apiKey", "").strip()
     model     = data.get("model", "").strip()
     ollama_ep = data.get("ollamaEndpoint", OLLAMA_EP_DEFAULT).strip() or OLLAMA_EP_DEFAULT
+    llama_ep  = data.get("llamaEndpoint", LLAMA_EP_DEFAULT).strip() or LLAMA_EP_DEFAULT
 
     _cfg_set(CK_PROVIDER,   provider)
     _cfg_set(CK_LANGUAGE,   data.get("language",  "English"))
@@ -274,10 +289,16 @@ def _save_settings_dict(data: Dict[str, Any]) -> None:
         _cfg_set(CK_FONT_SIZE, font_size)
     _cfg_set(CK_OWN_PROMPT, data.get("ownPrompt", DEFAULT_OWN_PROMPT))
     _cfg_set(CK_OLLAMA_EP,  ollama_ep)
+    _cfg_set(CK_LLAMA_EP,   llama_ep)
 
     if provider == "ollama":
         if model:
             _cfg_set(CK_OLLAMA_MDL, model)
+    elif provider == "llamaserver":
+        if model:
+            _cfg_set(CK_LLAMA_MDL, model)
+        # API key is optional for llama.cpp (only set when --api-key is used).
+        _cfg_set(CK_KEY_LLAMA, api_key)
     else:
         if model:
             _cfg_set(CK_MODEL, model)
@@ -290,8 +311,10 @@ def _save_settings_dict(data: Dict[str, Any]) -> None:
         if provider in key_cfg and api_key:
             _cfg_set(key_cfg[provider], api_key)
 
+    _ep_log = ollama_ep if provider == "ollama" else (
+        llama_ep if provider == "llamaserver" else "n/a")
     print(f"AI Assistant: settings saved — provider={provider}, model={model}, "
-          f"endpoint={ollama_ep if provider=='ollama' else 'n/a'}, "
+          f"endpoint={_ep_log}, "
           f"key={'(set)' if api_key else '(empty)'}")
 
 
@@ -396,16 +419,18 @@ def _stream_openai_compat(
     on_chunk: Callable[[str], None],
     extra_headers: Optional[Dict[str, str]] = None,
     timeout: int = 60,
+    on_reasoning: Optional[Callable[[str], None]] = None,
 ) -> None:
-    """OpenAI-compatible streaming (also used for OpenRouter)."""
+    """OpenAI-compatible streaming (also used for OpenRouter & llama.cpp server)."""
     print(f"AI Assistant: streaming OpenAI-compat url={url.split('/')[2]}, model={model}")
     payload = json.dumps({
         "model": model, "messages": messages, "max_tokens": 2048, "stream": True,
     }).encode("utf-8")
-    headers: Dict[str, str] = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type":  "application/json",
-    }
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    # API key is optional for self-hosted OpenAI-compatible servers (e.g. a
+    # llama.cpp server started without --api-key). Only send auth when present.
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     if extra_headers:
         headers.update(extra_headers)
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
@@ -421,9 +446,16 @@ def _stream_openai_compat(
                 ev      = json.loads(data_str)
                 choices = ev.get("choices") or []
                 if choices:
-                    content = (choices[0].get("delta") or {}).get("content") or ""
+                    delta   = choices[0].get("delta") or {}
+                    content = delta.get("content") or ""
                     if content:
                         on_chunk(content)
+                    if on_reasoning:
+                        # llama.cpp/Qwen/DeepSeek use "reasoning_content";
+                        # OpenRouter exposes "reasoning".
+                        rc = delta.get("reasoning_content") or delta.get("reasoning") or ""
+                        if rc:
+                            on_reasoning(rc)
             except Exception:
                 pass
 
@@ -586,6 +618,7 @@ def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
         model     = settings.get("model", "")
         api_key   = settings.get("apiKey", "")
         ollama_ep = settings.get("ollamaEndpoint", OLLAMA_EP_DEFAULT)
+        llama_ep  = settings.get("llamaEndpoint", LLAMA_EP_DEFAULT)
         full_text: List[str] = []
 
         if not model:
@@ -597,6 +630,11 @@ def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
             full_text.append(chunk)
             _js_on_main(f"appendChunk({json.dumps(chunk)});")
 
+        def on_reasoning(chunk: str) -> None:
+            # Streamed to a separate "Thinking" area; intentionally NOT added to
+            # full_text so the model's reasoning stays out of the saved answer.
+            _js_on_main(f"appendThinking({json.dumps(chunk)});")
+
         try:
             # Signal JS to create the streaming bubble (hides typing indicator)
             _js_on_main("startAIBubble();")
@@ -605,6 +643,7 @@ def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
                 _stream_openai_compat(
                     "https://api.openai.com/v1/chat/completions",
                     api_key, model, messages, on_chunk,
+                    on_reasoning=on_reasoning,
                 )
             elif provider == "gemini":
                 _stream_gemini(api_key, model, messages, on_chunk)
@@ -616,11 +655,21 @@ def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
                         "HTTP-Referer": "https://synapse-pro.vercel.app/",
                         "X-Title":      "SynapsePro",
                     },
+                    on_reasoning=on_reasoning,
                 )
             elif provider == "anthropic":
                 _stream_anthropic(api_key, model, messages, on_chunk)
             elif provider == "ollama":
                 _stream_ollama(model, messages, ollama_ep, on_chunk)
+            elif provider == "llamaserver":
+                # llama.cpp server exposes an OpenAI-compatible endpoint.
+                base = llama_ep.rstrip("/")
+                _stream_openai_compat(
+                    f"{base}/v1/chat/completions",
+                    api_key, model, messages, on_chunk,
+                    timeout=180,
+                    on_reasoning=on_reasoning,
+                )
             else:
                 raise RuntimeError(f"Unknown provider: '{provider}'")
 
@@ -839,6 +888,7 @@ def _handle_action(action: str, data: Dict[str, Any]) -> None:
         "save_chips":    _action_save_chips,
         "check_ollama":  _action_check_ollama,
         "setup_ollama":  _action_setup_ollama,
+        "check_llama":   _action_check_llama,
         "clear_history": _action_clear_history,
     }
     handler = dispatch.get(action)
@@ -944,6 +994,30 @@ def _action_check_ollama(_data: Optional[Dict] = None) -> None:
         except Exception as exc:
             print(f"AI Assistant: Ollama check failed: {exc}")
             _js_on_main("setOllamaStatus('stopped', []);")
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def _action_check_llama(_data: Optional[Dict] = None) -> None:
+    """Check if a llama.cpp server is reachable; send result + models to JS."""
+    print("AI Assistant: checking llama.cpp server status…")
+
+    def worker():
+        ep = _cfg_get(CK_LLAMA_EP, LLAMA_EP_DEFAULT).rstrip("/")
+        key = _cfg_get(CK_KEY_LLAMA, "")
+        print(f"AI Assistant: connecting to llama.cpp server at {ep}")
+        try:
+            req = urllib.request.Request(f"{ep}/v1/models")
+            if key:
+                req.add_header("Authorization", f"Bearer {key}")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+            models = [m["id"] for m in result.get("data", []) if m.get("id")]
+            print(f"AI Assistant: llama.cpp server running, models={models}")
+            _js_on_main(f"setLlamaStatus('running', {json.dumps(models)});")
+        except Exception as exc:
+            print(f"AI Assistant: llama.cpp check failed: {exc}")
+            _js_on_main("setLlamaStatus('stopped', []);")
 
     threading.Thread(target=worker, daemon=True).start()
 
@@ -1115,7 +1189,7 @@ if _qt_ok and QDialog is not object:
                         line = raw.decode("utf-8", errors="replace").strip()
                         if not line: continue
                         try: ev = json.loads(line)
-                        except Exception: continue
+                        except: continue
                         if "error" in ev: raise RuntimeError(ev["error"])
                         if "total" in ev:
                             total = int(ev.get("total", 0) or 0)

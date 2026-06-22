@@ -325,6 +325,7 @@ body:not(.empty) #disclaimer{display:block}
         <option value="openrouter">OpenRouter</option>
         <option value="anthropic">Anthropic Claude</option>
         <option value="ollama">Ollama (Local)</option>
+        <option value="llamaserver">llama.cpp Server (Local)</option>
       </select>
     </div>
     <div class="s-row" id="s-apikey-row">
@@ -344,6 +345,15 @@ body:not(.empty) #disclaimer{display:block}
     <div class="s-row" id="s-ollama-row" style="display:none">
       <label class="s-label">Ollama Status</label>
       <div id="ollama-status-line">Checking...</div>
+    </div>
+    <div class="s-row" id="s-llama-ep-row" style="display:none">
+      <label class="s-label">Server Endpoint</label>
+      <input class="s-input" type="url" id="s-llama-ep" placeholder="http://localhost:8080" autocomplete="off"/>
+      <div class="s-hint">Base URL of your llama.cpp server (the OpenAI-compatible <code>/v1</code> path is added automatically).</div>
+    </div>
+    <div class="s-row" id="s-llama-row" style="display:none">
+      <label class="s-label">Server Status</label>
+      <div id="llama-status-line">Checking...</div>
     </div>
     <div class="s-section">
       <div class="s-row">
@@ -532,7 +542,8 @@ var MODELS = {
     'deepseek/deepseek-chat-v3-0324:free','mistralai/mistral-7b-instruct:free'
   ],
   anthropic:  ['claude-haiku-4-5-20251001','claude-sonnet-4-6','claude-opus-4-6'],
-  ollama:     []
+  ollama:     [],
+  llamaserver: []
 };
 
 // ── Built-in chips ────────────────────────────────────────────────────────────
@@ -556,6 +567,9 @@ var chipConfig   = {
 // ── Streaming state ───────────────────────────────────────────────────────────
 var _streamBubble = null;
 var _streamRaw    = '';
+var _streamAnswer = null;   // answer sub-element (separate from "thinking")
+var _streamThink  = '';     // accumulated reasoning_content (reasoning models)
+var _thinkEl      = null;   // <details> disclosure holding the reasoning
 
 // ── Accent color ──────────────────────────────────────────────────────────────
 var ACCENT_PRESETS = ['#3b82f6','#6366f1','#8b5cf6','#ec4899','#10b981','#f59e0b','#ef4444'];
@@ -596,6 +610,7 @@ function init(cfg) {
   safeSet('s-language', cfg.language  || 'English');
   safeSet('s-source',   cfg.source    || 'Front Only');
   document.getElementById('s-ollama-ep').value = cfg.ollamaEndpoint || 'http://localhost:11434';
+  document.getElementById('s-llama-ep').value  = cfg.llamaEndpoint  || 'http://localhost:8080';
 
   // Accent color
   var accent = cfg.accentColor || (cfg.isDark ? '#6366f1' : '#3b82f6');
@@ -610,6 +625,8 @@ function init(cfg) {
 
   if (cfg.provider === 'ollama') {
     setOllamaStatus(cfg.ollamaRunning ? 'running' : 'stopped', cfg.ollamaModels || []);
+  } else if (cfg.provider === 'llamaserver') {
+    sendToPython('check_llama', {});
   }
 
   if (cfg.chipsConfig) {
@@ -889,21 +906,31 @@ function onProviderChange(resetModel) {
   if (resetModel === undefined) resetModel = true;
   var prov     = document.getElementById('s-provider').value;
   var isOllama = prov === 'ollama';
+  var isLlama  = prov === 'llamaserver';
+  // Local providers don't require an API key; llama.cpp may use an optional one.
   document.getElementById('s-apikey-row').style.display    = isOllama ? 'none' : '';
   document.getElementById('s-ollama-ep-row').style.display = isOllama ? '' : 'none';
   document.getElementById('s-ollama-row').style.display    = isOllama ? '' : 'none';
+  document.getElementById('s-llama-ep-row').style.display  = isLlama  ? '' : 'none';
+  document.getElementById('s-llama-row').style.display     = isLlama  ? '' : 'none';
+  var apikey = document.getElementById('s-apikey');
+  apikey.placeholder = isLlama ? 'Optional — only if server uses --api-key'
+                               : 'Enter your API key...';
   var inp = document.getElementById('s-model');
   var dl  = document.getElementById('s-model-list');
   dl.innerHTML = '';
-  if (!isOllama) {
+  if (isOllama) {
+    inp.placeholder = 'Fetching models...';
+    sendToPython('check_ollama', {});
+  } else if (isLlama) {
+    inp.placeholder = 'Model name (e.g. the model your server loaded)';
+    sendToPython('check_llama', {});
+  } else {
     (MODELS[prov] || []).forEach(function(m) {
       var o = document.createElement('option'); o.value = m; dl.appendChild(o);
     });
     if (resetModel && MODELS[prov] && MODELS[prov].length) inp.value = MODELS[prov][0];
     inp.placeholder = 'Select or type a model...';
-  } else {
-    inp.placeholder = 'Fetching models...';
-    sendToPython('check_ollama', {});
   }
 }
 
@@ -931,6 +958,25 @@ function setOllamaStatus(status, models) {
   }
 }
 
+function setLlamaStatus(status, models) {
+  var el = document.getElementById('llama-status-line');
+  if (!el) return;
+  if (status === 'running') {
+    el.innerHTML = '<span style="color:var(--success)">Reachable</span>';
+    // Offer the loaded model(s) as suggestions, but allow any custom name.
+    var inp = document.getElementById('s-model');
+    var dl  = document.getElementById('s-model-list');
+    dl.innerHTML = '';
+    if (models && models.length) {
+      models.forEach(function(m) { var o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+      if (!inp.value) inp.value = models[0];
+    }
+  } else {
+    el.innerHTML = '<span style="color:var(--error)">Not reachable</span>' +
+      ' &mdash; check the endpoint and that the server is running.';
+  }
+}
+
 function saveSettings() {
   var data = {
     provider:       document.getElementById('s-provider').value,
@@ -940,13 +986,14 @@ function saveSettings() {
     source:         document.getElementById('s-source').value,
     ownPrompt:      '',
     ollamaEndpoint: document.getElementById('s-ollama-ep').value.trim() || 'http://localhost:11434',
+    llamaEndpoint:  document.getElementById('s-llama-ep').value.trim() || 'http://localhost:8080',
     fontSize:       document.getElementById('s-fontsize').value || '13px'
   };
   setFontSize(data.fontSize);
   console.log('AI Assistant: save_settings provider=' + data.provider + ' model=' + data.model);
   sendToPython('save_settings', data);
   var banner    = document.getElementById('setup-banner');
-  var configured = (data.provider === 'ollama') || !!data.apiKey;
+  var configured = (data.provider === 'ollama') || (data.provider === 'llamaserver') || !!data.apiKey;
   if (configured) {
     banner.style.display = 'none';
     delete banner.dataset.showOnActive;
@@ -964,7 +1011,7 @@ function saveSettings() {
 function updateModelLabel() {
   var p = document.getElementById('s-provider').value;
   var m = document.getElementById('s-model').value || '';
-  var names = {openai:'OpenAI',gemini:'Gemini',openrouter:'OpenRouter',anthropic:'Anthropic',ollama:'Ollama'};
+  var names = {openai:'OpenAI',gemini:'Gemini',openrouter:'OpenRouter',anthropic:'Anthropic',ollama:'Ollama',llamaserver:'llama.cpp'};
   var mn = m.split('/').pop();
   document.getElementById('model-label').textContent = (names[p] || p) + (mn ? ' · ' + mn : '');
 }
@@ -1073,17 +1120,56 @@ function startAIBubble() {
   var bub = document.createElement('div');
   bub.id        = 'streaming-bubble';
   bub.className = 'bubble';
+  var ans = document.createElement('div');   // answer goes here, below any thinking block
+  ans.className = 'stream-answer';
+  bub.appendChild(ans);
   row.appendChild(bub);
   chat.appendChild(row);
   _streamBubble = bub;
+  _streamAnswer = ans;
   _streamRaw    = '';
+  _streamThink  = '';
+  _thinkEl      = null;
   chat.scrollTop = chat.scrollHeight;
+}
+
+// Reasoning models (e.g. Qwen3, DeepSeek-R1 via llama.cpp / OpenRouter) stream
+// their chain-of-thought separately in delta.reasoning_content. Show it in a
+// collapsible "Thinking" disclosure above the answer so the bubble isn't blank
+// while the model reasons, and so reasoning never pollutes the saved answer.
+function appendThinking(chunk) {
+  if (!_streamBubble) return;
+  if (!_thinkEl) {
+    _thinkEl = document.createElement('details');
+    _thinkEl.open = true;
+    _thinkEl.style.cssText = 'margin-bottom:6px;font-size:0.92em';
+    var sum = document.createElement('summary');
+    sum.textContent = 'Thinking…';
+    sum.style.cssText = 'color:var(--text-muted);cursor:pointer;user-select:none';
+    var body = document.createElement('div');
+    body.style.cssText = 'color:var(--text-muted);white-space:pre-wrap;margin-top:4px;'
+      + 'padding-left:8px;border-left:2px solid var(--text-muted);opacity:0.85';
+    _thinkEl.appendChild(sum);
+    _thinkEl.appendChild(body);
+    _thinkEl._body = body;
+    _streamBubble.insertBefore(_thinkEl, _streamAnswer);
+  }
+  _streamThink += chunk;
+  _thinkEl._body.textContent = _streamThink;
+  var chat = document.getElementById('chat');
+  if (chat) chat.scrollTop = chat.scrollHeight;
 }
 
 function appendChunk(chunk) {
   if (!_streamBubble) return;
+  // First real answer token: collapse the thinking disclosure.
+  if (_thinkEl && _streamRaw === '') {
+    _thinkEl.open = false;
+    var s = _thinkEl.querySelector('summary');
+    if (s) s.textContent = 'Thoughts';
+  }
   _streamRaw += chunk;
-  _streamBubble.innerHTML = renderMarkdown(_streamRaw);
+  _streamAnswer.innerHTML = renderMarkdown(_streamRaw);
   var chat = document.getElementById('chat');
   if (chat) chat.scrollTop = chat.scrollHeight;
 }
@@ -1093,10 +1179,13 @@ function finalizeResponse() {
     var row = document.getElementById('streaming-row');
     if (row) row.removeAttribute('id');
     _streamBubble.removeAttribute('id');
-    _streamBubble.innerHTML = renderMarkdown(_streamRaw);
+    if (_streamAnswer) _streamAnswer.innerHTML = renderMarkdown(_streamRaw);
   }
   _streamBubble = null;
+  _streamAnswer = null;
   _streamRaw    = '';
+  _streamThink  = '';
+  _thinkEl      = null;
   setBusy(false);
   var chat = document.getElementById('chat');
   if (chat) chat.scrollTop = chat.scrollHeight;
@@ -1106,7 +1195,10 @@ function cancelStream() {
   var row = document.getElementById('streaming-row');
   if (row) row.remove();
   _streamBubble = null;
+  _streamAnswer = null;
   _streamRaw    = '';
+  _streamThink  = '';
+  _thinkEl      = null;
   hideTyping();
   setBusy(false);
 }
