@@ -68,6 +68,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,san
 .s-save:hover{opacity:.82}
 #ollama-status-line{font-size:11px;color:var(--text-muted);line-height:1.5}
 #ollama-status-line a{color:inherit;text-decoration:underline;cursor:pointer}
+.s-test-btn{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:7px 10px;font-size:12px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:background .12s,border-color .12s,opacity .12s}
+.s-test-btn:hover:not(:disabled){background:var(--chip-bg);border-color:var(--text-muted)}
+.s-test-btn:disabled{opacity:.55;cursor:default}
+#s-test-result{font-size:11px;color:var(--text-muted);line-height:1.4;margin-top:5px;min-height:15px}
+#s-test-result.ok{color:var(--success)}
+#s-test-result.fail{color:var(--error)}
 
 
 /* ── Info panel ── */
@@ -324,6 +332,7 @@ body:not(.empty) #disclaimer{display:block}
         <option value="gemini">Google Gemini</option>
         <option value="openrouter">OpenRouter</option>
         <option value="anthropic">Anthropic Claude</option>
+        <option value="custom_openai">Custom OpenAI Compatible</option>
         <option value="ollama">Ollama (Local)</option>
       </select>
     </div>
@@ -336,6 +345,15 @@ body:not(.empty) #disclaimer{display:block}
       <input class="s-input" id="s-model" list="s-model-list" placeholder="Select or type a model..." autocomplete="off"/>
       <datalist id="s-model-list"></datalist>
       <div class="s-hint">Pick from the list or type a custom model name.</div>
+    </div>
+    <div class="s-row" id="s-custom-base-url-row" style="display:none">
+      <label class="s-label">Base URL</label>
+      <input class="s-input" type="url" id="s-custom-base-url" placeholder="https://api.example.com/v1" autocomplete="off"/>
+      <div class="s-hint">Use the OpenAI-compatible API root, usually ending in /v1.</div>
+    </div>
+    <div class="s-row" id="s-test-row" style="display:none">
+      <button class="s-test-btn" id="s-test-btn" onclick="testConnection()">Test Connection</button>
+      <div id="s-test-result"></div>
     </div>
     <div class="s-row" id="s-ollama-ep-row" style="display:none">
       <label class="s-label">Ollama Endpoint</label>
@@ -401,6 +419,7 @@ body:not(.empty) #disclaimer{display:block}
         <b>Google Gemini</b> (flash) — free tier available, very capable.<br>
         <b>Anthropic Claude</b> — strong at nuanced explanations.<br>
         <b>OpenRouter</b> — access many models with one key, includes free options.<br>
+        <b>Custom OpenAI Compatible</b> — use any trusted service that supports OpenAI-style chat completions.<br>
         <b>Ollama</b> — runs 100% locally on your machine, no key, no cost, no data leaves your device.
       </div>
     </div>
@@ -425,7 +444,8 @@ body:not(.empty) #disclaimer{display:block}
         <b>Your API key is stored only on this device</b> in Anki's local config — it is never
         uploaded to any server by this add-on.<br><br>
         When you send a message, your question and card content go directly to the provider you
-        chose (OpenAI, Google, etc.) under <b>their</b> privacy policy.
+        chose (OpenAI, Google, your custom Base URL, etc.) under <b>their</b> privacy policy.
+        Only use a custom OpenAI-compatible endpoint if you trust that provider.
         If privacy is critical, use <b>Ollama</b> — everything stays local.<br><br>
         SynapseGPT does <b>not</b> collect analytics, logs, or usage data.
       </div>
@@ -532,6 +552,7 @@ var MODELS = {
     'deepseek/deepseek-chat-v3-0324:free','mistralai/mistral-7b-instruct:free'
   ],
   anthropic:  ['claude-haiku-4-5-20251001','claude-sonnet-4-6','claude-opus-4-6'],
+  custom_openai: [],
   ollama:     []
 };
 
@@ -596,6 +617,7 @@ function init(cfg) {
   safeSet('s-language', cfg.language  || 'English');
   safeSet('s-source',   cfg.source    || 'Front Only');
   document.getElementById('s-ollama-ep').value = cfg.ollamaEndpoint || 'http://localhost:11434';
+  document.getElementById('s-custom-base-url').value = cfg.customBaseUrl || '';
 
   // Accent color
   var accent = cfg.accentColor || (cfg.isDark ? '#6366f1' : '#3b82f6');
@@ -889,21 +911,27 @@ function onProviderChange(resetModel) {
   if (resetModel === undefined) resetModel = true;
   var prov     = document.getElementById('s-provider').value;
   var isOllama = prov === 'ollama';
+  var isCustom = prov === 'custom_openai';
   document.getElementById('s-apikey-row').style.display    = isOllama ? 'none' : '';
   document.getElementById('s-ollama-ep-row').style.display = isOllama ? '' : 'none';
   document.getElementById('s-ollama-row').style.display    = isOllama ? '' : 'none';
+  document.getElementById('s-custom-base-url-row').style.display = isCustom ? '' : 'none';
+  document.getElementById('s-test-row').style.display = isCustom ? '' : 'none';
+  if (!isCustom) setTestConnectionResult({ ok: null, message: '' });
   var inp = document.getElementById('s-model');
   var dl  = document.getElementById('s-model-list');
   dl.innerHTML = '';
-  if (!isOllama) {
+  if (isOllama) {
+    inp.placeholder = 'Fetching models...';
+    sendToPython('check_ollama', {});
+  } else if (isCustom) {
+    inp.placeholder = 'Enter model name, e.g. gpt-4o-mini';
+  } else {
     (MODELS[prov] || []).forEach(function(m) {
       var o = document.createElement('option'); o.value = m; dl.appendChild(o);
     });
     if (resetModel && MODELS[prov] && MODELS[prov].length) inp.value = MODELS[prov][0];
     inp.placeholder = 'Select or type a model...';
-  } else {
-    inp.placeholder = 'Fetching models...';
-    sendToPython('check_ollama', {});
   }
 }
 
@@ -931,8 +959,8 @@ function setOllamaStatus(status, models) {
   }
 }
 
-function saveSettings() {
-  var data = {
+function collectSettingsFormData() {
+  return {
     provider:       document.getElementById('s-provider').value,
     model:          document.getElementById('s-model').value.trim(),
     apiKey:         document.getElementById('s-apikey').value.trim(),
@@ -940,13 +968,19 @@ function saveSettings() {
     source:         document.getElementById('s-source').value,
     ownPrompt:      '',
     ollamaEndpoint: document.getElementById('s-ollama-ep').value.trim() || 'http://localhost:11434',
+    customBaseUrl:  document.getElementById('s-custom-base-url').value.trim(),
     fontSize:       document.getElementById('s-fontsize').value || '13px'
   };
-  setFontSize(data.fontSize);
-  console.log('AI Assistant: save_settings provider=' + data.provider + ' model=' + data.model);
-  sendToPython('save_settings', data);
-  var banner    = document.getElementById('setup-banner');
-  var configured = (data.provider === 'ollama') || !!data.apiKey;
+}
+
+function isSettingsConfigured(data) {
+  if (data.provider === 'ollama') return true;
+  if (data.provider === 'custom_openai') return !!(data.customBaseUrl && data.apiKey && data.model);
+  return !!data.apiKey;
+}
+
+function updateSetupBanner(configured) {
+  var banner = document.getElementById('setup-banner');
   if (configured) {
     banner.style.display = 'none';
     delete banner.dataset.showOnActive;
@@ -957,14 +991,46 @@ function saveSettings() {
       banner.dataset.showOnActive = '1';
     }
   }
+}
+
+function saveSettings() {
+  var data = collectSettingsFormData();
+  setFontSize(data.fontSize);
+  console.log('AI Assistant: save_settings provider=' + data.provider + ' model=' + data.model);
+  sendToPython('save_settings', data);
+  updateSetupBanner(isSettingsConfigured(data));
   updateModelLabel();
   closeSettings();
+}
+
+function testConnection() {
+  var data = collectSettingsFormData();
+  if (data.provider !== 'custom_openai') return;
+  if (!data.customBaseUrl) { setTestConnectionResult({ ok:false, message:'Enter a Base URL for the custom provider.' }); return; }
+  if (!/^https?:\/\//i.test(data.customBaseUrl)) { setTestConnectionResult({ ok:false, message:'Base URL must start with http:// or https://.' }); return; }
+  if (!data.apiKey) { setTestConnectionResult({ ok:false, message:'Enter an API key for the custom provider.' }); return; }
+  if (!data.model) { setTestConnectionResult({ ok:false, message:'Enter a model name for the custom provider.' }); return; }
+  var btn = document.getElementById('s-test-btn');
+  if (btn) btn.disabled = true;
+  setTestConnectionResult({ ok:null, message:'Testing connection...' });
+  sendToPython('test_connection', data);
+}
+
+function setTestConnectionResult(result) {
+  var el = document.getElementById('s-test-result');
+  if (!el) return;
+  var btn = document.getElementById('s-test-btn');
+  el.className = '';
+  el.textContent = (result && result.message) || '';
+  if (result && result.ok === true) el.classList.add('ok');
+  if (result && result.ok === false) el.classList.add('fail');
+  if (btn && (!result || result.message !== 'Testing connection...')) btn.disabled = false;
 }
 
 function updateModelLabel() {
   var p = document.getElementById('s-provider').value;
   var m = document.getElementById('s-model').value || '';
-  var names = {openai:'OpenAI',gemini:'Gemini',openrouter:'OpenRouter',anthropic:'Anthropic',ollama:'Ollama'};
+  var names = {openai:'OpenAI',gemini:'Gemini',openrouter:'OpenRouter',anthropic:'Anthropic',custom_openai:'Custom',ollama:'Ollama'};
   var mn = m.split('/').pop();
   document.getElementById('model-label').textContent = (names[p] || p) + (mn ? ' · ' + mn : '');
 }

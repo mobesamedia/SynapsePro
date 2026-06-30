@@ -157,6 +157,9 @@ CK_KEY_OPENAI = _PFX + "key_openai"
 CK_KEY_GEMINI = _PFX + "key_gemini"
 CK_KEY_OR     = _PFX + "key_openrouter"
 CK_KEY_ANTH   = _PFX + "key_anthropic"
+CK_KEY_CUSTOM_OPENAI = _PFX + "key_custom_openai"
+CK_CUSTOM_BASE_URL   = _PFX + "custom_openai_base_url"
+CK_CUSTOM_MODEL      = _PFX + "custom_openai_model"
 CK_OLLAMA_EP  = _PFX + "ollama_endpoint"
 CK_OLLAMA_MDL = _PFX + "ollama_model"
 CK_LANGUAGE   = _PFX + "language"
@@ -233,15 +236,23 @@ def _cfg_set(key: str, value: Any) -> None:
 def _load_settings() -> Dict[str, Any]:
     provider = _cfg_get(CK_PROVIDER, "openai")
     key_map  = {
-        "openai":     _cfg_get(CK_KEY_OPENAI, ""),
-        "gemini":     _cfg_get(CK_KEY_GEMINI, ""),
-        "openrouter": _cfg_get(CK_KEY_OR,     ""),
-        "anthropic":  _cfg_get(CK_KEY_ANTH,   ""),
+        "openai":        _cfg_get(CK_KEY_OPENAI, ""),
+        "gemini":        _cfg_get(CK_KEY_GEMINI, ""),
+        "openrouter":    _cfg_get(CK_KEY_OR,     ""),
+        "anthropic":     _cfg_get(CK_KEY_ANTH,   ""),
+        "custom_openai": _cfg_get(CK_KEY_CUSTOM_OPENAI, ""),
     }
-    current_key    = key_map.get(provider, "")
-    ollama_ep      = _cfg_get(CK_OLLAMA_EP, OLLAMA_EP_DEFAULT)
-    ollama_model   = _cfg_get(CK_OLLAMA_MDL, "")
-    effective_model = ollama_model if provider == "ollama" else _cfg_get(CK_MODEL, "")
+    current_key     = key_map.get(provider, "")
+    custom_base_url = _cfg_get(CK_CUSTOM_BASE_URL, "")
+    ollama_ep       = _cfg_get(CK_OLLAMA_EP, OLLAMA_EP_DEFAULT)
+    ollama_model    = _cfg_get(CK_OLLAMA_MDL, "")
+    custom_model    = _cfg_get(CK_CUSTOM_MODEL, "")
+    if provider == "ollama":
+        effective_model = ollama_model
+    elif provider == "custom_openai":
+        effective_model = custom_model
+    else:
+        effective_model = _cfg_get(CK_MODEL, "")
     return {
         "provider":     provider,
         "model":        effective_model,
@@ -250,21 +261,34 @@ def _load_settings() -> Dict[str, Any]:
         "source":       _cfg_get(CK_SOURCE,    "Front & Back"),
         "ownPrompt":    _cfg_get(CK_OWN_PROMPT, DEFAULT_OWN_PROMPT),
         "ollamaEndpoint": ollama_ep,
+        "customBaseUrl":  custom_base_url,
         "isDark":         _detect_night_mode(),
-        "isConfigured":   _is_configured(provider, current_key),
+        "isConfigured":   _is_configured(provider, current_key, effective_model, custom_base_url),
         "chipsConfig":    _cfg_get(CK_CHIPS, _DEFAULT_CHIPS),
         "accentColor":    _get_theme_accent(_detect_night_mode()),
         "fontSize":       _cfg_get(CK_FONT_SIZE, "13px"),
     }
 
-def _is_configured(provider: str, api_key: str) -> bool:
-    return provider == "ollama" or bool(api_key and api_key.strip())
+def _is_configured(
+    provider: str,
+    api_key: str,
+    model: str = "",
+    custom_base_url: str = "",
+) -> bool:
+    if provider == "ollama":
+        return True
+    if provider == "custom_openai":
+        return bool(api_key and api_key.strip()
+                    and model and model.strip()
+                    and custom_base_url and custom_base_url.strip())
+    return bool(api_key and api_key.strip())
 
 def _save_settings_dict(data: Dict[str, Any]) -> None:
-    provider  = data.get("provider", "openai")
-    api_key   = data.get("apiKey", "").strip()
-    model     = data.get("model", "").strip()
-    ollama_ep = data.get("ollamaEndpoint", OLLAMA_EP_DEFAULT).strip() or OLLAMA_EP_DEFAULT
+    provider        = data.get("provider", "openai")
+    api_key         = data.get("apiKey", "").strip()
+    model           = data.get("model", "").strip()
+    custom_base_url = data.get("customBaseUrl", "").strip()
+    ollama_ep       = data.get("ollamaEndpoint", OLLAMA_EP_DEFAULT).strip() or OLLAMA_EP_DEFAULT
 
     _cfg_set(CK_PROVIDER,   provider)
     _cfg_set(CK_LANGUAGE,   data.get("language",  "English"))
@@ -274,10 +298,16 @@ def _save_settings_dict(data: Dict[str, Any]) -> None:
         _cfg_set(CK_FONT_SIZE, font_size)
     _cfg_set(CK_OWN_PROMPT, data.get("ownPrompt", DEFAULT_OWN_PROMPT))
     _cfg_set(CK_OLLAMA_EP,  ollama_ep)
+    _cfg_set(CK_CUSTOM_BASE_URL, custom_base_url)
 
     if provider == "ollama":
         if model:
             _cfg_set(CK_OLLAMA_MDL, model)
+    elif provider == "custom_openai":
+        if model:
+            _cfg_set(CK_CUSTOM_MODEL, model)
+        if api_key:
+            _cfg_set(CK_KEY_CUSTOM_OPENAI, api_key)
     else:
         if model:
             _cfg_set(CK_MODEL, model)
@@ -290,9 +320,32 @@ def _save_settings_dict(data: Dict[str, Any]) -> None:
         if provider in key_cfg and api_key:
             _cfg_set(key_cfg[provider], api_key)
 
+    endpoint_label = "custom" if provider == "custom_openai" else (ollama_ep if provider == "ollama" else "n/a")
     print(f"AI Assistant: settings saved — provider={provider}, model={model}, "
-          f"endpoint={ollama_ep if provider=='ollama' else 'n/a'}, "
-          f"key={'(set)' if api_key else '(empty)'}")
+          f"endpoint={endpoint_label}, key={'(set)' if api_key else '(empty)'}")
+
+
+def _openai_compat_chat_url(base_url: str) -> str:
+    base = (base_url or "").strip()
+    if not base:
+        raise ValueError("Enter a Base URL for the custom provider.")
+    parsed = urllib.parse.urlparse(base)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("Base URL must start with http:// or https://.")
+    base = base.rstrip("/")
+    if base.endswith("/chat/completions"):
+        return base
+    return base + "/chat/completions"
+
+
+def _validate_custom_openai_settings(api_key: str, model: str, custom_base_url: str) -> str:
+    if not custom_base_url or not custom_base_url.strip():
+        raise ValueError("Enter a Base URL for the custom provider.")
+    if not api_key or not api_key.strip():
+        raise ValueError("Enter an API key for the custom provider.")
+    if not model or not model.strip():
+        raise ValueError("Enter a model name for the custom provider.")
+    return _openai_compat_chat_url(custom_base_url)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -331,6 +384,11 @@ def _classify_error(exc: Exception, provider: str = "") -> str:
             detail = body or exc.reason or "bad request"
             return f"Bad request (HTTP 400): {detail}"
         elif code == 404:
+            if provider == "custom_openai":
+                return (
+                    "Endpoint not found (HTTP 404). Check that the Base URL is an "
+                    "OpenAI-compatible /v1 API root and that the model name is correct."
+                )
             return (
                 f"Model not found (HTTP 404). "
                 "Check that the model name in Settings is correct."
@@ -396,11 +454,12 @@ def _stream_openai_compat(
     on_chunk: Callable[[str], None],
     extra_headers: Optional[Dict[str, str]] = None,
     timeout: int = 60,
+    max_tokens: int = 2048,
 ) -> None:
     """OpenAI-compatible streaming (also used for OpenRouter)."""
     print(f"AI Assistant: streaming OpenAI-compat url={url.split('/')[2]}, model={model}")
     payload = json.dumps({
-        "model": model, "messages": messages, "max_tokens": 2048, "stream": True,
+        "model": model, "messages": messages, "max_tokens": max_tokens, "stream": True,
     }).encode("utf-8")
     headers: Dict[str, str] = {
         "Authorization": f"Bearer {api_key}",
@@ -582,10 +641,11 @@ def _js_on_main(code: str) -> None:
 def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
     """Stream API response token by token; each chunk is dispatched to the webview."""
     def worker() -> None:
-        provider  = settings.get("provider", "?")
-        model     = settings.get("model", "")
-        api_key   = settings.get("apiKey", "")
-        ollama_ep = settings.get("ollamaEndpoint", OLLAMA_EP_DEFAULT)
+        provider        = settings.get("provider", "?")
+        model           = settings.get("model", "")
+        api_key         = settings.get("apiKey", "")
+        ollama_ep       = settings.get("ollamaEndpoint", OLLAMA_EP_DEFAULT)
+        custom_base_url = settings.get("customBaseUrl", "")
         full_text: List[str] = []
 
         if not model:
@@ -617,6 +677,12 @@ def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
                         "X-Title":      "SynapsePro",
                     },
                 )
+            elif provider == "custom_openai":
+                custom_url = _validate_custom_openai_settings(api_key, model, custom_base_url)
+                _stream_openai_compat(
+                    custom_url,
+                    api_key, model, messages, on_chunk,
+                )
             elif provider == "anthropic":
                 _stream_anthropic(api_key, model, messages, on_chunk)
             elif provider == "ollama":
@@ -633,7 +699,7 @@ def _run_api_in_thread(settings: Dict[str, Any], messages: List[Dict]) -> None:
             err_msg = _classify_error(exc, provider)
             _EXPECTED = (urllib.error.HTTPError, urllib.error.URLError,
                          TimeoutError, socket.timeout, json.JSONDecodeError,
-                         RuntimeError)
+                         RuntimeError, ValueError)
             if isinstance(exc, _EXPECTED):
                 print(f"AI Assistant: API error [{provider}] {type(exc).__name__}: {exc}")
             else:
@@ -832,14 +898,15 @@ else:
 
 def _handle_action(action: str, data: Dict[str, Any]) -> None:
     dispatch = {
-        "page_ready":    _action_page_ready,
-        "send_message":  _action_send_message,
-        "chip_action":   _action_chip,
-        "save_settings": _action_save_settings,
-        "save_chips":    _action_save_chips,
-        "check_ollama":  _action_check_ollama,
-        "setup_ollama":  _action_setup_ollama,
-        "clear_history": _action_clear_history,
+        "page_ready":       _action_page_ready,
+        "send_message":     _action_send_message,
+        "chip_action":      _action_chip,
+        "save_settings":    _action_save_settings,
+        "save_chips":       _action_save_chips,
+        "test_connection":  _action_test_connection,
+        "check_ollama":     _action_check_ollama,
+        "setup_ollama":     _action_setup_ollama,
+        "clear_history":    _action_clear_history,
     }
     handler = dispatch.get(action)
     if handler:
@@ -868,9 +935,17 @@ def _action_send_message(data: Dict[str, Any]) -> None:
     print(f"AI Assistant: send_message provider={provider}, "
           f"model={settings['model']}, key={'(set)' if api_key else '(empty)'}")
 
-    if not _is_configured(provider, api_key):
+    if not _is_configured(
+        provider,
+        api_key,
+        settings.get("model", ""),
+        settings.get("customBaseUrl", ""),
+    ):
         print("AI Assistant: not configured – showing error")
-        _run_js('receiveResponse("No API key configured. Open Settings (⚙) and enter your API key.", true);')
+        if provider == "custom_openai":
+            _run_js('receiveResponse("Custom OpenAI Compatible is not configured. Open Settings (⚙) and enter Base URL, API Key, and Model.", true);')
+        else:
+            _run_js('receiveResponse("No API key configured. Open Settings (⚙) and enter your API key.", true);')
         return
 
     _conversation.append({"role": "user", "content": text})
@@ -891,8 +966,16 @@ def _action_chip(data: Dict[str, Any]) -> None:
     provider = settings["provider"]
     api_key  = settings["apiKey"]
 
-    if not _is_configured(provider, api_key):
-        _run_js('receiveResponse("No API key configured. Open Settings (⚙) and enter your API key.", true);')
+    if not _is_configured(
+        provider,
+        api_key,
+        settings.get("model", ""),
+        settings.get("customBaseUrl", ""),
+    ):
+        if provider == "custom_openai":
+            _run_js('receiveResponse("Custom OpenAI Compatible is not configured. Open Settings (⚙) and enter Base URL, API Key, and Model.", true);')
+        else:
+            _run_js('receiveResponse("No API key configured. Open Settings (⚙) and enter your API key.", true);')
         return
 
     if action == "custom":
@@ -918,6 +1001,50 @@ def _action_chip(data: Dict[str, Any]) -> None:
 def _action_save_settings(data: Dict[str, Any]) -> None:
     _save_settings_dict(data)
     tooltip(_("AI settings saved."))
+
+
+def _action_test_connection(data: Dict[str, Any]) -> None:
+    """Test unsaved custom OpenAI-compatible settings without persisting them."""
+    provider        = data.get("provider", "")
+    api_key         = data.get("apiKey", "").strip()
+    model           = data.get("model", "").strip()
+    custom_base_url = data.get("customBaseUrl", "").strip()
+
+    if provider != "custom_openai":
+        _js_on_main("setTestConnectionResult({ok:false,message:'Test Connection is available for Custom OpenAI Compatible only.'});")
+        return
+
+    def send_result(ok: bool, message: str) -> None:
+        payload = json.dumps({"ok": ok, "message": message})
+        _js_on_main(f"setTestConnectionResult({payload});")
+
+    try:
+        custom_url = _validate_custom_openai_settings(api_key, model, custom_base_url)
+    except Exception as exc:
+        send_result(False, str(exc))
+        return
+
+    def worker() -> None:
+        try:
+            chunks: List[str] = []
+            messages = [
+                {"role": "system", "content": "You are a connection test. Reply with OK only."},
+                {"role": "user", "content": "Test"},
+            ]
+            _stream_openai_compat(
+                custom_url,
+                api_key,
+                model,
+                messages,
+                lambda chunk: chunks.append(chunk),
+                timeout=15,
+                max_tokens=8,
+            )
+            send_result(True, "Connection successful.")
+        except Exception as exc:
+            send_result(False, _classify_error(exc, "custom_openai"))
+
+    threading.Thread(target=worker, daemon=True).start()
 
 
 def _action_save_chips(data: Dict[str, Any]) -> None:
