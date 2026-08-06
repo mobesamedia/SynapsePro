@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<!--
+  SynapsePro – SoundCloud player host
+  ===================================
+  Embeds SoundCloud's OFFICIAL Widget (HTML5 iframe) and drives it through the
+  official, supported Widget API (https://w.soundcloud.com/player/api.js).
+
+  No private DOM selectors are used, so a SoundCloud redesign cannot break the
+  controls. Python drives playback by calling the sc*() functions below via
+  page.runJavaScript(...). State and now-playing info flow back to Python on a
+  console.log bridge:  console.log("SCBRIDGE:" + JSON.stringify({...}))
+-->
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    background: transparent; overflow: hidden;
+  }
+  /* The widget fills the host completely; rounded to match the Qt card. */
+  #scplayer { display: block; border: 0; width: 100%; height: 100%; border-radius: 10px; }
+  #fallback {
+    display: none; position: absolute; inset: 0;
+    align-items: center; justify-content: center; text-align: center;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 13px; color: #888; padding: 20px;
+  }
+  @media (prefers-color-scheme: dark) { #fallback { color: #aaa; } }
+  html.dark #fallback { color: #aaa; }
+</style>
+</head>
+<body>
+  <!-- Initial src is a sensible default; Python overrides it via scLoad(). -->
+  <iframe id="scplayer"
+          allow="autoplay; encrypted-media"
+          scrolling="no"
+          src="https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fsynapse-pro%2Fsets%2Ffocus&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=true">
+  </iframe>
+  <div id="fallback">Could not load the SoundCloud player.<br/>Check your internet connection.</div>
+
+  <script src="https://w.soundcloud.com/player/api.js"></script>
+  <script>
+  "use strict";
+
+  var _TR = {};
+  function sctr(source) { return Object.prototype.hasOwnProperty.call(_TR, source) ? _TR[source] : source; }
+  window.initSoundCloudI18n = function(dict) {
+    _TR = dict || {};
+    document.documentElement.classList.toggle('dark', !!_TR.__isDark);
+    var fallback = document.getElementById('fallback');
+    if (fallback) {
+      fallback.replaceChildren(document.createTextNode(sctr('Could not load the SoundCloud player.')),
+        document.createElement('br'), document.createTextNode(sctr('Check your internet connection.')));
+    }
+  };
+
+  var widget = null;
+  var _bound = false;
+  var _widgetReady = false;
+  var _loadingUrl = "";
+  var _pendingLoad = null;
+  var _pendingVolume = null;
+  var _playAfterLoad = false;
+
+  function bridge(obj) {
+    try { console.log("SCBRIDGE:" + JSON.stringify(obj)); } catch (e) {}
+  }
+
+  // Mirror of the player state, polled by Python via runJavaScript() as a
+  // robust fallback in case console-message bridging is unavailable.
+  window._scStatus = null;
+  function _st() {
+    if (!window._scStatus) {
+      window._scStatus = { ready: false, playing: false, title: "", artist: "", artwork: "" };
+    }
+    return window._scStatus;
+  }
+
+  // Pull title / artist / artwork from the current sound and report it upstream.
+  function sendTrack() {
+    if (!widget) return;
+    try {
+      widget.getCurrentSound(function (s) {
+        if (!s) return;
+        var art = s.artwork_url || (s.user && s.user.avatar_url) || "";
+        if (art) art = art.replace("-large.", "-t300x300.");   // higher-res cover
+        var st = _st();
+        st.title = s.title || "";
+        st.artist = (s.user && s.user.username) || "";
+        st.artwork = art;
+        bridge({
+          type: "track",
+          title: st.title,
+          artist: st.artist,
+          artwork: art
+        });
+      });
+    } catch (e) {}
+  }
+
+  // Bound exactly once on the persistent widget instance, so widget.load()
+  // (which keeps the same instance) never double-registers listeners.
+  function bindEvents() {
+    if (!widget || _bound || !window.SC || !SC.Widget) return;
+    var E = SC.Widget.Events;
+    widget.bind(E.READY, function () {
+      _widgetReady = true;
+      _st().ready = true;
+      bridge({ type: "ready" });
+      sendTrack();
+      if (!_loadingUrl) flushPendingControls();
+    });
+    widget.bind(E.PLAY,  function () { _st().playing = true; bridge({ type: "state", playing: true }); sendTrack(); });
+    widget.bind(E.PAUSE, function () { _st().playing = false; bridge({ type: "state", playing: false }); });
+    widget.bind(E.FINISH, function () { _st().playing = false; bridge({ type: "finish" }); });
+    if (E.ERROR) {
+      widget.bind(E.ERROR, function () {
+        _loadingUrl = "";
+        _widgetReady = true;
+        _st().ready = true;
+        _st().playing = false;
+        _playAfterLoad = false;
+        bridge({ type: "error", message: sctr("SoundCloud could not load this URL") });
+      });
+    }
+    _bound = true;
+  }
+
+  function initWidget() {
+    try {
+      var iframe = document.getElementById("scplayer");
+      widget = SC.Widget(iframe);
+      bindEvents();
+    } catch (e) {
+      bridge({ type: "error", message: String(e) });
+    }
+  }
+
+  // ── Public control surface (called from Python) ──────────────────────────
+  function scPlay() {
+    if (!_widgetReady) { _playAfterLoad = true; return; }
+    if (widget) try { widget.play(); } catch (e) {}
+  }
+  function scPause() {
+    _playAfterLoad = false;
+    if (_widgetReady && widget) try { widget.pause(); } catch (e) {}
+  }
+  function scToggle() {
+    if (!_widgetReady) { _playAfterLoad = true; return; }
+    if (widget) try { widget.toggle(); } catch (e) {}
+  }
+  function scNext()   { if (_widgetReady && widget) try { widget.next(); }  catch (e) {} }
+  function scPrev()   { if (_widgetReady && widget) try { widget.prev(); }  catch (e) {} }
+
+  function scVolume(v) {
+    var vol = Math.max(0, Math.min(100, v));
+    _pendingVolume = vol;
+    if (_widgetReady && widget) {
+      try { widget.setVolume(vol); _pendingVolume = null; } catch (e) {}
+    }
+  }
+
+  function flushPendingControls() {
+    if (!_widgetReady || !widget) return;
+    if (_pendingVolume !== null) {
+      try { widget.setVolume(_pendingVolume); _pendingVolume = null; } catch (e) {}
+    }
+    if (_pendingLoad && !_loadingUrl) {
+      var request = _pendingLoad;
+      _pendingLoad = null;
+      performLoad(request.url, request.autoplay);
+    } else if (_playAfterLoad && !_loadingUrl) {
+      _playAfterLoad = false;
+      try { widget.play(); } catch (e) {}
+    }
+  }
+
+  function performLoad(url, autoplay) {
+    if (!widget || !url) return;
+    if (autoplay) _playAfterLoad = true;
+    _loadingUrl = url;
+    _widgetReady = false;
+    _st().ready = false;
+    _st().playing = false;
+    try {
+      widget.load(url, {
+        auto_play: !!autoplay,
+        visual: true,
+        hide_related: true,
+        show_comments: false,
+        show_user: true,
+        show_reposts: false,
+        show_teaser: false,
+        color: "ff5500",
+        callback: function () {
+          var shouldPlay = !_pendingLoad && _playAfterLoad;
+          _loadingUrl = "";
+          _widgetReady = true;
+          _st().ready = true;
+          _playAfterLoad = false;
+          bridge({ type: "loaded" });
+          sendTrack();
+          if (_pendingVolume !== null) {
+            try { widget.setVolume(_pendingVolume); _pendingVolume = null; } catch (e) {}
+          }
+          if (shouldPlay) { try { widget.play(); } catch (e) {} }
+          flushPendingControls();
+        }
+      });
+    } catch (e) {
+      _loadingUrl = "";
+      bridge({ type: "error", message: String(e) });
+    }
+  }
+
+  // Reload the widget with a new SoundCloud track / playlist / user URL.
+  // Calls made before READY are retained instead of being silently dropped.
+  function scLoad(url, autoplay) {
+    if (!url) return;
+    if (_loadingUrl === url) {
+      if (autoplay) _playAfterLoad = true;
+      return;
+    }
+    if (!_widgetReady || !widget || _loadingUrl) {
+      _pendingLoad = { url: url, autoplay: !!autoplay };
+      return;
+    }
+    performLoad(url, !!autoplay);
+  }
+
+  // Wait for the SoundCloud API to be present, then wire up.
+  window.addEventListener("load", function () {
+    if (window.SC && SC.Widget) {
+      initWidget();
+    } else {
+      var tries = 0;
+      var t = setInterval(function () {
+        tries++;
+        if (window.SC && SC.Widget) { clearInterval(t); initWidget(); }
+        else if (tries > 100) {     // ~10 s: API never arrived (offline?)
+          clearInterval(t);
+          document.getElementById("fallback").style.display = "flex";
+          bridge({ type: "error", message: sctr("Widget API failed to load") });
+        }
+      }, 100);
+    }
+  });
+  </script>
+
+    <script>
+    /* ── SynapsePro global error reporter ─────────────────────────────────
+       Self-contained (inline styles, no page-CSS dependencies): invisible
+       until a JS error occurs, then shows a dismissible banner with the
+       real traceback so users can report actionable bugs instead of
+       "buttons are not working". Never throws itself. */
+    (function() {
+        if (window.__spReportError) return;
+        function isDark() {
+            try {
+                if (document.documentElement.classList.contains('nightMode') || document.body.classList.contains('nightMode')) return true;
+                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } catch (e) { return false; }
+        }
+        function ensureBanner() {
+            var b = document.getElementById('sp-error-banner');
+            if (b) return b;
+            if (!document.body) return null;
+            var dark = isDark();
+            b = document.createElement('div');
+            b.id = 'sp-error-banner';
+            b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483000;display:none;'
+                + 'font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:left;'
+                + 'padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,0.25);border-top:2px solid #dc3545;'
+                + (dark ? 'background:#2c2c2c;color:#e0e0e0;' : 'background:#ffffff;color:#333333;');
+            var btnCss = 'margin-right:8px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;border-radius:7px;'
+                + (dark ? 'background:#303030;color:#e0e0e0;border:1px solid #555;' : 'background:#fff;color:#333;border:1px solid #ccc;');
+            var preCss = 'display:none;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+                + 'font-size:11px;border-radius:6px;padding:8px;margin:0 0 8px 0;'
+                + (dark ? 'background:#404040;border:1px solid #555;' : 'background:#f5f5f5;border:1px solid #ccc;');
+            b.innerHTML = '<div style="font-weight:700;color:#dc3545;margin-bottom:4px;">' + sctr('SynapsePro error') + '</div>'
+                + '<div class="sp-eb-msg" style="margin-bottom:6px;word-break:break-word;"></div>'
+                + '<pre class="sp-eb-pre" style="' + preCss + '"></pre>'
+                + '<div><button type="button" data-spact="details" style="' + btnCss + '">' + sctr('Show details') + '</button>'
+                + '<button type="button" data-spact="copy" style="' + btnCss + '">' + sctr('Copy error') + '</button>'
+                + '<button type="button" data-spact="dismiss" style="' + btnCss + '">' + sctr('Dismiss') + '</button></div>';
+            document.body.appendChild(b);
+            b.addEventListener('click', function(e) {
+                var act = e.target && e.target.getAttribute && e.target.getAttribute('data-spact');
+                if (act === 'dismiss') b.style.display = 'none';
+                if (act === 'details') {
+                    var pre = b.querySelector('.sp-eb-pre');
+                    var open = pre.style.display === 'block';
+                    pre.style.display = open ? 'none' : 'block';
+                    e.target.textContent = open ? sctr('Show details') : sctr('Hide details');
+                }
+                if (act === 'copy') {
+                    var text = b.querySelector('.sp-eb-msg').textContent + '\n\n' + b.querySelector('.sp-eb-pre').textContent;
+                    try { navigator.clipboard.writeText(text); e.target.textContent = sctr('Copied!'); setTimeout(function() { e.target.textContent = sctr('Copy error'); }, 2000); } catch (err) {}
+                }
+            });
+            return b;
+        }
+        window.__spReportError = function(err, context) {
+            try {
+                var msg = (err && err.message) ? err.message : String(err);
+                var stack = (err && err.stack) ? String(err.stack) : sctr('(no stack trace available)');
+                console.error('[SynapsePro]' + (context ? ' [' + context + ']' : ''), err);
+                var show = function() {
+                    var b = ensureBanner();
+                    if (!b) return;
+                    b.querySelector('.sp-eb-msg').textContent = (context ? context + ': ' : '') + msg
+                        + ' — ' + sctr('Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('.sp-eb-pre').textContent = stack;
+                    b.style.display = 'block';
+                };
+                if (document.body) show();
+                else document.addEventListener('DOMContentLoaded', show);
+            } catch (e) { try { console.error('[SynapsePro] error while reporting error', e, err); } catch (e2) {} }
+        };
+        window.addEventListener('error', function(e) {
+            if (e.error && (e.error.message || e.error.stack)) window.__spReportError(e.error, sctr('Unexpected error'));
+            else console.warn('[SynapsePro] Background browser error:', e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            if (e.reason && e.reason.synapseCritical === true) window.__spReportError(e.reason, sctr('Unexpected error (async)'));
+            else console.warn('[SynapsePro] Background task rejected:', e.reason);
+            e.preventDefault();
+        });
+    })();
+    </script>
+</body>
+</html>

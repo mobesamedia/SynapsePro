@@ -2,11 +2,14 @@
 
 import os
 import re
+import html
+import hashlib
 import math
 import base64
 import traceback
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import time
+from functools import lru_cache
 from typing import Dict, List, Optional
 import json
 
@@ -62,10 +65,26 @@ FACT_WIDGET_MAX_WIDTH = "600px"
 PLAN_TEXT_COLOR = "white"
 PLAN_COLOR_ADJUST_STEP = 15
 PLAN_ROW_DONE_COLOR = "#6ABE57"
-PLAN_ROW_PAUSED_COLOR = "#F5A623"
+PLAN_ROW_PAUSED_COLOR = "#9A9A9A"
 
 FACT_IMAGE_SUBFOLDER = "images"
 IMAGE_MIME_TYPE = "image/png"
+
+
+@lru_cache(maxsize=8)
+def _image_data_uri(path: str, mtime_ns: int, size: int) -> str:
+    """Return a small LRU-cached data URI for dashboard fact images.
+
+    mtime/size are part of the key so an add-on update cannot leave a replaced
+    image stale. The bounded cache prevents browsing debug facts from retaining
+    the whole image library in memory.
+    """
+    del mtime_ns, size  # cache-key inputs; reading uses the validated path
+    with open(path, "rb") as image_file:
+        return (
+            f"data:{IMAGE_MIME_TYPE};base64,"
+            f"{base64.b64encode(image_file.read()).decode('utf-8')}"
+        )
 DAILY_WIDGETS_GAP = "15px"
 DAILY_WIDGETS_MARGIN_BOTTOM = "15px"
 DAILY_WIDGETS_MAX_WIDTH = "880px"
@@ -240,12 +259,29 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
     label_resume = _("Resume")
     label_reset = _("Reset")
     label_cancel = _("Cancel")
+    label_mark_done = _("Mark as done")
     label_timer_running = _("Timer is running")
     label_timer_paused = _("Timer is paused")
     label_subject_finished = _("Subject finished")
     label_modal_title = _("Study Plan Timer")
     # %s gets replaced in JS with the actual subject name at runtime.
     label_finished_tpl = _("Finished learning %s!")
+
+    def _js(value: str) -> str:
+        return json.dumps(str(value), ensure_ascii=False).replace("</", "<\\/")
+
+    try:
+        profile_folder = mw.pm.profileFolder() if mw and mw.pm else "default"
+        profile_scope = hashlib.sha256(profile_folder.encode("utf-8")).hexdigest()[:16]
+    except Exception:
+        profile_scope = "default"
+    try:
+        cutoff = getattr(mw.col.sched, "day_cutoff", None)
+        if cutoff is None:
+            cutoff = getattr(mw.col.sched, "dayCutoff", None)
+        plan_day_key = datetime.fromtimestamp(int(cutoff) - 86400).date().isoformat()
+    except Exception:
+        plan_day_key = date.today().isoformat()
 
     date_style = f"font-size: 0.95em; font-weight: bold; color: var(--plan-date-color); white-space: nowrap;"
     header_style = "display: flex; justify-content: space-between; align-items: center; padding: 15px 15px 10px 15px;"
@@ -259,11 +295,11 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
     <style>
         /* Wir nutzen divs statt buttons, um Ankis globale Hover-Regeln komplett zu umgehen */
         .ptm-btn {{
-            border-radius: 5px;
-            padding: 8px 12px;
-            font-weight: bold;
+            border-radius: 6px;
+            padding: 9px 12px;
+            font-weight: 500;
+            font-size: 14px;
             cursor: pointer;
-            flex: 1;
             text-align: center;
             user-select: none; /* Verhindert das Markieren des Textes */
             box-sizing: border-box;
@@ -282,12 +318,8 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
         <div style="background-color:var(--stat-bg); border-radius:10px; padding:20px; width:300px; text-align:center; box-shadow: 0 4px 15px rgba(0,0,0,0.4); border: 1px solid var(--stat-border);">
             <h3 style="color:var(--text-color); margin-top:0; margin-bottom:10px; font-size:1.3em;">{label_modal_title}</h3>
             <p id="ptm-msg" style="color:var(--text-color); font-size:1.0em; margin-top:0; margin-bottom:20px;"></p>
-            <div style="display:flex; justify-content:center; gap:10px;">
-                <!-- divs statt buttons, damit Anki sie beim Hovern in Ruhe lässt -->
-                <div id="ptm-btn1" class="ptm-btn"></div>
-                <div id="ptm-btn2" class="ptm-btn"></div>
-                <div id="ptm-btn-cancel" class="ptm-btn">{label_cancel}</div>
-            </div>
+            <!-- Buttons are built dynamically (divs, so Anki's hover rules leave them alone) -->
+            <div id="ptm-buttons" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
     </div>
     '''
@@ -305,18 +337,21 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                 const DONE_COLOR = '{PLAN_ROW_DONE_COLOR}';
                 const RUNNING_COLOR = '{_palette(is_night_mode)["blue_bright"]}';
                 const PAUSED_COLOR = '{PLAN_ROW_PAUSED_COLOR}';
-                const STORAGE_KEY = 'gamification_plus_plan_state';
+                const STORAGE_KEY = 'synapsepro_plan_state_{profile_scope}';
+                const TODAY_KEY = {_js(plan_day_key)};
 
                 // Localized labels injected from Python at render time.
-                const LBL_DONE = "{label_done}";
-                const LBL_PAUSED = "{label_paused}";
-                const LBL_TIMER_RUNNING = "{label_timer_running}";
-                const LBL_TIMER_PAUSED = "{label_timer_paused}";
-                const LBL_SUBJECT_FINISHED = "{label_subject_finished}";
-                const LBL_PAUSE = "{label_pause}";
-                const LBL_RESUME = "{label_resume}";
-                const LBL_RESET = "{label_reset}";
-                const FINISHED_TPL = "{label_finished_tpl}";
+                const LBL_DONE = {_js(label_done)};
+                const LBL_PAUSED = {_js(label_paused)};
+                const LBL_TIMER_RUNNING = {_js(label_timer_running)};
+                const LBL_TIMER_PAUSED = {_js(label_timer_paused)};
+                const LBL_SUBJECT_FINISHED = {_js(label_subject_finished)};
+                const LBL_PAUSE = {_js(label_pause)};
+                const LBL_RESUME = {_js(label_resume)};
+                const LBL_RESET = {_js(label_reset)};
+                const LBL_CANCEL = {_js(label_cancel)};
+                const LBL_DONE_EARLY = {_js(label_mark_done)};
+                const FINISHED_TPL = {_js(label_finished_tpl)};
 
                 function getState() {{
                     try {{
@@ -338,42 +373,38 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                     return m + "m " + (s < 10 ? "0" + s : s) + "s";
                 }}
 
-                function showCustomModal(msg, btn1Text, btn1Color, btn1Cb, btn2Text, btn2Color, btn2Cb) {{
+                function showCustomModal(msg, buttons) {{
                     const modal = document.getElementById('plan-timer-modal');
                     document.getElementById('ptm-msg').textContent = msg;
-
-                    const btn1 = document.getElementById('ptm-btn1');
-                    const btn2 = document.getElementById('ptm-btn2');
-                    const cancel = document.getElementById('ptm-btn-cancel');
-
-                    // Klonen, um alte Event-Listener sauber zu entfernen
-                    const newBtn1 = btn1.cloneNode(true);
-                    btn1.parentNode.replaceChild(newBtn1, btn1);
-                    const newBtn2 = btn2.cloneNode(true);
-                    btn2.parentNode.replaceChild(newBtn2, btn2);
-                    const newCancel = cancel.cloneNode(true);
-                    cancel.parentNode.replaceChild(newCancel, cancel);
-
-                    if (btn1Text) {{
-                        newBtn1.style.display = 'block';
-                        newBtn1.textContent = btn1Text;
-                        newBtn1.style.backgroundColor = btn1Color;
-                        newBtn1.style.color = 'white';
-                        newBtn1.style.border = 'none';
-                        newBtn1.onclick = () => {{ modal.style.display = 'none'; btn1Cb(); }};
-                    }} else {{ newBtn1.style.display = 'none'; }}
-
-                    if (btn2Text) {{
-                        newBtn2.style.display = 'block';
-                        newBtn2.textContent = btn2Text;
-                        newBtn2.style.backgroundColor = btn2Color;
-                        newBtn2.style.color = 'white';
-                        newBtn2.style.border = 'none';
-                        newBtn2.onclick = () => {{ modal.style.display = 'none'; btn2Cb(); }};
-                    }} else {{ newBtn2.style.display = 'none'; }}
-
-                    newCancel.onclick = () => {{ modal.style.display = 'none'; }};
+                    const container = document.getElementById('ptm-buttons');
+                    container.innerHTML = '';
+                    (buttons || []).forEach(function(b) {{
+                        const el = document.createElement('div');
+                        el.className = 'ptm-btn';
+                        el.textContent = b.text;
+                        el.style.backgroundColor = b.bg;
+                        el.style.color = b.color || 'white';
+                        el.onclick = () => {{ modal.style.display = 'none'; if (b.cb) b.cb(); }};
+                        container.appendChild(el);
+                    }});
+                    const cancel = document.createElement('div');
+                    cancel.className = 'ptm-btn';
+                    cancel.id = 'ptm-btn-cancel';
+                    cancel.textContent = LBL_CANCEL;
+                    cancel.onclick = () => {{ modal.style.display = 'none'; }};
+                    container.appendChild(cancel);
                     modal.style.display = 'flex';
+                }}
+
+                // Tell Python to (re)schedule / cancel the "time's up" notification.
+                // The Python timer fires even while reviewing cards (deck browser hidden).
+                function notifyTimerStart(subject, remainingSec) {{
+                    if (window.pycmd && remainingSec > 0) {{
+                        window.pycmd("pycmd:planTimer:start:" + Math.round(Date.now() + remainingSec * 1000) + ":" + encodeURIComponent(subject));
+                    }}
+                }}
+                function notifyTimerCancel(subject) {{
+                    if (window.pycmd) window.pycmd("pycmd:planTimer:cancel:" + encodeURIComponent(subject));
                 }}
 
                 window.handlePlanClick = function(element) {{
@@ -381,8 +412,8 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                     const duration = parseInt(element.dataset.seconds);
                     const state = getState();
                     const now = Date.now();
-                    const todayKey = new Date().toDateString();
-                    const key = subject + "_" + todayKey;
+                    const key = subject + "_" + TODAY_KEY;
+                    const BLUE = '{_palette(is_night_mode)["blue"]}';
 
                     if (!state[key]) state[key] = {{ status: 'idle', elapsedTime: 0 }};
 
@@ -391,6 +422,7 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                         const elapsedSinceStart = (Date.now() - state[key].startTime) / 1000;
                         state[key].elapsedTime = (state[key].elapsedTime || 0) + elapsedSinceStart;
                         saveState(state);
+                        notifyTimerCancel(subject);
                         renderRow(element, state[key], duration, element.dataset.originalBg);
                     }};
 
@@ -399,6 +431,7 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                         state[key].elapsedTime = 0;
                         delete state[key].startTime;
                         saveState(state);
+                        notifyTimerCancel(subject);
                         renderRow(element, state[key], duration, element.dataset.originalBg);
                     }};
 
@@ -406,23 +439,41 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                         state[key].status = 'running';
                         state[key].startTime = Date.now();
                         saveState(state);
+                        notifyTimerStart(subject, duration - (state[key].elapsedTime || 0));
                         updateTimers();
                     }};
 
+                    // Mark a subject as learned early (e.g. you studied without watching the timer).
+                    const actionDone = () => {{
+                        state[key].status = 'done';
+                        saveState(state);
+                        notifyTimerCancel(subject);
+                        renderRow(element, state[key], duration, element.dataset.originalBg);
+                    }};
+
                     if (state[key].status === 'running') {{
-                        // Pause ist Orange (PAUSED_COLOR), Reset ist Blau (#0071D3)
-                        showCustomModal(LBL_TIMER_RUNNING, LBL_PAUSE, PAUSED_COLOR, actionPause, LBL_RESET, '{_palette(is_night_mode)["blue"]}', actionReset);
+                        showCustomModal(LBL_TIMER_RUNNING, [
+                            {{ text: LBL_PAUSE, bg: '#DDDDDD', color: '#222', cb: actionPause }},
+                            {{ text: LBL_DONE_EARLY, bg: DONE_COLOR, color: 'white', cb: actionDone }},
+                            {{ text: LBL_RESET, bg: BLUE, color: 'white', cb: actionReset }}
+                        ]);
                     }} else if (state[key].status === 'paused') {{
-                        // Resume ist Grün (RUNNING_COLOR), Reset ist Blau (#0071D3)
-                        showCustomModal(LBL_TIMER_PAUSED, LBL_RESUME, RUNNING_COLOR, actionResume, LBL_RESET, '{_palette(is_night_mode)["blue"]}', actionReset);
+                        showCustomModal(LBL_TIMER_PAUSED, [
+                            {{ text: LBL_RESUME, bg: RUNNING_COLOR, color: 'white', cb: actionResume }},
+                            {{ text: LBL_DONE_EARLY, bg: DONE_COLOR, color: 'white', cb: actionDone }},
+                            {{ text: LBL_RESET, bg: BLUE, color: 'white', cb: actionReset }}
+                        ]);
                     }} else if (state[key].status === 'done') {{
-                        showCustomModal(LBL_SUBJECT_FINISHED, LBL_RESET, '{_palette(is_night_mode)["blue"]}', actionReset, null, null, null);
+                        showCustomModal(LBL_SUBJECT_FINISHED, [
+                            {{ text: LBL_RESET, bg: BLUE, color: 'white', cb: actionReset }}
+                        ]);
                     }} else {{
                         state[key].status = 'running';
                         state[key].startTime = now;
                         state[key].duration = duration;
                         if (!state[key].elapsedTime) state[key].elapsedTime = 0;
                         saveState(state);
+                        notifyTimerStart(subject, duration - (state[key].elapsedTime || 0));
                         updateTimers();
                     }}
                 }};
@@ -459,8 +510,7 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                         if (remaining <= 0) {{
                             itemState.status = 'done';
                             const subject = el.dataset.subject;
-                            const todayKey = new Date().toDateString();
-                            const key = subject + "_" + todayKey;
+                            const key = subject + "_" + TODAY_KEY;
 
                             let globalState = getState();
                             globalState[key] = itemState;
@@ -468,10 +518,8 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
 
                             el.style.backgroundColor = DONE_COLOR;
                             timeSpan.textContent = LBL_DONE;
-
-                            if (window.pycmd) {{
-                                window.pycmd("tooltip:" + FINISHED_TPL.replace("%s", subject));
-                            }}
+                            // The "time's up" notification is fired by the Python-side
+                            // timer (works even during review), so nothing to do here.
                         }} else {{
                             timeSpan.textContent = formatTime(Math.floor(remaining));
                         }}
@@ -481,7 +529,7 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                 function updateTimers() {{
                     const rows = document.querySelectorAll('.plan-row-item');
                     const state = getState();
-                    const todayKey = new Date().toDateString();
+                    const todayKey = TODAY_KEY;
 
                     rows.forEach(row => {{
                         const subject = row.dataset.subject;
@@ -494,6 +542,23 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
 
                 setInterval(updateTimers, 1000);
                 setTimeout(updateTimers, 100);
+
+                // Re-register running subjects with the Python timer so the "time's up"
+                // notification still fires after a page reload or while the user is
+                // reviewing cards (the deck browser, and this JS, are not running then).
+                setTimeout(function() {{
+                    const st = getState();
+                    const tKey = TODAY_KEY;
+                    document.querySelectorAll('.plan-row-item').forEach(function(row) {{
+                        const subj = row.dataset.subject;
+                        const s = st[subj + "_" + tKey];
+                        if (s && s.status === 'running' && s.startTime) {{
+                            const dur = parseInt(row.dataset.seconds);
+                            const elapsed = (s.elapsedTime || 0) + (Date.now() - s.startTime) / 1000;
+                            notifyTimerStart(subj, dur - elapsed);
+                        }}
+                    }});
+                }}, 150);
             }})();
         </script>
         '''
@@ -502,7 +567,15 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
 
         for i, item in enumerate(plan_data):
             subject = item.get('subject', _('Unknown Subject'))
-            target_seconds = item.get('target_seconds', 0)
+            # Escape the (possibly imported / user-entered) subject before it is
+            # placed into HTML attributes and text. For normal names this is
+            # byte-identical; the browser decodes entities back so the JS bridge
+            # (dataset.subject) still receives the original value unchanged.
+            subject_safe = html.escape(str(subject), quote=True)
+            try:
+                target_seconds = max(1, min(86400, int(item.get('target_seconds', 0))))
+            except (TypeError, ValueError):
+                target_seconds = 1
 
             adjusted_bg_color = adjust_hex_color(_palette(is_night_mode)["blue"], i * PLAN_COLOR_ADJUST_STEP)
 
@@ -517,11 +590,11 @@ def generate_learning_plan_widget(plan_data: List[Dict]) -> str:
                 current_row_style = current_row_style.replace(f"margin-bottom:{row_margin_bottom};", "")
 
             onclick_handler = "handlePlanClick(this)"
-            data_attributes = f'data-subject="{subject}" data-seconds="{target_seconds}" data-original-bg="{adjusted_bg_color}" data-initial-text="{time_display_text}"'
+            data_attributes = f'data-subject="{subject_safe}" data-seconds="{target_seconds}" data-original-bg="{adjusted_bg_color}" data-initial-text="{time_display_text}"'
 
             rows_content += f'''
             <div id="{row_id}" class="plan-row-item" style="{current_row_style}" {data_attributes} onclick="{onclick_handler}">
-                <span style="flex-grow: 1; margin-right: 10px; pointer-events: none;">{subject}</span>
+                <span style="flex-grow: 1; margin-right: 10px; pointer-events: none;">{subject_safe}</span>
                 <span class="time-display" style="font-weight:bold; white-space: nowrap; pointer-events: none;">{time_display_text}</span>
             </div>
             '''
@@ -601,8 +674,9 @@ def generate_fact_widget(fact_theme: str = "Medical") -> str:
             if addon_dir:
                 image_filesystem_path = os.path.join(addon_dir, FACT_IMAGE_SUBFOLDER, image_filename)
                 if os.path.exists(image_filesystem_path):
-                    with open(image_filesystem_path, "rb") as image_file:
-                        image_src_base64 = f"data:{IMAGE_MIME_TYPE};base64,{base64.b64encode(image_file.read()).decode('utf-8')}"
+                    stat = os.stat(image_filesystem_path)
+                    image_src_base64 = _image_data_uri(
+                        image_filesystem_path, stat.st_mtime_ns, stat.st_size)
                 else:
                     image_src_base64 = _svg_placeholder("#ddd", "#888", _("Missing"))
             else:

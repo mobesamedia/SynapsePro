@@ -2,6 +2,7 @@
 
 import os
 import base64
+import html
 import traceback
 import uuid
 from datetime import date, datetime, timedelta
@@ -12,21 +13,12 @@ from aqt import mw
 from aqt.qt import QWidget, QDate, Qt
 from aqt.utils import tooltip, showInfo
 
-# --- Relative Addon Imports ---
-try:
-    from . import get_addon_config_dir_path, ADDON_NAME
-except ImportError:
-    print("deadline_bar.py: WARN - Could not import get_addon_config_dir_path or ADDON_NAME from __init__.py")
-    def get_addon_config_dir_path() -> Optional[str]:
-        print("deadline_bar.py: Using fallback get_addon_config_dir_path")
-        if mw and hasattr(mw, 'addonManager'):
-             try:
-                  addon_package_name = mw.addonManager.addonFromModule(__name__)
-                  if addon_package_name:
-                       return os.path.join(mw.addonManager.addonsFolder(), addon_package_name)
-             except Exception: pass
-        return None
-    ADDON_NAME = "GamificationPlusDailyWidgets_DeadlineBar"
+# Importing __init__ from here creates a circular dependency during add-on
+# startup. Resolve the immutable package path/name directly instead.
+ADDON_NAME = __name__.split('.')[0]
+
+def get_addon_config_dir_path() -> Optional[str]:
+    return os.path.dirname(__file__)
 
 try:
     from .locales import _
@@ -158,6 +150,10 @@ class DeadlineManager:
             return list(deadlines)
 
     def add_deadline(self, name: str, start_date: str, end_date: str) -> Dict:
+        start = datetime.strptime(start_date, self.DATE_FORMAT).date()
+        end = datetime.strptime(end_date, self.DATE_FORMAT).date()
+        if start > end:
+            raise ValueError("start_date must not be after end_date")
         entry = {
             "id": str(uuid.uuid4())[:8],
             "name": name,
@@ -284,7 +280,7 @@ class DeadlineManager:
         """Deadline icon — clicking opens the DeadlineViewerDialog via pycmd."""
         icon_style = ("flex-shrink: 0; width: 24px; height: 24px; opacity: 0.7; "
                       "transition: opacity 0.2s ease; cursor: pointer;")
-        tip = _("View Deadlines")
+        tip = html.escape(_("View Deadlines"), quote=True)
         onclick = "pycmd('pycmd:synapsepro:deadline_viewer')"
         if self.svg_icon_base64:
             return (f'<img src="{self.svg_icon_base64}" style="{icon_style}" title="{tip}" '
@@ -317,7 +313,7 @@ class DeadlineManager:
         if show_nav:
             nav_html = (
                 f'<button onclick="pycmd(\'pycmd:synapsepro:deadline_next\')" '
-                f'title="{_("Next deadline")}" '
+                f'title="{html.escape(_("Next deadline"), quote=True)}" '
                 f'style="background:none;border:none;cursor:pointer;font-size:16px;'
                 f'color:#aaa;padding:0 2px;line-height:1;flex-shrink:0;">&#8250;</button>'
             )
@@ -388,11 +384,17 @@ class DeadlineManager:
             }}
         </style>"""
 
+        tooltip_text = html.escape(str(tooltip_text), quote=True)
+        title = html.escape(str(title))
         days_label_html = ""
         if days_remaining is not None:
-            days_label_html = f'<span class="deadline-days-label">{days_remaining} {_("Days")}</span>'
+            days_label_html = (f'<span class="deadline-days-label">{int(days_remaining)} '
+                               f'{html.escape(_("Days"))}</span>')
 
-        html = f"""
+        # NOTE: keep this variable named anything but "html" — a local called
+        # "html" would shadow the imported html module for the whole function
+        # and break the html.escape() calls above (UnboundLocalError).
+        bar_html = f"""
         <div class="deadline-bar-container" title="{tooltip_text}">
             <span class="deadline-title-label">{title}</span>
             {nav_html}
@@ -403,4 +405,4 @@ class DeadlineManager:
             {config_icon}
         </div>"""
 
-        return css + html
+        return css + bar_html

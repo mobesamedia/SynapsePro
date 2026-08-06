@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import html
 import traceback
 from functools import partial
 from typing import Optional, List, Dict, Tuple
@@ -19,37 +20,33 @@ except ImportError:
 # --- PyQt Imports ---
 _qt_available = False
 try:
-    if constants.qt_version == 6:
-        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                                     QInputDialog, QDockWidget, QSizePolicy,
-                                     QMessageBox, QMenu)
-        from PyQt6.QtGui import QAction
-        from PyQt6.QtCore import QUrl, QTimer, QSize, Qt
-        from PyQt6.QtWebEngineWidgets import QWebEngineView
-        from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage, QWebEngineSettings
-        WebAction = QWebEnginePage.WebAction
-        print("Website Sidebar: Using PyQt6 components")
-        _qt_available = True
-    elif constants.qt_version == 5:
-        from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                                     QInputDialog, QDockWidget, QSizePolicy,
-                                     QMessageBox, QAction, QMenu)
-        from PyQt5.QtCore import QUrl, QTimer, QSize, Qt
-        from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
-        QWebEngineProfile = QWebEngineProfile
-        QWebEngineSettings = QWebEngineSettings
-        WebAction = QWebEnginePage.WebAction
-        print("Website Sidebar: Using PyQt5 components")
-        _qt_available = True
-    else:
-        raise ImportError("No supported Qt version found by Launcher.")
+    from aqt.qt import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+                        QInputDialog, QDockWidget, QSizePolicy, QMessageBox,
+                        QMenu, QAction, QIcon, QPixmap, QPainter, QUrl, QTimer,
+                        QSize, Qt, QByteArray)
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
+    from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage, QWebEngineSettings
+    WebAction = QWebEnginePage.WebAction
+    print("Website Sidebar: Using Qt6 components")
+    _qt_available = True
 except ImportError as e:
     print(f"Website Sidebar Error: Could not import necessary PyQt components. {e}")
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton = object, object, object, object
     QInputDialog, QDockWidget, QSizePolicy, QMessageBox = object, object, object, object
     QUrl, QTimer, QSize, Qt = object, object, object, None
+    QByteArray = object; QIcon = object; QPixmap = object; QPainter = object
     QWebEngineView, QWebEngineProfile, QWebEnginePage, QWebEngineSettings = object, object, object, object
     QAction = object; WebAction = object; QMenu = object
+
+# QtSvg is optional – used only to render crisp toolbar icons. A failure here
+# must never break the rest of the module, so it gets its own guarded import.
+_svg_available = False
+try:
+    from PyQt6.QtSvg import QSvgRenderer
+    _svg_available = True
+except Exception as _e_svg:
+    QSvgRenderer = object  # type: ignore
+    print(f"Website Sidebar: QtSvg unavailable, using glyph fallback. {_e_svg}")
 
 
 # --- Anki Imports ---
@@ -66,51 +63,236 @@ except ImportError:
 # --- Button Stylesheets ---
 # Moderner Look: Kein Rahmen, leichter Schlagschatten (via border-bottom) und Klick-Animation
 
-def _get_blue_button_style() -> str:
-    """Return a primary-colour button stylesheet using the active theme palette."""
+def _toolbar_palette() -> dict:
+    """Clean grey toolbar palette matching the Notebook nav bar (theme-aware)."""
+    night = False
     try:
-        from .theme import palette as _tp
         night = bool(mw and hasattr(mw, 'pm') and mw.pm.night_mode())
-        c = _tp(night)
-        bg      = c["blue"]
-        hover   = c["blue_hover"]
-        pressed = c["blue_pressed"]
-        shadow  = c["blue_pressed"]
     except Exception:
-        bg = "#0071D3"; hover = "#0062C4"; pressed = "#004990"; shadow = "#004990"
+        night = False
+    if night:
+        return {
+            "bar": "#2c2c2e", "line": "rgba(255,255,255,0.12)",
+            "text": "#e6e6e6", "hover": "#3a3a3c", "pressed": "#48484a",
+            "muted": "#6a6a6a", "select_bg": "#3a3a3c",
+        }
+    return {
+        "bar": "#f2f2f2", "line": "rgba(0,0,0,0.10)",
+        "text": "#37352f", "hover": "#e6e6e6", "pressed": "#dcdcdc",
+        "muted": "#b3b3b3", "select_bg": "#ffffff",
+    }
+
+
+def _get_blue_button_style() -> str:
+    """Minimal text button (transparent on the grey bar, subtle hover)."""
+    c = _toolbar_palette()
     return f"""
 QPushButton {{
-    background-color: {bg};
-    color: white;
+    background-color: transparent;
+    color: {c['text']};
     border: none;
-    border-radius: 8px;
-    padding: 5px 10px;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 13px;
 }}
-QPushButton:hover {{
-    background-color: {hover};
-}}
-QPushButton:pressed {{
-    background-color: {pressed};
-}}
+QPushButton:hover {{ background-color: {c['hover']}; }}
+QPushButton:pressed {{ background-color: {c['pressed']}; }}
 """
 
-WHITE_BUTTON_STYLE = """
-QPushButton {
-    background-color: #F0F0F0;
-    color: #333333;
+
+def _get_icon_button_style() -> str:
+    """Minimal square-ish icon button for nav glyphs (← → ↻ ⧉ +)."""
+    c = _toolbar_palette()
+    return f"""
+QPushButton {{
+    background-color: transparent;
+    color: {c['text']};
     border: none;
-    border-radius: 8px;
-    padding: 5px 8px;
-    font-weight: bold;
-}
-QPushButton:hover {
-    background-color: #E8E8E8;
-    color: #D32F2F;
-}
-QPushButton:pressed {
-    background-color: #DCDCDC;
-}
+    border-radius: 6px;
+    padding: 4px 9px;
+    font-size: 15px;
+}}
+QPushButton:hover {{ background-color: {c['hover']}; }}
+QPushButton:pressed {{ background-color: {c['pressed']}; }}
+QPushButton:disabled {{ color: {c['muted']}; }}
 """
+
+
+def _get_raised_text_button_style() -> str:
+    """Clean 'card' text button: white/elevated surface with a soft border.
+
+    Mirrors the Mindmap 'New' button so saved sites / Home clearly read as
+    clickable buttons while staying minimal."""
+    c = _toolbar_palette()
+    return f"""
+QPushButton {{
+    background-color: {c['select_bg']};
+    color: {c['text']};
+    border: 1px solid {c['line']};
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 500;
+}}
+QPushButton:hover {{ background-color: {c['hover']}; }}
+QPushButton:pressed {{ background-color: {c['pressed']}; }}
+QPushButton:disabled {{ color: {c['muted']}; }}
+"""
+
+
+def _get_raised_icon_button_style() -> str:
+    """Clean 'card' icon button (white/elevated) for the add (+) button."""
+    c = _toolbar_palette()
+    return f"""
+QPushButton {{
+    background-color: {c['select_bg']};
+    color: {c['text']};
+    border: 1px solid {c['line']};
+    border-radius: 6px;
+    padding: 4px 11px;
+    font-size: 15px;
+    font-weight: 600;
+}}
+QPushButton:hover {{ background-color: {c['hover']}; }}
+QPushButton:pressed {{ background-color: {c['pressed']}; }}
+QPushButton:disabled {{ color: {c['muted']}; }}
+"""
+
+
+def _get_delete_button_style() -> str:
+    """Clean 'card' icon button with a red hover, for the site delete (-) button."""
+    c = _toolbar_palette()
+    return f"""
+QPushButton {{
+    background-color: {c['select_bg']};
+    color: {c['text']};
+    border: 1px solid {c['line']};
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 15px;
+}}
+QPushButton:hover {{ background-color: {c['hover']}; color: #e5484d; border-color: #e5484d; }}
+QPushButton:pressed {{ background-color: {c['pressed']}; }}
+"""
+
+
+# Backwards-compatible alias (still referenced in a few places).
+WHITE_BUTTON_STYLE = _get_delete_button_style()
+
+
+# Same "open in main window" glyph used by the Mindmap / Notebook nav bars:
+# a window frame (rectangle with a title-bar line).
+_WINDOW_ICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="{s}" height="{s}" viewBox="0 0 24 24" '
+    'fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<rect x="3" y="3" width="18" height="18" rx="2"></rect>'
+    '<line x1="3" y1="9" x2="21" y2="9"></line>'
+    '</svg>'
+)
+
+# Variant shown while the embedded main-window view is active: the same
+# window frame with a small dash inside ("close window" state, identical to
+# the Mindmap / Notebook nav bars).
+_WINDOW_CLOSE_ICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="{s}" height="{s}" viewBox="0 0 24 24" '
+    'fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<rect x="3" y="3" width="18" height="18" rx="2"></rect>'
+    '<line x1="3" y1="9" x2="21" y2="9"></line>'
+    '<line x1="9" y1="15" x2="15" y2="15"></line>'
+    '</svg>'
+)
+
+
+def _make_window_icon(size: int = 16, active: bool = False):
+    """Render the window-frame SVG into a crisp QIcon (theme-aware). None on failure.
+
+    ``active`` selects the "close window" variant (frame with a dash) shown
+    while the embedded main-window view is open.
+    """
+    if not _svg_available or QIcon is object or QPixmap is object or QPainter is object:
+        return None
+    try:
+        color = _toolbar_palette()["text"]
+        scale = 2  # render at 2x for retina crispness
+        template = _WINDOW_CLOSE_ICON_SVG if active else _WINDOW_ICON_SVG
+        svg = template.format(s=size, c=color)
+        renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
+        pm = QPixmap(QSize(size * scale, size * scale))
+        pm.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pm)
+        renderer.render(painter)
+        painter.end()
+        try:
+            pm.setDevicePixelRatio(float(scale))
+        except Exception:
+            pass
+        return QIcon(pm)
+    except Exception as e:
+        print(f"WS Warn: could not build window icon: {e}")
+        return None
+
+
+def _apply_window_icon(btn, active: bool = False) -> None:
+    """Put the window-frame icon on ``btn`` (falls back to the ⧉ glyph).
+
+    ``active`` shows the "close window" variant while the embedded view is on.
+    """
+    if btn is None:
+        return
+    icon = _make_window_icon(16, active=active)
+    if icon is not None:
+        try:
+            btn.setText("")
+            btn.setIcon(icon)
+            btn.setIconSize(QSize(16, 16))
+            return
+        except Exception:
+            pass
+    try:
+        btn.setText("⧉")  # ⧉ fallback glyph
+    except Exception:
+        pass
+
+def _install_dark_scrollbar_script(profile) -> None:
+    """Give pages on synapse-pro.de dark scrollbars.
+
+    The hosted browser home page is dark-designed, but its scrollbar renders
+    light because the page never sets ``color-scheme: dark``. A tiny injected
+    script fixes that — scoped strictly to the synapse-pro.de domain so no
+    other website is touched.
+    """
+    try:
+        from PyQt6.QtWebEngineCore import QWebEngineScript
+        js = (
+            "(function(){try{"
+            "if(!/(^|\\.)synapse-pro\\.de$/.test(location.hostname)) return;"
+            # Only in dark mode — Anki propagates its theme to the webview via
+            # prefers-color-scheme, so light mode keeps the light scrollbar.
+            "if(!(window.matchMedia"
+            " && matchMedia('(prefers-color-scheme: dark)').matches)) return;"
+            "if(document.getElementById('sp-dark-scroll')) return;"
+            "var s=document.createElement('style');"
+            "s.id='sp-dark-scroll';"
+            "s.textContent=':root{color-scheme:dark;}';"
+            "(document.head||document.documentElement).appendChild(s);"
+            "}catch(e){}})();"
+        )
+        script = QWebEngineScript()
+        script.setName("sp_dark_scrollbars")
+        script.setSourceCode(js)
+        script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
+        script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)
+        script.setRunsOnSubFrames(False)
+        # Avoid duplicates when the dock is torn down and recreated.
+        try:
+            for old in profile.scripts().find("sp_dark_scrollbars"):
+                profile.scripts().remove(old)
+        except Exception:
+            pass
+        profile.scripts().insert(script)
+    except Exception as e:
+        print(f"WS Warn: could not install scrollbar script: {e}")
+
 
 # --- Module Globals ---
 sidebar_dock: Optional[QDockWidget] = None
@@ -123,7 +305,13 @@ home_button_widget: Optional[QPushButton] = None
 back_button: Optional[QPushButton] = None
 forward_button: Optional[QPushButton] = None
 refresh_button: Optional[QPushButton] = None
+window_button: Optional[QPushButton] = None
 custom_button_containers: List[QWidget] = []
+
+# Embedded view (inside the Anki main window) that borrows the dock content.
+website_main_layout: Optional[QVBoxLayout] = None
+website_window = None  # truthy marker while an embedded view is active
+website_embedded_content: Optional[QWidget] = None  # the dock body while embedded
 
 # --- Configuration Management ---
 def get_default_sites_if_empty() -> List[Dict[str, str]]:
@@ -132,55 +320,98 @@ def get_default_sites_if_empty() -> List[Dict[str, str]]:
         {"name": "YouTube", "url": "https://www.youtube.com/"}
     ]
 
-def load_custom_sites() -> List[Dict[str, str]]:
-    if not mw or not mw.col: return get_default_sites_if_empty() 
 
-    config_json = mw.col.get_config(constants.CONFIG_KEY_CUSTOM_SITES)
-    
-    if config_json is not None:
+def _website_state_path() -> Optional[str]:
+    try:
+        root = mw.pm.profileFolder() if mw and mw.pm else None
+        if not root:
+            return None
+        folder = os.path.join(root, "SynapsePro_Data")
+        os.makedirs(folder, exist_ok=True)
+        return os.path.join(folder, "website_state.json")
+    except Exception:
+        return None
+
+
+def _load_website_state() -> Dict:
+    path = _website_state_path()
+    if path and os.path.isfile(path):
         try:
-            sites = json.loads(config_json)
-            if isinstance(sites, list) and all(isinstance(s, dict) and 'name' in s and 'url' in s for s in sites):
-                if len(sites) > constants.MAX_CUSTOM_SITES:
-                    sites = sites[:constants.MAX_CUSTOM_SITES]
-                return sites
-            else:
-                print("WS Warn: Invalid format for custom sites in config. Resetting to defaults.")
-                default_sites = get_default_sites_if_empty()
-                save_custom_sites(default_sites)
-                return default_sites
-        except json.JSONDecodeError:
-            print("WS Warn: JSONDecodeError for custom sites in config. Resetting to defaults.")
-            default_sites = get_default_sites_if_empty()
-            save_custom_sites(default_sites)
-            return default_sites
-    else:
-        print("WS Info: No custom sites found in config. Initializing with defaults.")
-        default_sites = get_default_sites_if_empty()
-        save_custom_sites(default_sites)
-        return default_sites
+            with open(path, "r", encoding="utf-8") as handle:
+                value = json.load(handle)
+            return value if isinstance(value, dict) else {}
+        except Exception as exc:
+            print(f"WS Warn: Could not read local website state: {exc}")
+
+    # Migrate older collection-synced browser metadata into profile-local data.
+    state: Dict = {}
+    if mw and mw.col:
+        try:
+            raw_sites = mw.col.get_config(constants.CONFIG_KEY_CUSTOM_SITES)
+            if isinstance(raw_sites, str):
+                parsed = json.loads(raw_sites)
+                if isinstance(parsed, list):
+                    state["custom_sites"] = parsed
+            raw_url = mw.col.get_config(constants.CONFIG_KEY_LAST_OPENED_URL)
+            if isinstance(raw_url, str):
+                state["last_url"] = raw_url
+            for key in (constants.CONFIG_KEY_CUSTOM_SITES,
+                        constants.CONFIG_KEY_LAST_OPENED_URL):
+                remover = getattr(mw.col, "remove_config", None)
+                if callable(remover): remover(key)
+                else: mw.col.set_config(key, None)
+        except Exception as exc:
+            print(f"WS Warn: Could not migrate website state: {exc}")
+    _save_website_state(state)
+    return state
+
+
+def _save_website_state(state: Dict) -> None:
+    path = _website_state_path()
+    if not path:
+        return
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(state, handle, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception as exc:
+        print(f"WS Warn: Could not save local website state: {exc}")
+        try:
+            if os.path.exists(tmp): os.remove(tmp)
+        except OSError: pass
+
+def load_custom_sites() -> List[Dict[str, str]]:
+    sites = _load_website_state().get("custom_sites")
+    if isinstance(sites, list):
+        clean = [
+            {"name": str(site.get("name", ""))[:80], "url": str(site.get("url", ""))[:8192]}
+            for site in sites if isinstance(site, dict) and site.get("name") and site.get("url")
+        ]
+        if clean:
+            return clean[:constants.MAX_CUSTOM_SITES]
+    return get_default_sites_if_empty()
 
 
 def save_custom_sites(sites: List[Dict[str, str]]):
-    if not mw or not mw.col: return
     if len(sites) > constants.MAX_CUSTOM_SITES: sites = sites[:constants.MAX_CUSTOM_SITES]
-    config_json = json.dumps(sites)
-    mw.col.set_config(constants.CONFIG_KEY_CUSTOM_SITES, config_json)
+    state = _load_website_state()
+    state["custom_sites"] = sites
+    _save_website_state(state)
 
 def save_last_opened_url(url: str):
-    if not mw or not mw.col: return
-    if not hasattr(constants, 'CONFIG_KEY_LAST_OPENED_URL'):
-        print("WS Warn: CONFIG_KEY_LAST_OPENED_URL not in constants. Cannot save last URL.")
+    if not isinstance(url, str) or len(url) > 8192:
         return
-    mw.col.set_config(constants.CONFIG_KEY_LAST_OPENED_URL, url)
-    print(f"WS Info: Saved last opened URL: {url}")
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return
+    state = _load_website_state()
+    state["last_url"] = url
+    _save_website_state(state)
 
 def load_last_opened_url() -> Optional[str]:
-    if not mw or not mw.col: return None
-    if not hasattr(constants, 'CONFIG_KEY_LAST_OPENED_URL'):
-        print("WS Warn: CONFIG_KEY_LAST_OPENED_URL not in constants. Cannot load last URL.")
-        return None
-    return mw.col.get_config(constants.CONFIG_KEY_LAST_OPENED_URL)
+    value = _load_website_state().get("last_url")
+    return value if isinstance(value, str) and len(value) <= 8192 else None
 
 
 # --- UI Actions ---
@@ -226,12 +457,13 @@ def load_url_in_webview(webview: Optional[QWebEngineView], url_str: str):
     if url.isValid() and url.scheme() in ["http", "https"]:
         webview.setUrl(url)
     else:
+        safe_url = html.escape(str(url_str), quote=True)
         error_html = _("""
         <body style='font-family: sans-serif; padding: 20px; color: #333; background-color: #f9f9f9;'>
             <h2 style='color: #d32f2f;'>Invalid URL</h2>
             <p>The URL you tried to open seems to be invalid or is not a standard web URL (http/https).</p>
             <p>Attempted URL: <code>{url_str}</code></p>
-        </body>""").format(url_str=url_str)
+        </body>""").format(url_str=safe_url)
         webview.setHtml(error_html)
 
 # --- UI Construction Helpers ---
@@ -244,13 +476,13 @@ def create_button_pair(name: str, url: str, index: int) -> Optional[QWidget]:
     pair_layout.setSpacing(2)
 
     site_button = QPushButton(name)
-    site_button.setStyleSheet(_get_blue_button_style()) # Hier Blaues Design anwenden
+    site_button.setStyleSheet(_get_raised_text_button_style())
     site_button.setToolTip(_("Open: {}").format(url))
     site_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
     delete_button = QPushButton("-")
     delete_button.setObjectName("DeleteButton")
-    delete_button.setStyleSheet(WHITE_BUTTON_STYLE)
+    delete_button.setStyleSheet(_get_delete_button_style())
     delete_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     delete_button.setToolTip(_("Remove '{}'").format(name))
 
@@ -298,6 +530,7 @@ def create_website_dock() -> Optional[QDockWidget]:
     global home_button_widget
     global back_button, forward_button, refresh_button, nav_button_layout
     global custom_button_containers
+    global website_main_layout, window_button
 
     if not _qt_available or QDockWidget is object or QWidget is object or QVBoxLayout is object or QHBoxLayout is object or QWebEngineView is object or QWebEngineProfile is object or QPushButton is object or mw is None:
         print("WS Error: Essential Qt/Anki components missing for dock creation.")
@@ -327,7 +560,11 @@ def create_website_dock() -> Optional[QDockWidget]:
             print("WS Error: Addon path not set in constants. Cannot create profile directory.")
             return None
 
-        profile_dir = os.path.join(constants.addon_path, constants.WEBSITE_PROFILE_SUBDIR)
+        profile_root = mw.pm.profileFolder() if mw and mw.pm else None
+        if not profile_root:
+            raise RuntimeError("Anki profile folder is unavailable")
+        profile_dir = os.path.join(
+            profile_root, "SynapsePro_Data", "web_profiles", "website")
         profile_name = f"profile_{constants.ADDON_NAME_LAUNCHER}_Website_v2"
         try:
             os.makedirs(profile_dir, exist_ok=True)
@@ -349,28 +586,44 @@ def create_website_dock() -> Optional[QDockWidget]:
             print("WS FATAL: Could not obtain any QWebEngineProfile.")
             return None
 
+        _install_dark_scrollbar_script(website_profile)
+
         sidebar_dock = QDockWidget(_("Web Sidebar"), mw)
         sidebar_dock.setObjectName(constants.WEBSITE_DOCK_OBJECT_NAME)
-        allowed_areas_enum = Qt.DockWidgetArea if hasattr(Qt, 'DockWidgetArea') else Qt
-        sidebar_dock.setAllowedAreas(allowed_areas_enum.LeftDockWidgetArea | allowed_areas_enum.RightDockWidgetArea)
+        sidebar_dock.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         sidebar_dock.setMinimumWidth(350)
         
         title_bar_widget = QWidget(); title_bar_widget.setFixedHeight(0)
         sidebar_dock.setTitleBarWidget(title_bar_widget)
         
-        features_enum = QDockWidget.DockWidgetFeature if hasattr(QDockWidget, 'DockWidgetFeature') else QDockWidget
-        sidebar_dock.setFeatures(features_enum.DockWidgetClosable | features_enum.DockWidgetMovable | features_enum.DockWidgetFloatable)
+        sidebar_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
 
         container_widget = QWidget()
         main_layout = QVBoxLayout(container_widget)
-        main_layout.setContentsMargins(2, 8, 2, 2); main_layout.setSpacing(5)
+        main_layout.setContentsMargins(0, 0, 0, 0); main_layout.setSpacing(0)
+        website_main_layout = main_layout
+
+        # Clean grey toolbar bar (matches the Notebook nav bar look).
+        _pal = _toolbar_palette()
+        toolbar_widget = QWidget()
+        toolbar_widget.setObjectName("synapseWebToolbar")
+        toolbar_widget.setStyleSheet(
+            f"#synapseWebToolbar {{ background-color: {_pal['bar']};"
+            f" border-bottom: 1px solid {_pal['line']}; }}"
+        )
+        toolbar_layout = QVBoxLayout(toolbar_widget)
+        toolbar_layout.setContentsMargins(8, 6, 8, 6); toolbar_layout.setSpacing(5)
 
         button_container_layout = QHBoxLayout(); button_container_layout.setSpacing(3)
-        main_layout.addLayout(button_container_layout)
+        toolbar_layout.addLayout(button_container_layout)
 
         add_button_widget = QPushButton("+")
         add_button_widget.setObjectName("AddButton")
-        add_button_widget.setStyleSheet(_get_blue_button_style()) # Hier Blaues Design anwenden
+        add_button_widget.setStyleSheet(_get_raised_icon_button_style())
         add_button_widget.setToolTip(_("Add new website"))
         add_button_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         if qconnect: qconnect(add_button_widget.clicked, open_add_site_dialog)
@@ -378,37 +631,38 @@ def create_website_dock() -> Optional[QDockWidget]:
 
         home_button_widget = QPushButton(_("Home"))
         home_button_widget.setObjectName("HomeButton")
-        home_button_widget.setStyleSheet(_get_blue_button_style()) # Hier Blaues Design anwenden
+        home_button_widget.setStyleSheet(_get_raised_text_button_style())
         home_button_widget.setToolTip(_("Home (Synapse Browser)"))
         home_button_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         nav_button_layout = QHBoxLayout(); nav_button_layout.setSpacing(5)
+        _icon_style = _get_icon_button_style()
         back_button = QPushButton("←"); back_button.setToolTip(_("Go Back")); back_button.setEnabled(False)
         forward_button = QPushButton("→"); forward_button.setToolTip(_("Go Forward")); forward_button.setEnabled(False)
         refresh_button = QPushButton("↻"); refresh_button.setToolTip(_("Reload Page"))
+        window_button = QPushButton("⧉"); window_button.setToolTip(_("Open in main window"))
+        for _btn in (back_button, forward_button, refresh_button, window_button):
+            _btn.setStyleSheet(_icon_style)
+        _apply_window_icon(window_button)
         nav_button_layout.addWidget(back_button); nav_button_layout.addWidget(forward_button)
         nav_button_layout.addWidget(refresh_button); nav_button_layout.addStretch(1)
-        main_layout.addLayout(nav_button_layout)
+        nav_button_layout.addWidget(window_button)
+        toolbar_layout.addLayout(nav_button_layout)
+        main_layout.addWidget(toolbar_widget)
+        if qconnect and window_button:
+            qconnect(window_button.clicked, toggle_website_window)
 
         sidebar_webview = QWebEngineView()
         sidebar_webview.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         page = QWebEnginePage(website_profile, sidebar_webview)
         sidebar_webview.setPage(page)
         settings = sidebar_webview.settings()
-        if hasattr(QWebEngineSettings, 'WebAttribute'):
-            attrs_to_set = [
-                (QWebEngineSettings.WebAttribute.JavascriptEnabled, True),
-                (QWebEngineSettings.WebAttribute.LocalStorageEnabled, True),
-                (QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True),
-                (QWebEngineSettings.WebAttribute.PluginsEnabled, False),
-                (QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True), ]
-        else:
-            attrs_to_set = [
-                (QWebEngineSettings.JavascriptEnabled, True),
-                (QWebEngineSettings.LocalStorageEnabled, True),
-                (QWebEngineSettings.ScrollAnimatorEnabled, True),
-                (QWebEngineSettings.PluginsEnabled, False),
-                (QWebEngineSettings.FullScreenSupportEnabled, True), ]
+        attrs_to_set = [
+            (QWebEngineSettings.WebAttribute.JavascriptEnabled, True),
+            (QWebEngineSettings.WebAttribute.LocalStorageEnabled, True),
+            (QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True),
+            (QWebEngineSettings.WebAttribute.PluginsEnabled, False),
+            (QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True), ]
         for attr, value in attrs_to_set:
             try: settings.setAttribute(attr, value)
             except AttributeError: pass
@@ -444,8 +698,7 @@ def create_website_dock() -> Optional[QDockWidget]:
 
         sidebar_dock.setWidget(container_widget)
         sidebar_dock.setVisible(False)
-        add_dock_area_enum = Qt.DockWidgetArea if hasattr(Qt, 'DockWidgetArea') else Qt
-        mw.addDockWidget(add_dock_area_enum.RightDockWidgetArea, sidebar_dock)
+        mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, sidebar_dock)
         print(f"WS Info: New dock created and added successfully.")
 
     except Exception as e:
@@ -463,6 +716,106 @@ def on_webview_url_changed(url: QUrl):
     current_url_str = url.toString()
     if current_url_str and current_url_str != "about:blank" and not current_url_str.startswith("data:text/html"):
         save_last_opened_url(current_url_str)
+
+# --- Embedded View (inside the Anki main window) ---
+from . import embedded_window
+
+
+def toggle_website_window():
+    """Toggle the embedded main-window view on/off (the ⧉ button)."""
+    if website_window is not None and embedded_window.is_active():
+        close_website_window()
+    else:
+        open_website_window()
+
+
+def open_website_window():
+    """Embed the whole dock body into Anki's main content area.
+
+    We borrow the dock's *content widget* (its own toolbar + the webview),
+    not just the webview, so the navigation bar – including the ⧉ button –
+    stays visible and provides the way back to the sidebar. No extra header
+    bar is drawn (show_header=False).
+    """
+    global website_window, sidebar_dock, sidebar_webview, website_embedded_content
+    if not _qt_available or QWidget is object:
+        return
+
+    if sidebar_dock is None:
+        sidebar_dock = create_website_dock()
+    if not sidebar_webview or not sidebar_dock:
+        if callable(showWarning):
+            showWarning(_("Sidebar Browser not initialized."))
+        return
+
+    # Already embedded → nothing to do.
+    if website_window is not None or embedded_window.is_active():
+        return
+
+    # Make sure a real page is loaded (not about:blank).
+    try:
+        cur = sidebar_webview.url().toString() if QUrl is not object else ""
+    except Exception:
+        cur = ""
+    if not cur or cur == "about:blank" or cur.startswith("data:text/html"):
+        last_url = load_last_opened_url()
+        target = last_url if (last_url and last_url != "about:blank"
+                              and not last_url.startswith("data:text/html")) \
+            else "https://www.synapse-pro.de/browser"
+        load_url_in_webview(sidebar_webview, target)
+
+    # Detach the dock's content widget and hide the (now empty) dock.
+    content = sidebar_dock.widget()
+    if content is None:
+        return
+    content.setParent(None)
+    sidebar_dock.hide()
+
+    ok = embedded_window.embed(content, close_website_window, _("Web"),
+                               show_header=False)
+    if not ok:
+        # Embedding failed – put the content back and abort.
+        sidebar_dock.setWidget(content)
+        sidebar_dock.show()
+        sidebar_dock.raise_()
+        return
+    website_embedded_content = content
+    website_window = True  # marker: an embedded view is active
+    if window_button is not None:
+        try:
+            window_button.setToolTip(_("Back to sidebar"))
+        except Exception:
+            pass
+        # Flip the icon to the "close window" state (frame with a dash).
+        _apply_window_icon(window_button, active=True)
+
+
+def close_website_window():
+    """Leave the embedded view and return the content to the dock."""
+    global website_window, sidebar_dock, website_embedded_content
+    content = website_embedded_content
+    if content is not None and sidebar_dock is not None:
+        try:
+            sidebar_dock.setWidget(content)  # reparents out of the embed container
+        except Exception:
+            pass
+    embedded_window.restore()
+    website_embedded_content = None
+    website_window = None
+    if window_button is not None:
+        try:
+            window_button.setToolTip(_("Open in main window"))
+        except Exception:
+            pass
+        # Restore the normal "open in main window" icon.
+        _apply_window_icon(window_button, active=False)
+    if sidebar_dock is not None:
+        try:
+            sidebar_dock.show()
+            sidebar_dock.raise_()
+        except Exception:
+            pass
+
 
 # --- Toggle Function ---
 def toggle_website_dock():
@@ -509,21 +862,54 @@ def toggle_website_dock():
 # --- Theme Refresh Function ---
 def refresh_website_theme() -> None:
     """Re-apply theme-aware button styles after a colour-theme change."""
-    style = _get_blue_button_style()
-    if add_button_widget is not None:
-        try: add_button_widget.setStyleSheet(style)
-        except Exception: pass
+    icon_style = _get_icon_button_style()
     if home_button_widget is not None:
-        try: home_button_widget.setStyleSheet(style)
+        try: home_button_widget.setStyleSheet(_get_raised_text_button_style())
         except Exception: pass
+    if add_button_widget is not None:
+        try: add_button_widget.setStyleSheet(_get_raised_icon_button_style())
+        except Exception: pass
+    for _btn in (back_button, forward_button, refresh_button, window_button):
+        if _btn is not None:
+            try: _btn.setStyleSheet(icon_style)
+            except Exception: pass
+    if window_button is not None:
+        # Keep the "close window" variant while the embedded view is active.
+        try: _apply_window_icon(window_button, active=(website_window is not None))
+        except Exception: pass
+    # Re-paint the grey bar itself.
+    try:
+        if mw is not None:
+            bar = mw.findChild(QWidget, "synapseWebToolbar")
+            if bar is not None:
+                pal = _toolbar_palette()
+                bar.setStyleSheet(
+                    f"#synapseWebToolbar {{ background-color: {pal['bar']};"
+                    f" border-bottom: 1px solid {pal['line']}; }}"
+                )
+    except Exception: pass
+    # Rebuild custom site buttons so their styles refresh too.
+    try: rebuild_custom_buttons_ui()
+    except Exception: pass
 
 # --- Cleanup Function ---
 def cleanup_website_sidebar():
     global sidebar_dock, sidebar_webview, website_profile, button_container_layout, nav_button_layout, add_button_widget
-    global home_button_widget 
+    global home_button_widget
     global back_button, forward_button, refresh_button
     global custom_button_containers
-    
+    global website_main_layout, website_window, window_button
+
+    # Only close the embedded Browser owned by this module.  A Notebook or
+    # Mind Map may be the active embedded tool; restoring its container here
+    # would leave that tool's own state flag out of sync with the main layout.
+    if website_window is not None:
+        try: close_website_window()
+        except Exception:
+            try: embedded_window.restore()
+            except Exception: pass
+        website_window = None
+
     if sidebar_webview and hasattr(sidebar_webview, 'urlChanged') and hasattr(sidebar_webview, '_urlChangedConnected_ws'):
         try:
             if hasattr(sidebar_webview.urlChanged, 'disconnect'):
@@ -533,8 +919,25 @@ def cleanup_website_sidebar():
             print(f"WS Info: Could not disconnect urlChanged on cleanup: {e_disc}")
         except AttributeError: pass
 
+    # Anki's main window survives profile switches. Destroy the Qt objects so
+    # a page, cookie store, or signal from the old profile cannot remain live.
+    if sidebar_webview is not None:
+        try: sidebar_webview.setUrl(QUrl("about:blank"))
+        except Exception: pass
+        try: sidebar_webview.deleteLater()
+        except Exception: pass
+    if sidebar_dock is not None:
+        try: mw.removeDockWidget(sidebar_dock)
+        except Exception: pass
+        try: sidebar_dock.deleteLater()
+        except Exception: pass
+    if website_profile is not None:
+        try: website_profile.deleteLater()
+        except Exception: pass
+
     sidebar_dock = None; sidebar_webview = None; website_profile = None; button_container_layout = None; nav_button_layout = None
     add_button_widget = None; home_button_widget = None; back_button = None; forward_button = None; refresh_button = None
+    window_button = None; website_main_layout = None
     custom_button_containers.clear()
     print(f"{constants.ADDON_NAME_WEBSITE}: Cleaned up references.")
 
@@ -559,6 +962,23 @@ def search_in_sidebar(text: str):
         _execute_search_in_sidebar(text)
 
 
+def _notify_launcher_dock_opened():
+    """Ask the launcher sidebar to highlight the Website icon.
+
+    The search path opens the dock without going through the launcher button,
+    so the launcher never wires up its visibility listener on its own. Poke it
+    here so the icon reflects the now-open dock (no-op if the launcher or its
+    hook isn't available)."""
+    try:
+        import importlib
+        pkg = importlib.import_module(__package__)
+        inst = getattr(pkg, "sidebar_widget_instance", None)
+        if inst is not None and hasattr(inst, "sync_dock_button"):
+            inst.sync_dock_button(constants.WEBSITE_DOCK_OBJECT_NAME)
+    except Exception as e:
+        print(f"WS Info: could not notify launcher about dock open: {e}")
+
+
 def _execute_search_in_sidebar(text: str):
     """Internal helper – runs the actual search after the event loop has ticked."""
     if not text: return
@@ -575,9 +995,9 @@ def _execute_search_in_sidebar(text: str):
             if not sidebar_dock.isVisible():
                 sidebar_dock.show()
             sidebar_dock.raise_()
+            _notify_launcher_dock_opened()
 
             if sidebar_webview:
-                print(f"WS Search: Searching for '{text}'")
                 load_url_in_webview(sidebar_webview, search_url)
             else:
                 if callable(showWarning): showWarning(_("Sidebar Browser not initialized."))
@@ -597,6 +1017,11 @@ def on_context_menu(webview, menu):
     the context-menu event.
     """
     try:
+        # The context-menu hooks remain registered for Anki's lifetime.
+        import importlib
+        package = importlib.import_module(__package__)
+        if not getattr(package, "addon_settings", {}).get("website_viewer_enabled", True):
+            return
         selected_text = webview.selectedText()
     except (AttributeError, RuntimeError):
         return

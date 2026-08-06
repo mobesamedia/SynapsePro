@@ -15,23 +15,9 @@ from typing import Dict, Optional
 # ── Anki / PyQt imports ──────────────────────────────────────────────────────
 try:
     from aqt import mw
-    from . import constants as _constants
-    if _constants.qt_version == 6:
-        from PyQt6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
-            QLabel, QPushButton, QFrame, QSizePolicy, QColorDialog,
-        )
-        from PyQt6.QtGui import QColor
-        from PyQt6.QtCore import Qt
-    elif _constants.qt_version == 5:
-        from PyQt5.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
-            QLabel, QPushButton, QFrame, QSizePolicy, QColorDialog,
-        )
-        from PyQt5.QtGui import QColor
-        from PyQt5.QtCore import Qt
-    else:
-        raise ImportError("No valid Qt version")
+    from aqt.qt import (QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
+                        QLabel, QPushButton, QFrame, QSizePolicy, QColorDialog,
+                        QColor, Qt)
 except Exception as _e:
     print(f"ThemeEditorDialog: Qt import error: {_e}")
     QDialog = object  # type: ignore

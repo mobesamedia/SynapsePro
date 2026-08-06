@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<style id="sp-dark-scrollbars">
+  /* Dark-mode scrollbars: Chromium styles native scrollbars from the
+     color-scheme property, which otherwise stays "light".
+     Theme comes from Anki (nightMode class injected by notebook_sidebar.py),
+     NOT from prefers-color-scheme — that follows the OS, not Anki. */
+  html.nightMode { color-scheme: dark; }
+  html:has(body.nightMode) { color-scheme: dark; }
+</style>
+
     <meta charset="UTF-8">
     <title>Notion Mini Pro</title>
     <style>
@@ -38,15 +47,9 @@
             --table-border: #444444;
         }
         
-        @media (prefers-color-scheme: dark) { 
-            :root { 
-                --bg: #191919; --sidebar-bg: #202020; --header-bg: #252525; --text: #ffffff; 
-                --hover-bg: #2c2c2c; --border: rgba(255,255,255,0.1);
-                --callout-bg: #262626; --callout-text: #ffffff;
-                --divider-color: rgba(255,255,255,0.15);
-                --table-border: #444444;
-            } 
-        }
+        /* (OS-based prefers-color-scheme fallback removed — the theme is
+           driven solely by Anki via the nightMode class, see body.nightMode
+           rules above.) */
 
         * { box-sizing: border-box; outline: none; }
         ::selection { background: var(--selection); }
@@ -73,8 +76,8 @@
         }
 
         .top-search-input {
-            flex: 1; 
-            max-width: 600px;
+            flex: 1;
+            max-width: 420px;
             height: 36px;
             border: none;
             border-radius: 6px;
@@ -115,7 +118,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             transition: background 0.2s;
             flex-shrink: 0;
         }
@@ -156,12 +158,62 @@
         .sidebar-item:hover { background: var(--hover-bg); }
         .sidebar-item.active { background: var(--hover-bg); font-weight: 500; }
         
-        .sidebar-item .del-btn { 
-            margin-left: auto; opacity: 0; font-size: 16px; padding: 0 4px; line-height: 1;
+        .sidebar-item .del-btn {
+            opacity: 0; font-size: 16px; padding: 0 4px; line-height: 1;
             font-weight: 300; color: var(--text-gray);
         }
         .sidebar-item:hover .del-btn { opacity: 0.6; }
         .sidebar-item .del-btn:hover { opacity: 1; color: #ff4d4f; font-weight: bold; }
+
+        .sidebar-item .pin-btn {
+            margin-left: auto; opacity: 0; font-size: 12px; padding: 0 2px; line-height: 1;
+            filter: grayscale(1);
+        }
+        .sidebar-item:hover .pin-btn { opacity: 0.5; }
+        .sidebar-item .pin-btn:hover { opacity: 1; filter: none; }
+        .sidebar-item.pinned .pin-btn { opacity: 0.85; filter: none; }
+
+        .sidebar-item.in-folder { margin-left: 24px; }
+
+        .sidebar-section-label {
+            padding: 8px 20px 2px; font-size: 11px; color: var(--text-gray);
+            text-transform: uppercase; letter-spacing: 0.5px; user-select: none;
+        }
+
+        .folder-row {
+            padding: 6px 12px; font-size: 13.5px; font-weight: 500; color: var(--text);
+            border-radius: 4px; cursor: pointer; display: flex; align-items: center;
+            gap: 7px; user-select: none; margin: 0 8px;
+        }
+        .folder-row:hover { background: var(--hover-bg); }
+        .folder-row .folder-arrow {
+            font-size: 10px; color: var(--text-gray); transition: transform 0.15s;
+            width: 10px; flex-shrink: 0;
+        }
+        .folder-row .folder-arrow.open { transform: rotate(90deg); }
+        .folder-row .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .folder-row .folder-count { font-size: 11px; color: var(--text-gray); opacity: 0.7; }
+        .folder-row .del-btn {
+            margin-left: auto; opacity: 0; font-size: 16px; padding: 0 4px; line-height: 1;
+            font-weight: 300; color: var(--text-gray);
+        }
+        .folder-row:hover .del-btn { opacity: 0.6; }
+        .folder-row .del-btn:hover { opacity: 1; color: #ff4d4f; font-weight: bold; }
+
+        #page-ctx-menu {
+            position: fixed; display: none; z-index: 1300; min-width: 180px; padding: 4px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18); font-size: 13px;
+        }
+        #page-ctx-menu .ctx-item {
+            display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+            border-radius: 6px; cursor: pointer; color: var(--text);
+        }
+        #page-ctx-menu .ctx-item:hover { background: var(--hover-bg); }
+        #page-ctx-menu .ctx-item.danger:hover { color: #ff4d4f; }
+        #page-ctx-menu .ctx-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+        #page-ctx-menu .ctx-label { padding: 6px 10px 2px; font-size: 11px; color: var(--text-gray); }
+        #page-ctx-menu .ctx-item .ctx-check { margin-left: auto; font-size: 11px; color: var(--text-gray); }
 
         .sidebar-add-btn {
             padding: 12px 20px; font-size: 14px; color: var(--text-gray);
@@ -197,14 +249,29 @@
         .emoji-opt { cursor: pointer; font-size: 24px; padding: 4px; border-radius: 4px; text-align: center; }
         .emoji-opt:hover { background: var(--hover-bg); }
 
-        .remove-icon-btn { 
-            width: 100%; text-align: center; font-size: 12px; padding: 6px; cursor: pointer; 
-            color: var(--text-gray); border-top: 1px solid var(--border); margin-top: 4px; 
+        /* Free-text icon: type or paste any character/emoji/letter */
+        .custom-icon-row { display: flex; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+        .custom-icon-row input {
+            flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 5px;
+            padding: 5px 8px; font-size: 13px; background: var(--bg); color: var(--text);
+            outline: none; font-family: inherit;
+        }
+        .custom-icon-row input:focus { border-color: var(--selection); }
+        .custom-icon-row button {
+            border: none; border-radius: 5px; padding: 5px 10px; font-size: 12px; font-weight: 600;
+            cursor: pointer; background: var(--hover-bg); color: var(--text); font-family: inherit;
+        }
+        .custom-icon-row button:hover { filter: brightness(0.93); }
+
+        .remove-icon-btn {
+            width: 100%; text-align: center; font-size: 12px; padding: 6px; cursor: pointer;
+            color: var(--text-gray); border-top: 1px solid var(--border); margin-top: 4px;
         }
         .remove-icon-btn:hover { color: #ff4d4f; }
 
         h1.page-title { font-size: 36px; font-weight: 700; margin: 10px 0 30px 0; border: none; color: var(--text); line-height: 1.2; cursor: text; }
-        h1.page-title:empty::before { content: 'Page Title'; color: var(--text-gray); opacity: 0.25; }
+        h1.page-title:empty::before { content: attr(placeholder); color: var(--text-gray); opacity: 0.55; }
+        body.nightMode h1.page-title:empty::before { opacity: 0.85; }
 
         #editor { min-height: 40px; }
         .block { min-height: 24px; line-height: 1.6; padding: 3px 0; margin-bottom: 2px; font-size: 16px; position: relative; color: var(--text); }
@@ -301,6 +368,77 @@
         .color-dot { width: 16px; height: 16px; border-radius: 50%; cursor: pointer; border: 1px solid rgba(128,128,128,0.2); }
         .color-dot:hover { transform: scale(1.2); }
 
+        /* Cover / cloze boxes: a beige box hides the text so you can self-test.
+           Click to reveal (box fades to half), click again to hide it. */
+        .cloze-cover {
+            background-color: #e3d4b3;
+            border-radius: 3px;
+            padding: 0 3px;
+            cursor: pointer;
+            -webkit-box-decoration-break: clone;
+            box-decoration-break: clone;
+            transition: background-color .12s ease, color .12s ease;
+        }
+        .cloze-cover:not(.revealed) { color: transparent; -webkit-user-select: none; user-select: none; }
+        .cloze-cover:not(.revealed) * { color: transparent !important; }
+        .cloze-cover.revealed { background-color: rgba(227, 212, 179, 0.30); }
+        body.nightMode .cloze-cover { background-color: #6b5d3f; }
+        body.nightMode .cloze-cover.revealed { background-color: rgba(107, 93, 63, 0.30); }
+
+        /* Small × that appears when hovering a cover; removes the box, keeps the text. */
+        #cloze-x {
+            position: fixed; display: none; z-index: 6500;
+            width: 14px; height: 14px; padding: 0; line-height: 1;
+            align-items: center; justify-content: center;
+            border: none; border-radius: 50%; cursor: pointer;
+            background: #d9d9d9; color: #333; font-size: 10px; font-weight: 600;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+        }
+        #cloze-x:hover { background: #c4c4c4; }
+
+        /* "Re-cover everything" button in the top bar, shown once something is revealed. */
+        .recover-btn {
+            display: none; align-items: center; gap: 6px;
+            height: 36px; padding: 0 12px; margin-right: 10px;
+            border: none; border-radius: 6px; cursor: pointer;
+            background: #e3d4b3; color: #5f4f2c;
+            font-size: 13px; font-weight: 600; white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex-shrink: 0;
+        }
+        .recover-btn:hover { filter: brightness(0.96); }
+        body.nightMode .recover-btn { background: #6b5d3f; color: #f0e6cf; box-shadow: none; }
+
+        /* Inline link to another page (Notion-style /site). */
+        .page-link {
+            color: var(--text);
+            text-decoration: underline;
+            text-decoration-color: rgba(128,128,128,0.5);
+            text-underline-offset: 2px;
+            border-radius: 3px;
+            padding: 0 2px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .page-link:hover { background: var(--hover-bg); }
+        .page-link.broken { color: var(--text-gray); text-decoration-color: #e5484d; }
+
+        /* Page picker popup (shown after typing /site). */
+        #page-picker {
+            position: fixed; display: none; z-index: 1100; width: 280px; padding: 6px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        }
+        #page-picker-input {
+            width: 100%; box-sizing: border-box; padding: 7px 9px; margin-bottom: 6px;
+            border: 1px solid var(--border); border-radius: 6px; font-size: 13px;
+            background: transparent; color: var(--text); outline: none;
+        }
+        #page-picker-list { max-height: 240px; overflow-y: auto; }
+        .pp-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text); }
+        .pp-item:hover, .pp-item.active { background: var(--hover-bg); }
+        .pp-item .pp-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pp-new { font-weight: 500; }
+
         #status { position: fixed; bottom: 10px; left: 10px; font-size: 11px; opacity: 0; background: var(--bg); padding: 4px 8px; border: 1px solid var(--border); color: var(--text-gray); z-index: 2000; border-radius: 4px;}
 
         .search-highlight {
@@ -318,6 +456,18 @@
             outline: 1px solid rgba(35, 131, 226, 0.25);
             outline-offset: 1px;
         }
+
+        /* Subtle grey indicator shown when hovering the gap between two lines.
+           Clicking while it is visible inserts a new line at that position. */
+        #line-insert-indicator {
+            position: fixed;
+            height: 1px;
+            background: rgba(0, 0, 0, 0.13);
+            pointer-events: none;
+            z-index: 6000;
+            display: none;
+        }
+        body.nightMode #line-insert-indicator { background: rgba(255, 255, 255, 0.20); }
 
         /* ---- Global search results ---- */
         #global-search-results {
@@ -382,7 +532,6 @@
             align-items: center;
         }
         body.nightMode #block-toolbar { background: #e8e8e8; color: #111; }
-        @media (prefers-color-scheme: dark) { #block-toolbar { background: #e8e8e8; color: #111; } }
         .blk-btn {
             background: transparent; border: none; color: inherit;
             padding: 5px 10px; cursor: pointer; border-radius: 4px;
@@ -431,18 +580,6 @@
             background: #4A4A4A;
         }
 
-        @media (prefers-color-scheme: dark) {
-            .toggle-btn,
-            .sidebar-close-btn {
-                background: #7F7F7F;
-            }
-            .toggle-btn:hover,
-            .toggle-btn:active,
-            .sidebar-close-btn:hover,
-            .sidebar-close-btn:active {
-                background: #4A4A4A;
-            }
-        }
 
         /* Toggle block */
         .block.toggle { padding: 2px 0; }
@@ -518,7 +655,12 @@
         <button class="fmt-btn" onmousedown="format('italic')" style="font-style:italic">i</button>
         <button class="fmt-btn" onmousedown="format('underline')" style="text-decoration:underline">U</button>
         <div style="width:1px;height:16px;background:rgba(128,128,128,0.35);margin:0 2px"></div>
-        <button class="fmt-btn" onmousedown="event.preventDefault(); showLinkPopup()" title="Link (Ctrl+K)" style="font-size:13px">🔗</button>
+        <button class="fmt-btn" onmousedown="event.preventDefault(); showLinkPopup()" title="Link (Ctrl+K)" data-i18n-title="link_title" style="display:inline-flex;align-items:center;padding:4px 7px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        </button>
+        <button class="fmt-btn" onmousedown="event.preventDefault(); coverSelection()" title="Cover for learning" data-i18n-title="cover_title" style="display:inline-flex;align-items:center;padding:4px 7px">
+            <svg width="16" height="14" viewBox="0 0 24 24" style="pointer-events:none"><rect x="3" y="6" width="18" height="12" rx="2" fill="#e3d4b3"/></svg>
+        </button>
         <div class="color-picker">
             <div class="color-dot" style="background:#e03e3e" onmousedown="formatColor('#e03e3e')"></div>
             <div class="color-dot" style="background:#d9730d" onmousedown="formatColor('#d9730d')"></div>
@@ -541,6 +683,10 @@
                        oninput="handleSearchInput(this.value)"
                        onkeydown="handleSearchKey(event)">
                 
+                <button id="recoverBtn" class="recover-btn" onclick="recoverAllCovers()" title="Cover all revealed terms again" data-i18n-title="recover_covers_title">
+                    <svg width="15" height="13" viewBox="0 0 24 24" style="flex-shrink:0"><rect x="3" y="6" width="18" height="12" rx="2" fill="currentColor"/></svg>
+                    <span data-i18n="cover_title">Cover for learning</span>
+                </button>
                 <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
             </div>
             
@@ -553,19 +699,26 @@
                     
                     <div id="emoji-popover">
                         <div class="emoji-grid" id="emoji-grid"></div>
+                        <div class="custom-icon-row">
+                            <input type="text" id="custom-icon-input" maxlength="12"
+                                   placeholder="Own icon or text…"
+                                   data-i18n-placeholder="custom_icon_placeholder">
+                            <button onclick="applyCustomIcon()" data-i18n="apply">Apply</button>
+                        </div>
                         <div class="remove-icon-btn" onclick="setIcon('')" data-i18n="remove_icon">Remove Icon</div>
                     </div>
 
-                    <h1 id="title" class="page-title" contenteditable="true" placeholder="Page Title" onfocus="clearSearchHighlights()"></h1>
+                    <h1 id="title" class="page-title" contenteditable="true" placeholder="Page Title" data-i18n-placeholder="page_title_placeholder" onfocus="clearSearchHighlights()"></h1>
                     <div id="editor" onclick="clearSearchOnInteraction()"></div>
                 </div>
             </div>
         </div>
 
-        <div class="sidebar" id="sidebar">
+        <div class="sidebar closed" id="sidebar">
             <button class="sidebar-close-btn" onclick="toggleSidebar()" data-i18n="close">Close</button>
             <div class="sidebar-list" id="sidebar-list"></div>
             <div class="sidebar-add-btn" onclick="addNewPage()"><span>+</span> <span data-i18n="new_page">New Page</span></div>
+            <div class="sidebar-add-btn" style="margin-top:0; border-top:none; padding-top:4px;" onclick="addFolder()"><span>+</span> 📁 <span data-i18n="new_folder">New Folder</span></div>
         </div>
     </div>
 
@@ -581,11 +734,25 @@
         <div class="menu-item" onclick="convertBlock('toggle')"><span data-i18n="block_toggle">Toggle</span> <span class="menu-shortcut">/toggle</span></div>
         <div class="menu-item" onclick="convertBlock('divider')"><span data-i18n="block_divider">Divider</span> <span class="menu-shortcut">/div</span></div>
         <div class="menu-item" onclick="convertBlock('table')"><span data-i18n="block_table">Table</span> <span class="menu-shortcut">/table</span></div>
+        <div class="menu-item" onclick="startPageLink()"><span data-i18n="block_pagelink">Link to page</span> <span class="menu-shortcut">/site</span></div>
         <div class="menu-footer" data-i18n="paste_tip">Tip: Paste images (Ctrl+V) supported</div>
     </div>
 
+    <div id="page-picker">
+        <input id="page-picker-input" type="text" placeholder="Search or create a page…" data-i18n-placeholder="page_picker_placeholder"
+               oninput="renderPagePicker(this.value)" onkeydown="pagePickerKey(event)">
+        <div id="page-picker-list"></div>
+    </div>
+
+    <div id="page-ctx-menu"></div>
+
     <script>
-        const EMOJI_LIST = "📚 📖 📘 📙 📗 📕 📝 ✏️ ✍️ 📄 📃 📑 📋 📌 📎 📍 📊 📈 📉 🧮 💡 🧠 🔬 🧪 🧫 ⚗️ 🩺 💊 💉 🩸 🦠 🧬 🫀 🫁 🧻 🧼 🏥 🚑 ⚖️ 📜 🏛️ 🧑‍⚖️ 👨‍⚖️ 👩‍⚖️ 📚 📖 🏛️ 📂 🗂️ 🗃️ 🔍 🔎 🔦 💻 ⌨️ 🖥️ 📱 🌐 🗣️ 💬 🗨️ 💭 🗯️ 🔤 🔡 🔠 🈯 🈳 🈺 🈳 🈵 🈶 🈷️ ✳️ ❇️ ❓ ❔ ❗ ❕ ✔️ ☑️ ✅ 📅 📆 🗓️ ⏰ ⏳ ⌛ 📌 🎓 👩‍🎓 👨‍🎓 🏫 🏫 🏫 📒 📔 📓 📘 📙 📗 📕 🧾 💼 🧑‍💼 👨‍💼 👩‍💼".split(" ");
+        const EMOJI_LIST = ("📚 📖 📘 📙 📗 📕 📓 📔 📒 📝 ✏️ ✒️ 🖊️ 🖋️ 🖍️ 🖌️ ✍️ 📐 📏 🔖 🏷️ 📌 📎 🖇️ 📁 📂 🗂️ 🗃️ 🗄️ 📄 📃 📑 📋 🗒️ 🧾 " +
+            "📅 📆 🗓️ ⏰ ⏳ ⌛ 🎓 🧑‍🎓 👨‍🎓 👩‍🎓 🧑‍🏫 👨‍🏫 👩‍🏫 🏫 🎒 📜 🧠 💡 🎯 🧩 🏆 🥇 ⭐ 🌟 ✨ 🔑 💯 ✅ ☑️ ✔️ ❓ ❗ 🔍 🔎 🔦 " +
+            "💻 🖥️ ⌨️ 🖱️ 🖲️ 💾 💿 📀 🕹️ 🤖 🦾 ⚙️ 🔧 🔨 🛠️ 🧰 🔌 🔋 🪫 📡 🛰️ 🌐 🕸️ 🐛 👾 🧑‍💻 👨‍💻 👩‍💻 🔣 🔢 #️⃣ 📟 📱 📲 " +
+            "🩺 💊 💉 🩸 🦠 🧬 🫀 🫁 🦷 🦴 👁️ 🩹 🩼 🩻 🌡️ 🏥 🚑 ⚕️ 🥼 😷 🤒 🤕 🧴 🔬 🔭 🧪 🧫 ⚗️ 🧲 🪐 🌱 🌿 🍄 " +
+            "🗣️ 💬 🗨️ 🗯️ 💭 🔤 🔡 🔠 🅰️ 🆎 🌍 🌎 🌏 🗺️ 🧭 ✈️ 🧳 📢 📣 🔊 " +
+            "🧮 📊 📈 📉 ➗ ➕ ➖ ✖️ 🟰 💲 ⚖️ 🏛️ 🧑‍⚖️ 💼 🧑‍💼 👨‍💼 👩‍💼 🔗 ✉️ 📧 📦 🔥 📍").split(" ");
 
         let appState = { activePageId: null, sidebarOpen: true, pages: [] };
         let selectedImg = null;
@@ -600,10 +767,14 @@
         const emojiGrid = document.getElementById('emoji-grid');
         const menu = document.getElementById('slash-menu');
         const formatToolbar = document.getElementById('format-toolbar');
+        const recoverBtn = document.getElementById('recoverBtn');
         const imgToolbar = document.getElementById('image-toolbar');
         const searchInput = document.getElementById('searchInput');
         const ADDON = "notion_mini";
         let saveTimeout = null;
+        let saveDirty = false;
+        let saveRevision = 0;
+        const pendingSaveRevisions = [];
 
         let currentSearchIndex = -1;
         let searchResults = [];
@@ -636,14 +807,18 @@
             if (!page) { suppressUndoSnapshot = false; return; }
             page.title = data.title;
             page.icon = data.icon;
-            page.blocks = data.blocks;
+            page.blocks = Array.isArray(data.blocks) ? data.blocks : [];
             titleEl.innerText = page.title;
             setIconDisplay(page.icon);
             editor.innerHTML = '';
-            page.blocks.forEach(b => editor.appendChild(createBlock(b.type, b.html, b.checked || false, b.open !== false, b.body || '')));
+            page.blocks.forEach(b => { if (b && typeof b === 'object') editor.appendChild(createBlock(b.type, b.html, b.checked || false, b.open !== false, b.body || '')); });
             renderSidebar();
+            resetCoversOnLoad();
+            refreshPageLinks();
+            saveDirty = true;
+            saveRevision += 1;
             clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => { send(`${ADDON}:save:${JSON.stringify(appState)}`); }, 800);
+            saveTimeout = setTimeout(persistNow, 800);
             suppressUndoSnapshot = false;
         }
 
@@ -661,7 +836,7 @@
             return new Date(ts).toLocaleDateString();
         }
 
-        if (document.documentElement.classList.contains("nightMode")) document.body.classList.add("nightMode");
+        if (window.__SYNAPSE_NIGHT__ === true || document.documentElement.classList.contains("nightMode")) document.body.classList.add("nightMode");
 
         function send(msg) {
             if (typeof pycmd === "function") pycmd(msg);
@@ -691,7 +866,12 @@
                 appState.activePageId = appState.pages[0]?.id || Date.now().toString(); 
             }
             loadPage(appState.activePageId, false);
-            if(!appState.sidebarOpen) sidebar.classList.add('closed');
+            // Always start with the page list collapsed. The sidebar is already
+            // 'closed' in the markup, so removing the class here would animate
+            // it open→closed on startup (the "flap" effect). Keep it closed and
+            // let the user open it via the hamburger button.
+            appState.sidebarOpen = false;
+            sidebar.classList.add('closed');
         }
 
         function addNewPage(doSave = true) {
@@ -726,6 +906,8 @@
                 });
             }
             renderSidebar();
+            resetCoversOnLoad();
+            refreshPageLinks();
         }
 
         function saveCurrentEditorToState() {
@@ -741,20 +923,20 @@
                 if (child.classList.contains('todo-wrapper')) {
                     blocks.push({
                         type: 'todo',
-                        html: child.querySelector('.todo-content').innerHTML,
+                        html: sanitizeUserHtml(child.querySelector('.todo-content').innerHTML),
                         checked: child.querySelector('input').checked
                     });
                 } else if (child.classList.contains('divider')) {
                     blocks.push({ type: 'divider', html: '' });
                 } else if (child.classList.contains('table-container')) {
-                    blocks.push({ type: 'table', html: child.querySelector('table').innerHTML });
+                    blocks.push({ type: 'table', html: sanitizeUserHtml(child.querySelector('table').innerHTML) });
                 } else if (child.classList.contains('callout')) {
-                    blocks.push({ type: 'callout', html: child.querySelector('.callout-content').innerHTML });
+                    blocks.push({ type: 'callout', html: sanitizeUserHtml(child.querySelector('.callout-content').innerHTML) });
                 } else if (child.classList.contains('toggle')) {
                     blocks.push({
                         type: 'toggle',
-                        html: child.querySelector('.toggle-title').innerHTML,
-                        body: child.querySelector('.toggle-body').innerHTML,
+                        html: sanitizeUserHtml(child.querySelector('.toggle-title').innerHTML),
+                        body: sanitizeUserHtml(child.querySelector('.toggle-body').innerHTML),
                         open: child.querySelector('.toggle-arrow').classList.contains('open')
                     });
                 } else {
@@ -764,7 +946,7 @@
                     if (child.classList.contains('bullet')) type = 'bullet';
                     if (child.classList.contains('quote')) type = 'quote';
                     if (child.classList.contains('code')) type = 'code';
-                    blocks.push({ type: type, html: child.innerHTML });
+                    blocks.push({ type: type, html: sanitizeUserHtml(child.innerHTML) });
                 }
             });
             page.blocks = blocks;
@@ -821,25 +1003,188 @@
             if (e.key === 'Escape') { e.preventDefault(); hideGlobalResults(); searchInput.value = ''; return; }
         }
 
-        function renderSidebar() {
-            sidebarList.innerHTML = '';
-            const sorted = [...appState.pages].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-            sorted.forEach(page => {
-                const div = document.createElement('div');
-                div.className = `sidebar-item ${page.id === appState.activePageId ? 'active' : ''}`;
-                div.onclick = () => { if (page.id !== appState.activePageId) loadPage(page.id, true); };
-                const timeStr = formatRelativeTime(page.updatedAt);
-                div.innerHTML = `
-                    <span>${page.icon || '📄'}</span>
-                    <div class="sidebar-item-meta">
-                        <span class="page-name">${page.title || (window.__SYNAPSE_I18N__?.untitled || 'Untitled')}</span>
-                        ${timeStr ? `<span class="sidebar-item-time">${timeStr}</span>` : ''}
-                    </div>
-                    <span class="del-btn" onclick="deletePage(event, '${page.id}')">×</span>
-                `;
-                sidebarList.appendChild(div);
-            });
+        function i18nGet(key, fallback) {
+            return (window.__SYNAPSE_I18N__ && window.__SYNAPSE_I18N__[key]) || fallback;
         }
+
+        function escHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                              .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function ensureFolders() {
+            if (!Array.isArray(appState.folders)) appState.folders = [];
+        }
+
+        function buildSidebarItem(page, inFolder) {
+            const div = document.createElement('div');
+            div.className = 'sidebar-item'
+                + (page.id === appState.activePageId ? ' active' : '')
+                + (page.pinned ? ' pinned' : '')
+                + (inFolder ? ' in-folder' : '');
+            div.onclick = () => { if (page.id !== appState.activePageId) loadPage(page.id, true); };
+            div.oncontextmenu = (e) => showPageCtxMenu(e, page.id);
+            const timeStr = formatRelativeTime(page.updatedAt);
+            const pinTitle = page.pinned ? i18nGet('unpin', 'Unpin') : i18nGet('pin', 'Pin');
+            div.innerHTML = `
+                <span>${escHtml(page.icon || '📄')}</span>
+                <div class="sidebar-item-meta">
+                    <span class="page-name">${escHtml(page.title || i18nGet('untitled', 'Untitled'))}</span>
+                    ${timeStr ? `<span class="sidebar-item-time">${timeStr}</span>` : ''}
+                </div>
+                <span class="pin-btn" title="${escHtml(pinTitle)}" onclick="togglePin(event, '${page.id}')">📌</span>
+                <span class="del-btn" onclick="deletePage(event, '${page.id}')">×</span>
+            `;
+            return div;
+        }
+
+        function renderSidebar() {
+            ensureFolders();
+            sidebarList.innerHTML = '';
+            const byUpdated = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
+            const folderIds = new Set(appState.folders.map(f => f.id));
+            const pinned = appState.pages.filter(p => p.pinned).sort(byUpdated);
+            const loose  = appState.pages.filter(p =>
+                !p.pinned && (!p.folderId || !folderIds.has(p.folderId))).sort(byUpdated);
+
+            // ── Pinned section (always on top) ──
+            if (pinned.length) {
+                const label = document.createElement('div');
+                label.className = 'sidebar-section-label';
+                label.textContent = '📌 ' + i18nGet('pinned', 'Pinned');
+                sidebarList.appendChild(label);
+                pinned.forEach(p => sidebarList.appendChild(buildSidebarItem(p, false)));
+            }
+
+            // ── Folders ──
+            appState.folders.forEach(folder => {
+                const kids = appState.pages.filter(p =>
+                    !p.pinned && p.folderId === folder.id).sort(byUpdated);
+                const isOpen = folder.open !== false;
+                const row = document.createElement('div');
+                row.className = 'folder-row';
+                row.innerHTML = `
+                    <span class="folder-arrow ${isOpen ? 'open' : ''}">▶</span>
+                    <span>${isOpen ? '📂' : '📁'}</span>
+                    <span class="folder-name">${escHtml(folder.name)}</span>
+                    <span class="folder-count">${kids.length}</span>
+                    <span class="del-btn" title="${i18nGet('delete', 'Delete')}"
+                          onclick="deleteFolder(event, '${folder.id}')">×</span>
+                `;
+                row.onclick = (e) => {
+                    if (e.target.classList.contains('del-btn')) return;
+                    folder.open = folder.open === false;
+                    renderSidebar(); triggerSave();
+                };
+                row.ondblclick = (e) => {
+                    if (e.target.classList.contains('del-btn')) return;
+                    e.preventDefault(); renameFolder(folder.id);
+                };
+                sidebarList.appendChild(row);
+                if (isOpen) kids.forEach(p => sidebarList.appendChild(buildSidebarItem(p, true)));
+            });
+
+            // ── Remaining pages (most recently edited first) ──
+            loose.forEach(p => sidebarList.appendChild(buildSidebarItem(p, false)));
+        }
+
+        // ── Pinning ──
+        function togglePin(e, id) {
+            e.stopPropagation();
+            const page = appState.pages.find(p => p.id === id);
+            if (!page) return;
+            page.pinned = !page.pinned;
+            renderSidebar(); triggerSave();
+        }
+
+        // ── Folders ──
+        function addFolder() {
+            const name = prompt(i18nGet('folder_name_prompt', 'Folder name:'), '');
+            if (!name || !name.trim()) return;
+            ensureFolders();
+            appState.folders.push({ id: 'f' + Date.now(), name: name.trim(), open: true });
+            renderSidebar(); triggerSave();
+        }
+
+        function renameFolder(id) {
+            const folder = (appState.folders || []).find(f => f.id === id);
+            if (!folder) return;
+            const name = prompt(i18nGet('rename_folder', 'Rename folder:'), folder.name);
+            if (!name || !name.trim()) return;
+            folder.name = name.trim();
+            renderSidebar(); triggerSave();
+        }
+
+        function deleteFolder(e, id) {
+            e.stopPropagation();
+            if (!confirm(i18nGet('delete_folder_confirm', 'Delete folder? Pages inside will be kept.'))) return;
+            appState.folders = (appState.folders || []).filter(f => f.id !== id);
+            appState.pages.forEach(p => { if (p.folderId === id) delete p.folderId; });
+            renderSidebar(); triggerSave();
+        }
+
+        function movePageToFolder(pageId, folderId) {
+            const page = appState.pages.find(p => p.id === pageId);
+            if (!page) return;
+            if (folderId) { page.folderId = folderId; }
+            else { delete page.folderId; }
+            renderSidebar(); triggerSave();
+        }
+
+        // ── Page context menu (right-click on a sidebar item) ──
+        const pageCtxMenu = document.getElementById('page-ctx-menu');
+
+        function hidePageCtxMenu() { pageCtxMenu.style.display = 'none'; }
+
+        function showPageCtxMenu(e, pageId) {
+            e.preventDefault(); e.stopPropagation();
+            ensureFolders();
+            const page = appState.pages.find(p => p.id === pageId);
+            if (!page) return;
+
+            let html = `
+                <div class="ctx-item" onclick="togglePin(event, '${pageId}'); hidePageCtxMenu();">
+                    📌 ${page.pinned ? i18nGet('unpin', 'Unpin') : i18nGet('pin', 'Pin')}
+                </div>`;
+            if (appState.folders.length) {
+                html += `<div class="ctx-sep"></div>
+                         <div class="ctx-label">${i18nGet('move_to_folder', 'Move to folder')}</div>`;
+                appState.folders.forEach(f => {
+                    const isIn = page.folderId === f.id;
+                    html += `
+                        <div class="ctx-item" onclick="movePageToFolder('${pageId}', '${f.id}'); hidePageCtxMenu();">
+                            📁 <span class="folder-name">${escHtml(f.name)}</span>
+                            ${isIn ? '<span class="ctx-check">✓</span>' : ''}
+                        </div>`;
+                });
+                if (page.folderId) {
+                    html += `
+                        <div class="ctx-item" onclick="movePageToFolder('${pageId}', null); hidePageCtxMenu();">
+                            🚫 ${i18nGet('no_folder', 'No folder')}
+                        </div>`;
+                }
+            }
+            html += `<div class="ctx-sep"></div>
+                     <div class="ctx-item danger" onclick="deletePage(event, '${pageId}'); hidePageCtxMenu();">
+                         🗑️ ${i18nGet('delete', 'Delete')}
+                     </div>`;
+            pageCtxMenu.innerHTML = html;
+            pageCtxMenu.style.display = 'block';
+            // Position, clamped to the viewport
+            const mw2 = pageCtxMenu.offsetWidth, mh = pageCtxMenu.offsetHeight;
+            let x = e.clientX, y = e.clientY;
+            if (x + mw2 > window.innerWidth - 8)  x = window.innerWidth - mw2 - 8;
+            if (y + mh > window.innerHeight - 8)  y = window.innerHeight - mh - 8;
+            pageCtxMenu.style.left = x + 'px';
+            pageCtxMenu.style.top  = y + 'px';
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!pageCtxMenu.contains(e.target)) hidePageCtxMenu();
+        });
+        document.addEventListener('contextmenu', (e) => {
+            if (!e.target.closest('.sidebar-item')) hidePageCtxMenu();
+        });
         
         function toggleSidebar() { sidebar.classList.toggle('closed'); appState.sidebarOpen = !sidebar.classList.contains('closed'); triggerSave(); }
         function openIconPicker() { emojiPopover.style.display = 'flex'; }
@@ -848,6 +1193,15 @@
             else { iconEl.style.display = 'none'; iconPlaceholder.style.display = 'block'; }
         }
         function setIcon(char) { setIconDisplay(char); emojiPopover.style.display = 'none'; triggerSave(); renderSidebar(); }
+        function applyCustomIcon() {
+            const inp = document.getElementById('custom-icon-input');
+            const val = (inp.value || '').trim();
+            if (val) { setIcon(val); inp.value = ''; }
+        }
+        document.getElementById('custom-icon-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); applyCustomIcon(); }
+            e.stopPropagation(); // keep editor shortcuts out of the input
+        });
 
         document.addEventListener('click', (e) => {
             if (e.target.tagName === 'IMG' && editor.contains(e.target)) {
@@ -876,13 +1230,113 @@
             if (sel.anchorNode) sel.anchorNode.parentElement.focus();
             triggerSave(); 
         }
-        function formatColor(color) { 
-            document.execCommand('styleWithCSS', false, true); 
+        function formatColor(color) {
+            document.execCommand('styleWithCSS', false, true);
             document.execCommand('foreColor', false, color);
             const sel = window.getSelection();
             if (sel.anchorNode) sel.anchorNode.parentElement.focus();
-            triggerSave(); 
+            triggerSave();
         }
+
+        // --- Cover / cloze boxes (hide text under a beige box for self-testing) ---
+        function blockOf(node) {
+            let el = node && node.nodeType === 1 ? node : (node ? node.parentElement : null);
+            while (el && el !== editor) {
+                if (el.parentElement === editor) return el;
+                el = el.parentElement;
+            }
+            return null;
+        }
+        function coverSelection() {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+            const range = sel.getRangeAt(0);
+            if (!editor.contains(range.commonAncestorContainer)) return;
+            // Keep a cover inside a single block/line to avoid breaking the layout.
+            const startBlock = blockOf(range.startContainer);
+            if (!startBlock || startBlock !== blockOf(range.endContainer)) return;
+            const span = document.createElement('span');
+            span.className = 'cloze-cover';
+            try {
+                span.appendChild(range.extractContents());
+                // Flatten any covers that were inside the selection (no nesting).
+                span.querySelectorAll('.cloze-cover').forEach(inner => {
+                    while (inner.firstChild) inner.parentNode.insertBefore(inner.firstChild, inner);
+                    inner.remove();
+                });
+                range.insertNode(span);
+            } catch (e) { return; }
+            sel.removeAllRanges();
+            formatToolbar.style.display = 'none';
+            triggerSave();
+            updateRecoverBtn();
+        }
+        function updateRecoverBtn() {
+            if (!recoverBtn) return;
+            recoverBtn.style.display = editor.querySelector('.cloze-cover.revealed') ? 'inline-flex' : 'none';
+        }
+        function recoverAllCovers() {
+            editor.querySelectorAll('.cloze-cover.revealed').forEach(c => c.classList.remove('revealed'));
+            updateRecoverBtn();
+        }
+        // On (re)load, start with everything covered again so the terms can be re-learned.
+        function resetCoversOnLoad() {
+            editor.querySelectorAll('.cloze-cover.revealed').forEach(c => c.classList.remove('revealed'));
+            updateRecoverBtn();
+        }
+        // Click a cover to reveal it (box fades to half); click again to hide it.
+        editor.addEventListener('click', (e) => {
+            const cover = e.target.closest ? e.target.closest('.cloze-cover') : null;
+            if (!cover || !editor.contains(cover)) return;
+            cover.classList.toggle('revealed');
+            updateRecoverBtn();
+        });
+
+        // Hover a cover to show a small × that removes the box (text/format stays).
+        const clozeX = document.createElement('button');
+        clozeX.id = 'cloze-x'; clozeX.type = 'button'; clozeX.textContent = '×';
+        clozeX.title = i18nGet('remove_cover', 'Remove cover');
+        document.body.appendChild(clozeX);
+        let _xCover = null, _xHideTimer = null;
+        function _showClozeX(cover) {
+            _xCover = cover;
+            const r = cover.getBoundingClientRect();
+            clozeX.style.left = (r.right - 7) + 'px';
+            clozeX.style.top = (r.top - 7) + 'px';
+            clozeX.style.display = 'flex';
+        }
+        function _hideClozeXSoon() {
+            clearTimeout(_xHideTimer);
+            _xHideTimer = setTimeout(() => { clozeX.style.display = 'none'; _xCover = null; }, 260);
+        }
+        editor.addEventListener('mouseover', (e) => {
+            const c = e.target.closest ? e.target.closest('.cloze-cover') : null;
+            if (c) { clearTimeout(_xHideTimer); _showClozeX(c); }
+        });
+        editor.addEventListener('mouseout', (e) => {
+            const c = e.target.closest ? e.target.closest('.cloze-cover') : null;
+            if (!c) return;
+            const to = e.relatedTarget;
+            if (to && (c.contains(to) || to === clozeX)) return; // moving within cover / onto the ×
+            _hideClozeXSoon();
+        });
+        clozeX.addEventListener('mouseenter', () => clearTimeout(_xHideTimer));
+        clozeX.addEventListener('mouseleave', _hideClozeXSoon);
+        clozeX.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            const cover = _xCover;
+            clozeX.style.display = 'none'; _xCover = null;
+            if (!cover || !editor.contains(cover)) return;
+            pushUndoSnapshot();
+            const parent = cover.parentNode;
+            while (cover.firstChild) parent.insertBefore(cover.firstChild, cover); // keep text + formatting
+            cover.remove();
+            if (parent.normalize) parent.normalize();
+            triggerSave();
+            updateRecoverBtn();
+        });
+        { const _sw = document.querySelector('.scroll-wrapper');
+          if (_sw) _sw.addEventListener('scroll', () => { clozeX.style.display = 'none'; _xCover = null; }); }
 
         // --- Global Search ---
         let globalResultIndex = -1;
@@ -895,9 +1349,13 @@
         }
 
         function highlightTerm(text, term) {
-            if (!term) return text;
-            const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            return text.replace(new RegExp(`(${esc})`, 'gi'), '<mark>$1</mark>');
+            // Escape BEFORE highlighting: text and term are user content and
+            // must never reach innerHTML raw. The term is entity-escaped the
+            // same way as the text so the match positions still line up.
+            const safeText = escHtml(text);
+            if (!term) return safeText;
+            const esc = escHtml(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            return safeText.replace(new RegExp(`(${esc})`, 'gi'), '<mark>$1</mark>');
         }
 
         function performGlobalSearch(term) {
@@ -931,13 +1389,13 @@
             globalResultItems = [];
             globalResultIndex = -1;
             if (results.length === 0) {
-                container.innerHTML = `<div class="gsr-empty">${window.__SYNAPSE_I18N__?.no_results || "No results for"} "${term}"</div>`;
+                container.innerHTML = `<div class="gsr-empty">${window.__SYNAPSE_I18N__?.no_results || "No results for"} "${escHtml(term)}"</div>`;
             } else {
                 results.forEach((r, i) => {
                     const item = document.createElement('div');
                     item.className = 'gsr-item';
                     item.innerHTML = `
-                        <div class="gsr-icon">${r.icon || '📄'}</div>
+                        <div class="gsr-icon">${escHtml(r.icon || '📄')}</div>
                         <div class="gsr-text">
                             <div class="gsr-title">${highlightTerm(r.title, term)}</div>
                             ${r.snippet ? `<div class="gsr-snippet">${highlightTerm(r.snippet, term)}</div>` : ''}
@@ -973,11 +1431,13 @@
 
         // --- Inline link support ---
         let savedLinkRange = null;
+        let linkPopupOpenedAt = 0;
 
         function showLinkPopup() {
             const sel = window.getSelection();
             if (!sel || sel.isCollapsed || !editor.contains(sel.anchorNode)) return;
             savedLinkRange = sel.getRangeAt(0).cloneRange();
+            linkPopupOpenedAt = Date.now();
             const rect = savedLinkRange.getBoundingClientRect();
             const popup = document.getElementById('link-popup');
             popup.style.display = 'flex';
@@ -1026,7 +1486,31 @@
             }
         });
 
+        function sanitizeUserHtml(raw) {
+            const tpl = document.createElement('template');
+            tpl.innerHTML = String(raw || '');
+            tpl.content.querySelectorAll('script,iframe,object,embed,link,meta,base,svg,math,form').forEach(el => el.remove());
+            tpl.content.querySelectorAll('*').forEach(el => {
+                Array.from(el.attributes).forEach(attr => {
+                    const name = attr.name.toLowerCase();
+                    const value = attr.value.trim();
+                    if (name.startsWith('on') || name === 'srcdoc' || name === 'formaction' || name === 'xlink:href') {
+                        el.removeAttribute(attr.name);
+                    } else if (name === 'style' && /url\s*\(|expression\s*\(|@import/i.test(value)) {
+                        el.removeAttribute(attr.name);
+                    } else if (name === 'href' && !/^(https?:|mailto:|#)/i.test(value)) {
+                        el.removeAttribute(attr.name);
+                    } else if (name === 'src' && !/^(https?:|data:image\/)/i.test(value)) {
+                        el.removeAttribute(attr.name);
+                    }
+                });
+            });
+            return tpl.innerHTML;
+        }
+
         function createBlock(type = 'text', content = '', checked = false, open = true, body = '') {
+            content = sanitizeUserHtml(content);
+            body = sanitizeUserHtml(body);
             if (type === 'divider') {
                 const div = document.createElement('div'); div.className = 'block divider'; div.contentEditable = false; div.innerHTML = '<hr>'; div.onclick = () => div.remove(); return div;
             }
@@ -1287,27 +1771,462 @@
             triggerSave();
         }
         
+        // ──────────────────────────────────────────────
+        // Notion-style page links: type /site, then pick an existing page or
+        // create a new one. An inline link is inserted; clicking it opens that
+        // page. Links keep showing the page's current title/icon.
+        // ──────────────────────────────────────────────
+        let pagePickerCtx = null; // { contentEl } of the block where /site was typed
+        function ppEscape(s) {
+            return (s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+        }
+        function startPageLink() {
+            menu.style.display = 'none';
+            if (!activeBlockForMenu || !editor.contains(activeBlockForMenu)) return;
+            const blockEl = activeBlockForMenu;
+            const contentEl = blockEl.querySelector('.todo-content') || blockEl;
+            // Strip the trailing "/site" (or other "/…") command the user typed.
+            contentEl.innerHTML = contentEl.innerHTML.replace(/\/[a-zA-Z]*\s?$/, '');
+            // Open on the next tick so the click that picked this menu item can't
+            // immediately close the picker via the document click-away handler.
+            setTimeout(() => {
+                pagePickerCtx = { contentEl };
+                const rect = blockEl.getBoundingClientRect();
+                const pp = document.getElementById('page-picker');
+                pp.style.left = Math.max(10, rect.left) + 'px';
+                pp.style.top = (rect.bottom + 6) + 'px';
+                pp.style.display = 'block';
+                const inp = document.getElementById('page-picker-input');
+                inp.value = '';
+                renderPagePicker('');
+                inp.focus();
+            }, 0);
+        }
+        function renderPagePicker(q) {
+            const list = document.getElementById('page-picker-list');
+            if (!list) return;
+            const query = (q || '').trim().toLowerCase();
+            const cur = appState.activePageId;
+            const matches = appState.pages.filter(p => p.id !== cur &&
+                (p.title || 'Untitled').toLowerCase().includes(query));
+            list.innerHTML = '';
+            matches.slice(0, 50).forEach(p => {
+                const it = document.createElement('div');
+                it.className = 'pp-item';
+                it.innerHTML = `<span>${ppEscape(p.icon || '📄')}</span><span class="pp-title">${ppEscape(p.title || 'Untitled')}</span>`;
+                it.onmousedown = (e) => { e.preventDefault(); choosePageLink(p.id); };
+                list.appendChild(it);
+            });
+            const t = (q || '').trim();
+            const create = document.createElement('div');
+            create.className = 'pp-item pp-new';
+            const newLabel = t
+                ? i18nGet('new_page_named', 'New page: "{title}"').replace('{title}', ppEscape(t))
+                : i18nGet('create_new_page', 'Create new page');
+            create.innerHTML = `<span>＋</span><span class="pp-title">${newLabel}</span>`;
+            create.onmousedown = (e) => { e.preventDefault(); createAndLinkPage(t); };
+            list.appendChild(create);
+        }
+        function pagePickerKey(e) {
+            if (e.key === 'Escape') { e.preventDefault(); hidePagePicker(); }
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                const first = document.querySelector('#page-picker-list .pp-item');
+                if (first) first.dispatchEvent(new MouseEvent('mousedown', { cancelable: true }));
+            }
+        }
+        function hidePagePicker() {
+            const pp = document.getElementById('page-picker');
+            if (pp) pp.style.display = 'none';
+            pagePickerCtx = null;
+        }
+        function insertPageLink(pageId) {
+            const page = appState.pages.find(p => p.id === pageId);
+            const contentEl = pagePickerCtx && pagePickerCtx.contentEl;
+            if (!page || !contentEl || !editor.contains(contentEl)) return;
+            const link = document.createElement('a');
+            link.className = 'page-link';
+            link.setAttribute('data-page-id', pageId);
+            link.setAttribute('contenteditable', 'false');
+            link.textContent = (page.icon || '📄') + ' ' + (page.title || 'Untitled');
+            contentEl.appendChild(link);
+            contentEl.appendChild(document.createTextNode(' '));
+            setCaretEnd(contentEl);
+            contentEl.focus();
+            triggerSave();
+        }
+        function choosePageLink(pageId) { insertPageLink(pageId); hidePagePicker(); }
+        function createAndLinkPage(title) {
+            if (appState.activePageId) saveCurrentEditorToState();
+            const newId = Date.now().toString();
+            appState.pages.push({ id: newId, title: title || '', icon: '📄', blocks: [{ type: 'text', html: '' }], updatedAt: Date.now() });
+            insertPageLink(newId);
+            renderSidebar();
+            hidePagePicker();
+        }
+        // Click an inline page link to open that page.
+        editor.addEventListener('click', (e) => {
+            const pl = e.target.closest ? e.target.closest('.page-link') : null;
+            if (!pl) return;
+            e.preventDefault();
+            const id = pl.getAttribute('data-page-id');
+            if (id && appState.pages.find(p => p.id === id)) loadPage(id);
+        });
+        // Keep inline page links labelled with the current title/icon (renames).
+        function refreshPageLinks() {
+            editor.querySelectorAll('.page-link').forEach(pl => {
+                const p = appState.pages.find(pg => pg.id === pl.getAttribute('data-page-id'));
+                if (p) { pl.textContent = (p.icon || '📄') + ' ' + (p.title || 'Untitled'); pl.classList.remove('broken'); pl.removeAttribute('title'); }
+                else { pl.classList.add('broken'); pl.setAttribute('title', i18nGet('page_not_found', 'Page not found')); }
+            });
+        }
+
         document.addEventListener('click', (e) => {
             if (!menu.contains(e.target)) menu.style.display = 'none';
             if (!emojiPopover.contains(e.target) && !e.target.closest('.page-icon-container')) emojiPopover.style.display = 'none';
             if (!e.target.closest('#block-toolbar')) document.getElementById('convert-menu').style.display = 'none';
-            if (!e.target.closest('#link-popup') && !e.target.closest('#format-toolbar')) hideLinkPopup();
+            const _lp = document.getElementById('link-popup');
+            if (_lp && _lp.style.display !== 'none' &&
+                !e.target.closest('#link-popup') && !e.target.closest('#format-toolbar') &&
+                Date.now() - linkPopupOpenedAt > 300) {
+                // Don't throw away a URL the user already typed — apply it instead.
+                if (document.getElementById('link-input').value.trim()) applyLink();
+                else hideLinkPopup();
+            }
             if (!e.target.closest('#global-search-results') && e.target !== searchInput) hideGlobalResults();
+            if (!e.target.closest('#page-picker')) hidePagePicker();
         });
 
-        function triggerSave() {
+        function persistNow() {
+            clearTimeout(saveTimeout);
+            saveTimeout = null;
             saveCurrentEditorToState();
-            const statusEl = document.getElementById('status'); statusEl.style.opacity = 1; statusEl.innerText = (window.__SYNAPSE_I18N__?.saving || "Saving...");
-            if (!suppressUndoSnapshot) scheduleUndoSnapshot();
-            clearTimeout(saveTimeout); saveTimeout = setTimeout(() => { const json = JSON.stringify(appState); send(`${ADDON}:save:${json}`); }, 800);
+            pendingSaveRevisions.push(saveRevision);
+            send(`${ADDON}:save:${JSON.stringify(appState)}`);
         }
 
-        window.onSaved = () => { const s = document.getElementById('status'); s.innerText = (window.__SYNAPSE_I18N__?.saved || "Saved"); setTimeout(() => s.style.opacity = 0, 1500); renderSidebar(); };
+        function triggerSave(immediate = false) {
+            saveCurrentEditorToState();
+            saveDirty = true;
+            saveRevision += 1;
+            const statusEl = document.getElementById('status'); statusEl.style.opacity = 1; statusEl.innerText = (window.__SYNAPSE_I18N__?.saving || "Saving...");
+            statusEl.style.color = '';
+            if (!suppressUndoSnapshot) scheduleUndoSnapshot();
+            clearTimeout(saveTimeout);
+            saveTimeout = immediate ? null : setTimeout(persistNow, 800);
+            if (immediate) persistNow();
+        }
+
+        window.__synapseSnapshotForUnload = () => {
+            clearTimeout(saveTimeout);
+            saveTimeout = null;
+            saveCurrentEditorToState();
+            // Python waits for the queued background write before replacing the
+            // page. Avoid a duplicate pagehide bridge save of the same snapshot.
+            saveDirty = false;
+            return JSON.stringify(appState);
+        };
+        // Read-only counterpart used after the background write. Calling the
+        // unload hook again would update page.updatedAt and make an unchanged
+        // page appear dirty forever.
+        window.__synapseSnapshotForVerification = () => JSON.stringify(appState);
+        window.flushPendingSave = () => {
+            if (saveDirty) persistNow();
+        };
+        window.onSaved = () => { const s = document.getElementById('status'); const savedRevision = pendingSaveRevisions.length ? pendingSaveRevisions.shift() : saveRevision; saveDirty = savedRevision < saveRevision; s.style.color = ''; s.innerText = (window.__SYNAPSE_I18N__?.saved || "Saved"); if (!saveDirty) setTimeout(() => s.style.opacity = 0, 1500); renderSidebar(); };
+        window.onSaveFailed = () => { const s = document.getElementById('status'); if (pendingSaveRevisions.length) pendingSaveRevisions.shift(); saveDirty = true; s.style.opacity = 1; s.style.color = '#c62828'; s.innerText = (window.__SYNAPSE_I18N__?.save_failed || "Save failed — your changes are still open."); };
+        window.addEventListener('pagehide', window.flushPendingSave);
+        window.addEventListener('beforeunload', window.flushPendingSave);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') window.flushPendingSave(); });
         titleEl.addEventListener('input', () => { const p = appState.pages.find(p => p.id === appState.activePageId); if(p) p.title = titleEl.innerText; renderSidebar(); triggerSave(); });
         window.loadContent = (jsonString) => { let data = null; try { if(jsonString) data = JSON.parse(jsonString); } catch(e){} initApp(data); };
-        editor.addEventListener('paste', (e) => { setTimeout(triggerSave, 100); });
+        editor.addEventListener('paste', (e) => {
+            const pastedHtml = e.clipboardData && e.clipboardData.getData('text/html');
+            if (pastedHtml) {
+                e.preventDefault();
+                document.execCommand('insertHTML', false, sanitizeUserHtml(pastedHtml));
+            }
+            setTimeout(triggerSave, 100);
+        });
+
+        // ── Notion-style arrow autocorrect (-> becomes a real arrow char) ──
+        const ARROW_REPLACEMENTS = [
+            ['->', '→'],   // →
+            ['<-', '←'],   // ←
+            ['=>', '⇒'],   // ⇒
+            ['<=', '⇐'],   // ⇐
+        ];
+
+        function autoReplaceArrows() {
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+            const node = sel.anchorNode;
+            if (!node || node.nodeType !== Node.TEXT_NODE) return false;
+            // Don't autocorrect inside code blocks
+            const parentEl = node.parentElement;
+            if (parentEl && parentEl.closest('.code, code, pre')) return false;
+            const offset = sel.anchorOffset;
+            const text = node.textContent;
+            for (const [seq, ch] of ARROW_REPLACEMENTS) {
+                if (offset >= seq.length && text.slice(offset - seq.length, offset) === seq) {
+                    node.textContent = text.slice(0, offset - seq.length) + ch + text.slice(offset);
+                    const range = document.createRange();
+                    range.setStart(node, offset - seq.length + 1);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 'input' bubbles from every nested contenteditable (blocks, toggles,
+        // callouts, table cells), so one listener on the editor covers them all.
+        editor.addEventListener('input', () => { if (autoReplaceArrows()) triggerSave(); });
+        titleEl.addEventListener('input', () => {
+            if (autoReplaceArrows()) {
+                const p = appState.pages.find(p => p.id === appState.activePageId);
+                if (p) p.title = titleEl.innerText;
+                renderSidebar(); triggerSave();
+            }
+        });
+
+        // ──────────────────────────────────────────────
+        // Between-line insertion: hovering a gap between two lines shows a
+        // subtle grey indicator; clicking it adds a new line right there. Works
+        // between blocks, between the visual lines of one block (e.g. a big
+        // pasted text), and above the very first line. Anywhere else, editing
+        // behaves exactly as before.
+        // ──────────────────────────────────────────────
+        (function setupLineInsert() {
+            const HOVER_THRESHOLD = 6; // px around a gap that counts as "between lines"
+            let pendingInsert = null;  // current insertion candidate (set on hover)
+
+            const indicator = document.createElement('div');
+            indicator.id = 'line-insert-indicator';
+            document.body.appendChild(indicator);
+
+            function showIndicator(y, left, width) {
+                indicator.style.top = y + 'px';
+                indicator.style.left = left + 'px';
+                indicator.style.width = Math.max(width, 0) + 'px';
+                indicator.style.display = 'block';
+            }
+            function hideIndicator() {
+                if (indicator.style.display !== 'none') indicator.style.display = 'none';
+                pendingInsert = null;
+            }
+
+            function caretRangeFromPoint(x, y) {
+                if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
+                if (document.caretPositionFromPoint) {
+                    const pos = document.caretPositionFromPoint(x, y);
+                    if (!pos) return null;
+                    const r = document.createRange();
+                    r.setStart(pos.offsetNode, pos.offset); r.collapse(true);
+                    return r;
+                }
+                return null;
+            }
+
+            function blockType(blk) {
+                const c = blk.classList;
+                if (c.contains('h1')) return 'h1';
+                if (c.contains('h2')) return 'h2';
+                if (c.contains('quote')) return 'quote';
+                if (c.contains('bullet')) return 'bullet';
+                if (c.contains('code')) return 'code';
+                return 'text';
+            }
+
+            // A block whose visual lines we are allowed to split between.
+            function isSplittable(blk) {
+                if (!blk.classList || !blk.classList.contains('block')) return false;
+                if (blk.classList.contains('divider') || blk.classList.contains('table-container') ||
+                    blk.classList.contains('toggle') || blk.classList.contains('callout')) return false;
+                return blk.isContentEditable;
+            }
+
+            // Visual line rectangles inside a block (fragments merged per line).
+            function lineRectsOf(blk) {
+                const range = document.createRange();
+                range.selectNodeContents(blk);
+                const lines = [];
+                for (const r of Array.from(range.getClientRects())) {
+                    if (r.height === 0 && r.width === 0) continue;
+                    const last = lines[lines.length - 1];
+                    if (last && Math.abs(r.top - last.top) < 4) {
+                        last.top = Math.min(last.top, r.top); last.bottom = Math.max(last.bottom, r.bottom);
+                        last.left = Math.min(last.left, r.left); last.right = Math.max(last.right, r.right);
+                    } else {
+                        lines.push({ top: r.top, bottom: r.bottom, left: r.left, right: r.right });
+                    }
+                }
+                return lines;
+            }
+
+            function findCandidate(clientX, clientY) {
+                const T = HOVER_THRESHOLD;
+                const blocks = Array.from(editor.children).filter(c => c.id !== 'line-insert-indicator');
+                if (blocks.length === 0) return null;
+
+                // 1) Above the very first line (between title and first block).
+                const fr = blocks[0].getBoundingClientRect();
+                if (clientX >= fr.left && clientX <= fr.right &&
+                    clientY >= fr.top - T && clientY <= fr.top + T) {
+                    return { mode: 'top', first: blocks[0], y: fr.top, left: fr.left, width: fr.width };
+                }
+
+                // 2) Between the visual lines inside a single (e.g. pasted) block.
+                for (const blk of blocks) {
+                    if (!isSplittable(blk)) continue;
+                    const br = blk.getBoundingClientRect();
+                    if (clientX < br.left || clientX > br.right) continue;
+                    if (clientY < br.top - T || clientY > br.bottom + T) continue;
+                    const lines = lineRectsOf(blk);
+                    for (let i = 0; i < lines.length - 1; i++) {
+                        const mid = (lines[i].bottom + lines[i + 1].top) / 2;
+                        if (clientY >= mid - T && clientY <= mid + T) {
+                            return { mode: 'within', block: blk, nextLine: lines[i + 1],
+                                     y: mid, left: br.left, width: br.width };
+                        }
+                    }
+                }
+
+                // 3) Between two adjacent blocks.
+                for (let i = 0; i < blocks.length - 1; i++) {
+                    const a = blocks[i].getBoundingClientRect();
+                    const b = blocks[i + 1].getBoundingClientRect();
+                    const mid = (a.bottom + b.top) / 2;
+                    if (clientY >= mid - T && clientY <= mid + T &&
+                        clientX >= a.left && clientX <= a.right) {
+                        return { mode: 'between', after: blocks[i], y: mid, left: a.left, width: a.width };
+                    }
+                }
+                return null;
+            }
+
+            // Focus a block at its start without letting the browser scroll the
+            // page (the cause of the "jump to the bottom" on a top insert).
+            function focusStart(el) {
+                try { el.focus({ preventScroll: true }); } catch (_) { try { el.focus(); } catch (_e) {} }
+                try {
+                    const sel = window.getSelection(); const rr = document.createRange();
+                    rr.selectNodeContents(el); rr.collapse(true);
+                    sel.removeAllRanges(); sel.addRange(rr);
+                } catch (_) {}
+            }
+
+            // DOM caret position at the visual start of the line whose top is `lineTop`.
+            // Skips text nodes that sit entirely above the line, then binary-searches
+            // inside the node that straddles the boundary. This stays exact even for a
+            // big soft-wrapped paste, unlike pixel hit-testing (which drifted 1–2 lines).
+            function rangeAtLineStart(blk, lineTop) {
+                const tol = 3;
+                const r = document.createRange();
+                const walker = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT, null);
+                let node;
+                while ((node = walker.nextNode())) {
+                    const len = node.nodeValue.length;
+                    if (len === 0) continue;
+                    r.selectNodeContents(node);
+                    const nb = r.getBoundingClientRect();
+                    if (nb.bottom < lineTop - tol) continue;      // node entirely above the line
+                    if (nb.top >= lineTop - tol) {                // node begins on/after the line
+                        r.setStart(node, 0); r.collapse(true); return r.cloneRange();
+                    }
+                    let lo = 0, hi = len;                         // node straddles the boundary
+                    while (lo < hi) {
+                        const mid = (lo + hi) >> 1, o = Math.min(mid, len - 1);
+                        r.setStart(node, o); r.setEnd(node, o + 1);
+                        if (r.getBoundingClientRect().top >= lineTop - tol) hi = mid; else lo = mid + 1;
+                    }
+                    r.setStart(node, lo); r.collapse(true); return r.cloneRange();
+                }
+                return null;
+            }
+
+            function performInsert(cand) {
+                const scroller = document.querySelector('.scroll-wrapper');
+                const keepTop = scroller ? scroller.scrollTop : null;
+                pushUndoSnapshot();
+                if (cand.mode === 'top') {
+                    if (editor.contains(cand.first)) {
+                        const nb = createBlock('text'); cand.first.before(nb); focusStart(nb);
+                    }
+                } else if (cand.mode === 'between') {
+                    if (editor.contains(cand.after)) {
+                        const nb = createBlock('text'); cand.after.after(nb); focusStart(nb);
+                    }
+                } else if (cand.mode === 'within') {
+                    const blk = cand.block, line = cand.nextLine;
+                    if (editor.contains(blk)) {
+                        let r = rangeAtLineStart(blk, line.top);
+                        if (!r || !blk.contains(r.startContainer)) {
+                            r = caretRangeFromPoint(line.left + 1, (line.top + line.bottom) / 2);
+                        }
+                        if (r && blk.contains(r.startContainer)) {
+                            // Split: head keeps the lines above, tail gets the lines below,
+                            // a new empty line goes in between and receives the caret.
+                            const tailRange = document.createRange();
+                            tailRange.setStart(r.startContainer, r.startOffset);
+                            tailRange.setEnd(blk, blk.childNodes.length);
+                            const frag = tailRange.extractContents();
+                            const tailBlock = createBlock(blockType(blk));
+                            tailBlock.innerHTML = ''; tailBlock.appendChild(frag);
+                            const emptyBlock = createBlock('text');
+                            blk.after(tailBlock); blk.after(emptyBlock);
+                            focusStart(emptyBlock);
+                        } else {
+                            const nb = createBlock('text'); blk.after(nb); focusStart(nb);
+                        }
+                    }
+                }
+                if (scroller && keepTop !== null) scroller.scrollTop = keepTop;
+                triggerSave();
+            }
+
+            editor.addEventListener('mousemove', (e) => {
+                // Don't interfere while the slash command menu is open.
+                if (menu && menu.style.display === 'block') { hideIndicator(); return; }
+                const cand = findCandidate(e.clientX, e.clientY);
+                if (cand) { showIndicator(cand.y, cand.left, cand.width); pendingInsert = cand; }
+                else { hideIndicator(); }
+            });
+
+            editor.addEventListener('mouseleave', hideIndicator);
+            const scrollWrapper = document.querySelector('.scroll-wrapper');
+            if (scrollWrapper) scrollWrapper.addEventListener('scroll', hideIndicator);
+
+            // After our insertion, the click that follows would otherwise reach the
+            // editor's "clicked empty area → put caret in the last block" handler and
+            // yank the caret to the bottom. Swallow exactly that one click (capture
+            // phase, so it never reaches that bubble-phase handler).
+            let swallowNextClick = false;
+            document.addEventListener('click', (e) => {
+                if (swallowNextClick) {
+                    swallowNextClick = false;
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }, true);
+
+            // Capture phase so we beat the default caret placement / focus change.
+            editor.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                if (!pendingInsert || indicator.style.display === 'none') return;
+                const cand = pendingInsert;
+                e.preventDefault();
+                e.stopPropagation();
+                hideIndicator();
+                performInsert(cand);
+                swallowNextClick = true;
+                setTimeout(() => { swallowNextClick = false; }, 350); // self-clear if no click follows
+            }, true);
+        })();
         document.addEventListener('keydown', e => {
-            if ((e.ctrlKey||e.metaKey) && e.key === 's') { e.preventDefault(); triggerSave(); return; }
+            if ((e.ctrlKey||e.metaKey) && e.key === 's') { e.preventDefault(); triggerSave(true); return; }
             // Link
             if ((e.ctrlKey||e.metaKey) && e.key === 'k') {
                 const sel = window.getSelection();
@@ -1518,6 +2437,7 @@
     (function applyI18n() {
         const t = window.__SYNAPSE_I18N__;
         if (!t) return;
+        document.title = t.document_title || 'Notebook';
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.getAttribute('data-i18n');
             if (t[key] !== undefined) el.textContent = t[key];
@@ -1525,6 +2445,99 @@
         document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
             const key = el.getAttribute('data-i18n-placeholder');
             if (t[key] !== undefined) el.setAttribute('placeholder', t[key]);
+        });
+        document.querySelectorAll('[data-i18n-title]').forEach(el => {
+            const key = el.getAttribute('data-i18n-title');
+            if (t[key] !== undefined) {
+                el.setAttribute('title', t[key]);
+                if (el.tagName === 'BUTTON') el.setAttribute('aria-label', t[key]);
+            }
+        });
+    })();
+    </script>
+
+    <script>
+    /* ── SynapsePro global error reporter ─────────────────────────────────
+       Self-contained (inline styles, no page-CSS dependencies): invisible
+       until a JS error occurs, then shows a dismissible banner with the
+       real traceback so users can report actionable bugs instead of
+       "buttons are not working". Never throws itself. */
+    (function() {
+        if (window.__spReportError) return;
+        function isDark() {
+            try {
+                if (typeof window.__SYNAPSE_NIGHT__ === 'boolean') return window.__SYNAPSE_NIGHT__;
+                if (document.documentElement.classList.contains('nightMode') || document.body.classList.contains('nightMode')) return true;
+                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } catch (e) { return false; }
+        }
+        function ensureBanner() {
+            var b = document.getElementById('sp-error-banner');
+            if (b) return b;
+            if (!document.body) return null;
+            var dark = isDark();
+            b = document.createElement('div');
+            b.id = 'sp-error-banner';
+            b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483000;display:none;'
+                + 'font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:left;'
+                + 'padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,0.25);border-top:2px solid #dc3545;'
+                + (dark ? 'background:#2c2c2c;color:#e0e0e0;' : 'background:#ffffff;color:#333333;');
+            var btnCss = 'margin-right:8px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;border-radius:7px;'
+                + (dark ? 'background:#303030;color:#e0e0e0;border:1px solid #555;' : 'background:#fff;color:#333;border:1px solid #ccc;');
+            var preCss = 'display:none;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+                + 'font-size:11px;border-radius:6px;padding:8px;margin:0 0 8px 0;'
+                + (dark ? 'background:#404040;border:1px solid #555;' : 'background:#f5f5f5;border:1px solid #ccc;');
+            var t = window.__SYNAPSE_I18N__ || {};
+            b.innerHTML = '<div style="font-weight:700;color:#dc3545;margin-bottom:4px;">' + (t.error_title || 'SynapsePro error') + '</div>'
+                + '<div class="sp-eb-msg" style="margin-bottom:6px;word-break:break-word;"></div>'
+                + '<pre class="sp-eb-pre" style="' + preCss + '"></pre>'
+                + '<div><button type="button" data-spact="details" style="' + btnCss + '">' + (t.error_show || 'Show details') + '</button>'
+                + '<button type="button" data-spact="copy" style="' + btnCss + '">' + (t.error_copy || 'Copy error') + '</button>'
+                + '<button type="button" data-spact="dismiss" style="' + btnCss + '">' + (t.error_dismiss || 'Dismiss') + '</button></div>';
+            document.body.appendChild(b);
+            b.addEventListener('click', function(e) {
+                var act = e.target && e.target.getAttribute && e.target.getAttribute('data-spact');
+                if (act === 'dismiss') b.style.display = 'none';
+                if (act === 'details') {
+                    var pre = b.querySelector('.sp-eb-pre');
+                    var open = pre.style.display === 'block';
+                    pre.style.display = open ? 'none' : 'block';
+                    var t = window.__SYNAPSE_I18N__ || {};
+                    e.target.textContent = open ? (t.error_show || 'Show details') : (t.error_hide || 'Hide details');
+                }
+                if (act === 'copy') {
+                    var text = b.querySelector('.sp-eb-msg').textContent + '\n\n' + b.querySelector('.sp-eb-pre').textContent;
+                    try { navigator.clipboard.writeText(text); e.target.textContent = (window.__SYNAPSE_I18N__ || {}).error_copied || 'Copied!'; setTimeout(function() { e.target.textContent = (window.__SYNAPSE_I18N__ || {}).error_copy || 'Copy error'; }, 2000); } catch (err) {}
+                }
+            });
+            return b;
+        }
+        window.__spReportError = function(err, context) {
+            try {
+                var msg = (err && err.message) ? err.message : String(err);
+                var t = window.__SYNAPSE_I18N__ || {};
+                var stack = (err && err.stack) ? String(err.stack) : (t.error_no_stack || '(no stack trace available)');
+                console.error('[SynapsePro]' + (context ? ' [' + context + ']' : ''), err);
+                var show = function() {
+                    var b = ensureBanner();
+                    if (!b) return;
+                    b.querySelector('.sp-eb-msg').textContent = (context ? context + ': ' : '') + msg
+                        + ' — ' + (t.error_safe || 'Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('.sp-eb-pre').textContent = stack;
+                    b.style.display = 'block';
+                };
+                if (document.body) show();
+                else document.addEventListener('DOMContentLoaded', show);
+            } catch (e) { try { console.error('[SynapsePro] error while reporting error', e, err); } catch (e2) {} }
+        };
+        window.addEventListener('error', function(e) {
+            if (e.error && (e.error.message || e.error.stack)) window.__spReportError(e.error, (window.__SYNAPSE_I18N__ || {}).error_unexpected || 'Unexpected error');
+            else console.warn('[SynapsePro] Background browser error:', e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            if (e.reason && e.reason.synapseCritical === true) window.__spReportError(e.reason, (window.__SYNAPSE_I18N__ || {}).error_unexpected_async || 'Unexpected error (async)');
+            else console.warn('[SynapsePro] Background task rejected:', e.reason);
+            e.preventDefault();
         });
     })();
     </script>

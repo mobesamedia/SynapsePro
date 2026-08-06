@@ -3,6 +3,8 @@
 import json
 import os
 import traceback
+import copy
+import uuid
 from typing import Dict, Optional, List, TYPE_CHECKING
 from datetime import date, datetime
 
@@ -14,7 +16,7 @@ from aqt.qt import (
     QCalendarWidget, QDate, QCheckBox, QDateEdit, QFrame,
     QFormLayout,
     QSizePolicy,
-    QFont, QColor,
+    QFont, QColor, QPainter, QPen, QBrush, QRectF, QIcon, QToolButton,
     QTextEdit,
     QApplication,
     QDesktopServices, QUrl
@@ -106,15 +108,40 @@ def _build_style(night: bool) -> str:
         padding: 6px; font-weight: bold; color: {c['text_muted']};
     }}
 
+    QCalendarWidget {{ background-color: {c['surface']}; border: none; }}
     QCalendarWidget QWidget {{ alternate-background-color: {c['surface']}; background-color: {c['surface']}; color: {c['text']}; }}
-    QCalendarWidget QWidget#qt_calendar_navigationbar {{ background-color: {c['surface']}; border-bottom: 1px solid {c['hover_subtle']}; }}
-    QCalendarWidget QToolButton {{ color: {c['text']}; background-color: transparent; icon-size: 18px; }}
+    QCalendarWidget QWidget#qt_calendar_navigationbar {{
+        background-color: {c['surface']}; border-bottom: 1px solid {c['hover_subtle']};
+    }}
+    QCalendarWidget QToolButton {{
+        color: {c['text']}; background-color: transparent; border: none;
+        border-radius: 7px; padding: 3px 7px;
+    }}
     QCalendarWidget QToolButton:hover {{ background-color: {c['hover_subtle']}; }}
+    QCalendarWidget QToolButton:pressed {{ background-color: {c['grey_light']}; }}
+    QCalendarWidget QToolButton#qt_calendar_prevmonth,
+    QCalendarWidget QToolButton#qt_calendar_nextmonth {{
+        color: {c['text_muted']}; border-radius: 14px; padding: 0;
+        font-size: 24px; font-weight: 400;
+    }}
+    QCalendarWidget QToolButton#qt_calendar_prevmonth:hover,
+    QCalendarWidget QToolButton#qt_calendar_nextmonth:hover {{
+        color: {c['blue_accent']}; background-color: {c['hover_subtle']};
+    }}
+    QCalendarWidget QToolButton#qt_calendar_monthbutton,
+    QCalendarWidget QToolButton#qt_calendar_yearbutton {{
+        color: {c['text']}; font-size: 14px; font-weight: 600;
+    }}
     QCalendarWidget QToolButton::menu-indicator {{ image: none; }}
-    QCalendarWidget QSpinBox {{ color: {c['text']}; background: transparent; selection-background-color: transparent; selection-color: {c['blue_bright']}; }}
+    QCalendarWidget QSpinBox {{
+        color: {c['text']}; background: {c['surface']}; border: 1px solid {c['grey_mid']};
+        border-radius: 6px; padding: 2px 5px;
+        selection-background-color: {c['selection_bg']}; selection-color: {c['text']};
+    }}
     QCalendarWidget QAbstractItemView:enabled {{
         color: {c['text']}; background-color: {c['surface']};
-        selection-background-color: {c['blue_bright']}; selection-color: white;
+        selection-background-color: transparent; selection-color: {c['text']};
+        border: none; outline: none;
     }}
     QCalendarWidget QAbstractItemView:disabled {{ color: {c['text_faint']}; }}
 
@@ -122,6 +149,126 @@ def _build_style(night: bool) -> str:
 """
 
 # Styles computed per-instance at widget creation time (not cached here).
+
+
+class StudyPlanCalendarWidget(QCalendarWidget):
+    """Clean, theme-aware calendar without platform-specific Qt chrome.
+
+    QCalendarWidget intentionally exposes ``paintCell()`` for custom day
+    rendering.  Keeping the customization there preserves Qt's native date
+    model, keyboard navigation and accessibility while avoiding fragile
+    delegates or per-cell child widgets.
+    """
+
+    _SELECTION_DIAMETER = 32.0
+    _PLAN_DOT_DIAMETER = 5.0
+
+    def __init__(self, night: bool, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        colors = _palette(night)
+        self._surface_color = QColor(colors["surface"])
+        self._accent_color = QColor(colors["blue_accent"])
+        self._selected_text_color = QColor("#FFFFFF")
+        self._plan_dates: set[int] = set()
+        self._configure_navigation_buttons()
+
+    def _configure_navigation_buttons(self) -> None:
+        """Replace style-dependent native arrows with quiet text chevrons.
+
+        The internal object names have been stable throughout Qt 6.  Missing
+        buttons are simply ignored, so a future Qt change falls back to its
+        native icons instead of breaking the calendar.
+        """
+        buttons = (
+            ("qt_calendar_prevmonth", "\u2039"),
+            ("qt_calendar_nextmonth", "\u203a"),
+        )
+        for object_name, chevron in buttons:
+            button = self.findChild(QToolButton, object_name)
+            if button is None:
+                continue
+            button.setIcon(QIcon())
+            button.setText(chevron)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            button.setFixedSize(28, 28)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def set_plan_dates(self, dates: List[QDate]) -> None:
+        """Replace all plan markers atomically and discard invalid dates."""
+        updated = {
+            value.toJulianDay()
+            for value in dates
+            if isinstance(value, QDate) and value.isValid()
+        }
+        if updated == self._plan_dates:
+            return
+        self._plan_dates = updated
+        self.updateCells()
+
+    def _day_circle(self, rect) -> QRectF:
+        available = max(18.0, min(float(rect.width()), float(rect.height())) - 8.0)
+        diameter = min(self._SELECTION_DIAMETER, available)
+        center = rect.center()
+        return QRectF(
+            center.x() - diameter / 2.0,
+            center.y() - diameter / 2.0,
+            diameter,
+            diameter,
+        )
+
+    def paintCell(self, painter: QPainter, rect, cell_date: QDate) -> None:  # noqa: N802 - Qt API
+        selected = cell_date == self.selectedDate()
+        today = cell_date == QDate.currentDate()
+        has_plan = cell_date.toJulianDay() in self._plan_dates
+
+        if not selected:
+            super().paintCell(painter, rect, cell_date)
+
+        painter.save()
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            circle = self._day_circle(rect)
+
+            if selected:
+                # Fully repaint the selected cell so Qt's platform-specific
+                # rectangular selection cannot remain visible underneath.
+                painter.fillRect(rect, self._surface_color)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(self._accent_color))
+                painter.drawEllipse(circle)
+
+                font = painter.font()
+                font.setWeight(QFont.Weight.DemiBold)
+                painter.setFont(font)
+                painter.setPen(self._selected_text_color)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(cell_date.day()))
+            elif today:
+                pen = QPen(self._accent_color)
+                pen.setWidthF(1.5)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(circle.adjusted(1.0, 1.0, -1.0, -1.0))
+
+            if has_plan:
+                # A compact dot communicates that work is planned without
+                # competing with the selected-date circle.
+                dot_diameter = self._PLAN_DOT_DIAMETER
+                dot_y = min(
+                    float(rect.bottom()) - dot_diameter - 2.0,
+                    circle.bottom() + 4.0,
+                )
+                dot = QRectF(
+                    float(rect.center().x()) - dot_diameter / 2.0,
+                    dot_y,
+                    dot_diameter,
+                    dot_diameter,
+                )
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(self._accent_color))
+                painter.drawEllipse(dot)
+        finally:
+            painter.restore()
 
 class AIPlanHelperDialog(QDialog):
     """A dialog to help users generate a study plan JSON using an AI like ChatGPT."""
@@ -236,6 +383,57 @@ Create a plan based on these requirements:
         clipboard.setText(self.prompt_text_edit.toPlainText())
         tooltip("Prompt copied to clipboard!", parent=self)
 
+    @staticmethod
+    def _sanitize_plan(parsed_data: dict):
+        """Validates and normalizes an imported plan.
+
+        Expected: { "YYYYMMDD": { "Subject": { "target_seconds": int } } }.
+        Heals common AI output quirks (dates with dashes, numeric strings,
+        bare numbers as subject values) and drops unusable entries.
+        Returns (plan_dict, list_of_dropped_entry_descriptions).
+        """
+        plan: Dict[str, Dict[str, Dict]] = {}
+        dropped: List[str] = []
+        for raw_date, day_value in parsed_data.items():
+            date_key = str(raw_date).strip().replace("-", "")
+            if not (len(date_key) == 8 and date_key.isdigit()):
+                dropped.append(f'"{raw_date}" (not a YYYYMMDD date)')
+                continue
+            try:
+                datetime.strptime(date_key, "%Y%m%d")
+            except ValueError:
+                dropped.append(f'"{raw_date}" (not a real calendar date)')
+                continue
+            if not isinstance(day_value, dict):
+                dropped.append(f'"{raw_date}" (value must be an object with subjects)')
+                continue
+            day_plan: Dict[str, Dict] = {}
+            for subject, cfg in day_value.items():
+                subject_name = str(subject).strip()[:120]
+                if not subject_name:
+                    dropped.append(f'"{raw_date}" (empty subject name)')
+                    continue
+                # Heal: bare number instead of { "target_seconds": n }
+                if isinstance(cfg, (int, float)) and not isinstance(cfg, bool):
+                    cfg = {"target_seconds": cfg}
+                if not isinstance(cfg, dict):
+                    dropped.append(f'"{raw_date}" → "{subject_name}" (value must be an object)')
+                    continue
+                target = cfg.get("target_seconds", 0)
+                if isinstance(target, str):
+                    try: target = float(target)
+                    except ValueError: target = None
+                if (isinstance(target, bool) or not isinstance(target, (int, float))
+                        or target <= 0 or target > 86400):
+                    dropped.append(f'"{raw_date}" → "{subject_name}" ("target_seconds" must be between 1 and 86400)')
+                    continue
+                clean_cfg = dict(cfg)
+                clean_cfg["target_seconds"] = int(target)
+                day_plan[subject_name] = clean_cfg
+            if day_plan:
+                plan[date_key] = day_plan
+        return plan, dropped
+
     def accept(self):
         json_text = self.json_input_area.toPlainText().strip()
         if not json_text: return
@@ -244,17 +442,40 @@ Create a plan based on these requirements:
             if json_text.startswith("```"): json_text = json_text[3:]
             if json_text.endswith("```"): json_text = json_text[:-3]
             parsed_data = json.loads(json_text)
-            if not isinstance(parsed_data, dict): raise TypeError("Root must be object.")
-            self.imported_plan = parsed_data
+        except Exception as e:
+            QMessageBox.critical(self, _("Import Error"), _("Invalid JSON.") + f"\n{e}")
+            return
+        try:
+            if not isinstance(parsed_data, dict):
+                QMessageBox.critical(self, _("Import Error"),
+                    _("Invalid JSON.") + "\n" +
+                    'The root must be an object like {"20260125": {"Anatomy": {"target_seconds": 3600}}}, '
+                    f'but got: {type(parsed_data).__name__}.')
+                return
+            plan, dropped = self._sanitize_plan(parsed_data)
+            if not plan:
+                QMessageBox.critical(self, _("Import Error"),
+                    _("Invalid JSON.") + "\n" +
+                    'No valid plan entries found. Expected structure:\n'
+                    '{"20260125": {"Anatomy": {"target_seconds": 3600}}}\n\n'
+                    + ("Problems:\n" + "\n".join(dropped[:8]) if dropped else ""))
+                return
+            if dropped:
+                QMessageBox.warning(self, _("Import Error"),
+                    f"{len(dropped)} invalid entr{'y was' if len(dropped) == 1 else 'ies were'} skipped:\n"
+                    + "\n".join(dropped[:8])
+                    + ("\n…" if len(dropped) > 8 else ""))
+            self.imported_plan = plan
             super().accept()
         except Exception as e:
+            traceback.print_exc()
             QMessageBox.critical(self, _("Import Error"), _("Invalid JSON.") + f"\n{e}")
 
 
 class LearningPlanConfigDialog(QDialog):
     """Dialog to configure subjects/times (JSON) and Deadline Bar settings."""
 
-    DATE_FORMAT = "%Y%m%d"
+    DATE_FORMAT = "yyyyMMdd"
     DEADLINE_DATE_FORMAT = "%Y-%m-%d"
 
     def __init__(self, config_json_path: str, parent: Optional[QWidget] = None):
@@ -275,7 +496,7 @@ class LearningPlanConfigDialog(QDialog):
         self.current_full_plan: Dict[str, Dict[str, PlanItemConfig]] = {}
         self.selected_date: QDate = QDate.currentDate()
 
-        self.deadline_manager: Optional['DeadlineManagerTypeHint'] = getattr(mw, 'deadline_manager', None)
+        self.deadline_manager: Optional['DeadlineManager'] = getattr(mw, 'deadline_manager', None)
         if not self.deadline_manager and DeadlineManager is not None:
              try: self.deadline_manager = DeadlineManager()
              except Exception: self.deadline_manager = None
@@ -301,7 +522,7 @@ class LearningPlanConfigDialog(QDialog):
         cal_label.setContentsMargins(5, 0, 0, 5)
         left_layout.addWidget(cal_label)
 
-        self.calendar = QCalendarWidget()
+        self.calendar = StudyPlanCalendarWidget(is_night_mode)
         self.calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
         self.calendar.setGridVisible(False)
         self.calendar.setSelectedDate(self.selected_date)
@@ -466,24 +687,37 @@ class LearningPlanConfigDialog(QDialog):
     def _load_plan_from_file(self) -> Dict:
         if not os.path.exists(self.config_json_path): return {}
         try:
-            with open(self.config_json_path, 'r', encoding='utf-8') as f: return json.load(f)
-        except Exception: return {}
+            with open(self.config_json_path, 'r', encoding='utf-8') as f:
+                value = json.load(f)
+            return value if isinstance(value, dict) else {}
+        except Exception as exc:
+            print(f"SynapsePro: could not read study plan: {exc}")
+            return {}
 
     def _save_plan_to_file(self):
+        tmp_path = self.config_json_path + ".tmp"
         try:
-            with open(self.config_json_path, 'w', encoding='utf-8') as f: json.dump(self.current_full_plan, f, indent=4, ensure_ascii=False)
-        except Exception as e: QMessageBox.critical(self, _("Save Error"), f"{e}")
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(self.current_full_plan, f, indent=4, ensure_ascii=False)
+            os.replace(tmp_path, self.config_json_path)
+        except Exception as e:
+            try:
+                if os.path.exists(tmp_path): os.remove(tmp_path)
+            except OSError: pass
+            QMessageBox.critical(self, _("Save Error"), f"{e}")
 
     def load_full_plan_from_file(self): self.current_full_plan = self._load_plan_from_file(); self.update_calendar_highlights()
 
     def update_calendar_highlights(self):
-        highlight_format = self.calendar.dateTextFormat(QDate())
-        highlight_color = QColor(_palette(is_night_mode)["blue_bright"])
-        highlight_format.setBackground(highlight_color); highlight_format.setForeground(Qt.GlobalColor.white)
-        font = highlight_format.font(); font.setBold(True); highlight_format.setFont(font)
-        for d in self.current_full_plan:
-            try: self.calendar.setDateTextFormat(QDate.fromString(d, self.DATE_FORMAT), highlight_format)
-            except Exception: pass
+        plan_dates: List[QDate] = []
+        for raw_date in self.current_full_plan:
+            try:
+                parsed = QDate.fromString(str(raw_date), self.DATE_FORMAT)
+                if parsed.isValid():
+                    plan_dates.append(parsed)
+            except Exception:
+                pass
+        self.calendar.set_plan_dates(plan_dates)
 
     def on_date_selected(self):
         self.selected_date = self.calendar.selectedDate()
@@ -494,6 +728,7 @@ class LearningPlanConfigDialog(QDialog):
 
     def load_plan_for_selected_date_into_table(self):
         plan = self.current_full_plan.get(self.selected_date.toString("yyyyMMdd"), {})
+        if not isinstance(plan, dict): plan = {}
         self.table.setRowCount(0); self.table.setSortingEnabled(False)
         for s, c in plan.items():
             if not isinstance(c, dict): continue
@@ -515,7 +750,7 @@ class LearningPlanConfigDialog(QDialog):
         sub = self.subject_input.text().strip(); sec = self._qtime_to_seconds(self.time_input.time())
         if not sub or sec <= 0: return
         dk = self.selected_date.toString("yyyyMMdd")
-        if dk not in self.current_full_plan: self.current_full_plan[dk] = {}
+        if dk not in self.current_full_plan or not isinstance(self.current_full_plan[dk], dict): self.current_full_plan[dk] = {}
         target = next((k for k in self.current_full_plan[dk] if k.lower() == sub.lower()), sub)
         self.current_full_plan[dk][target] = {"target_seconds": sec}
         self.config_changed = True; self.load_plan_for_selected_date_into_table(); self.update_calendar_highlights()
@@ -560,9 +795,9 @@ class LearningPlanConfigDialog(QDialog):
 
     def _open_deadline_config(self):
         dm = self.deadline_manager or getattr(mw, 'deadline_manager', None)
-        DeadlineConfigDialog(dm, parent=self).exec()
-        # Refresh deck browser if open so bar reflects any changes
-        if mw and mw.state == "deckBrowser":
+        changed = DeadlineConfigDialog(dm, parent=self).exec()
+        # Refresh only after the user explicitly committed changes.
+        if changed and mw and mw.state == "deckBrowser":
             mw.deckBrowser.refresh()
 
     def accept(self):
@@ -588,13 +823,7 @@ def _import_painter_tools():
     return QPainter, QPen, QBrush, QPoint, QFontMetrics, QScrollArea
 
 
-try:
-    from aqt.qt import pyqtSignal as _pyqtSignal
-except Exception:
-    try:
-        from PyQt6.QtCore import pyqtSignal as _pyqtSignal
-    except ImportError:
-        from PyQt5.QtCore import pyqtSignal as _pyqtSignal
+from aqt.qt import pyqtSignal as _pyqtSignal
 
 
 class _TimelineWidget(QWidget):
@@ -838,12 +1067,12 @@ class StudyPlanTimelineDialog(QDialog):
         keys      = sorted(self._plan.keys())
         today     = self._today
         total     = len(keys)
-        done      = sum(1 for k in keys if k < today)
-        left      = sum(1 for k in keys if k > today)
+        elapsed   = sum(1 for k in keys if k < today)
+        upcoming  = sum(1 for k in keys if k >= today)
         total_sec = sum(
             sum(v.get('target_seconds', 0) for v in dp.values())
             for dp in self._plan.values())
-        pct = round(done / total * 100) if total else 0
+        pct = round(elapsed / total * 100) if total else 0
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(16, 16, 16, 16)
@@ -859,8 +1088,8 @@ class StudyPlanTimelineDialog(QDialog):
         chip_fg = _palette(is_night_mode)['text_muted']
         chip_tx = _palette(is_night_mode)['text']
         for label, val in [('Total', '{} days'.format(total)),
-                           ('Done',  '{} days'.format(done)),
-                           ('Left',  '{} days'.format(left)),
+                           ('Elapsed',  '{} days'.format(elapsed)),
+                           ('Upcoming', '{} days'.format(upcoming)),
                            ('Time',  self._fmt(total_sec))]:
             chip = QLabel()
             chip.setText('<span style="color:{fg}">{lbl}:</span>'
@@ -879,7 +1108,7 @@ class StudyPlanTimelineDialog(QDialog):
         prog_frame = QFrame(); prog_frame.setObjectName('CardFrame')
         pl = QHBoxLayout(prog_frame)
         pl.setContentsMargins(16, 8, 16, 8); pl.setSpacing(10)
-        lbl_l = QLabel('{}% complete'.format(pct)); lbl_l.setObjectName('SubLabel')
+        lbl_l = QLabel('{}% schedule elapsed'.format(pct)); lbl_l.setObjectName('SubLabel')
         try:
             from aqt.qt import QProgressBar
             bar = QProgressBar()
@@ -893,7 +1122,7 @@ class StudyPlanTimelineDialog(QDialog):
                     bg=_palette(is_night_mode)['grey_light']))
         except Exception:
             bar = QWidget()
-        lbl_r = QLabel('{} of {} plan days done'.format(done, total))
+        lbl_r = QLabel('{} of {} scheduled dates are in the past'.format(elapsed, total))
         lbl_r.setObjectName('SubLabel')
         pl.addWidget(lbl_l); pl.addWidget(bar, 1); pl.addWidget(lbl_r)
         outer.addWidget(prog_frame)
@@ -993,7 +1222,7 @@ class StudyPlanTimelineDialog(QDialog):
                             'border-radius:9px;font-size:10px;font-weight:700;')
             hdr_row.addWidget(b)
         elif is_past and has_pl:
-            b = QLabel('completed'); b.setObjectName('SubLabel')
+            b = QLabel('past'); b.setObjectName('SubLabel')
             hdr_row.addWidget(b)
 
         if has_pl:
@@ -1039,6 +1268,12 @@ class DeadlineConfigDialog(QDialog):
     def __init__(self, deadline_manager, parent=None):
         super().__init__(parent)
         self.deadline_manager = deadline_manager
+        # Edit a detached copy. Add/remove/pin actions therefore remain
+        # reversible until the user presses Done, and Cancel/window-close
+        # cannot leak partial changes into collection configuration.
+        self._working_data = copy.deepcopy(deadline_manager.data) if deadline_manager else {
+            "deadlines": [], "pinned_id": None, "enabled": True,
+        }
         self.setWindowTitle(_("Configure Deadlines"))
         self.resize(660, 460)
         self.setMinimumSize(520, 360)
@@ -1054,8 +1289,7 @@ class DeadlineConfigDialog(QDialog):
         lbl.setObjectName("HeaderLabel")
         self.enabled_cb = QCheckBox("Enable deadline bar")
         self.enabled_cb.setCursor(Qt.CursorShape.PointingHandCursor)
-        if self.deadline_manager:
-            self.enabled_cb.setChecked(self.deadline_manager.data.get("enabled", True))
+        self.enabled_cb.setChecked(self._working_data.get("enabled", True))
         top_row.addWidget(lbl)
         top_row.addStretch()
         top_row.addWidget(self.enabled_cb)
@@ -1121,6 +1355,11 @@ class DeadlineConfigDialog(QDialog):
         self.remove_btn.clicked.connect(self._remove_deadline)
         btn_row.addWidget(self.remove_btn)
         btn_row.addStretch()
+        cancel_btn = QPushButton(_("Cancel"))
+        cancel_btn.setObjectName("SecondaryButton")
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(cancel_btn)
         close_btn = QPushButton(_("Done"))
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.clicked.connect(self._save_and_close)
@@ -1134,10 +1373,11 @@ class DeadlineConfigDialog(QDialog):
         self._refresh_table()
 
     def _refresh_table(self):
-        if not self.deadline_manager:
-            return
-        deadlines = self.deadline_manager.get_all_deadlines()
-        pinned_id = self.deadline_manager.data.get("pinned_id")
+        deadlines = sorted(
+            self._working_data.get("deadlines", []),
+            key=lambda deadline: deadline.get("end_date", "9999-12-31"),
+        )
+        pinned_id = self._working_data.get("pinned_id")
         self.table.setRowCount(0)
         for dl in deadlines:
             row = self.table.rowCount()
@@ -1164,27 +1404,26 @@ class DeadlineConfigDialog(QDialog):
         self.table.resizeRowsToContents()
 
     def _toggle_pin(self, deadline_id: str, currently_pinned: bool):
-        if self.deadline_manager:
-            self.deadline_manager.set_pinned(None if currently_pinned else deadline_id)
-            self._refresh_table()
+        self._working_data["pinned_id"] = None if currently_pinned else deadline_id
+        self._refresh_table()
 
     def _add_deadline(self):
-        if not self.deadline_manager:
-            return
         name = self.name_input.text().strip()
         if not name:
             return
-        self.deadline_manager.add_deadline(
-            name,
-            self.start_edit.date().toString(Qt.DateFormat.ISODate),
-            self.end_edit.date().toString(Qt.DateFormat.ISODate),
-        )
+        if self.start_edit.date() > self.end_edit.date():
+            showInfo(_("The start date must not be after the end date."), parent=self)
+            return
+        self._working_data.setdefault("deadlines", []).append({
+            "id": str(uuid.uuid4())[:8],
+            "name": name[:120],
+            "start_date": self.start_edit.date().toString(Qt.DateFormat.ISODate),
+            "end_date": self.end_edit.date().toString(Qt.DateFormat.ISODate),
+        })
         self.name_input.clear()
         self._refresh_table()
 
     def _remove_deadline(self):
-        if not self.deadline_manager:
-            return
         rows = self.table.selectionModel().selectedRows()
         if not rows:
             return
@@ -1192,14 +1431,179 @@ class DeadlineConfigDialog(QDialog):
         if item:
             dl_id = item.data(Qt.ItemDataRole.UserRole)
             if dl_id:
-                self.deadline_manager.remove_deadline(dl_id)
+                self._working_data["deadlines"] = [
+                    deadline for deadline in self._working_data.get("deadlines", [])
+                    if deadline.get("id") != dl_id
+                ]
+                if self._working_data.get("pinned_id") == dl_id:
+                    self._working_data["pinned_id"] = None
                 self._refresh_table()
 
     def _save_and_close(self):
         if self.deadline_manager:
-            self.deadline_manager.data["enabled"] = self.enabled_cb.isChecked()
+            self._working_data["enabled"] = self.enabled_cb.isChecked()
+            self.deadline_manager.data = copy.deepcopy(self._working_data)
             self.deadline_manager.save_data()
         self.accept()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# StudyPlanViewerDialog — today's subjects with directly editable completion
+# ─────────────────────────────────────────────────────────────────────────────
+
+class StudyPlanViewerDialog(QDialog):
+    """Compact viewer for today's study-plan subjects and completion state."""
+
+    def __init__(self, learning_plan_manager, config_json_path: str, parent=None):
+        super().__init__(parent)
+        self.learning_plan_manager = learning_plan_manager
+        self.config_json_path = config_json_path
+        self.setWindowTitle(_("Study Plan"))
+        self.resize(460, 410)
+        self.setMinimumSize(360, 280)
+        self.setStyleSheet(_build_style(is_night_mode))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+
+        plan = []
+        if learning_plan_manager:
+            try:
+                plan = learning_plan_manager.get_plan_for_display() or []
+            except Exception:
+                plan = []
+        done_count = sum(1 for item in plan if item.get("state") == "Done")
+
+        header_row = QHBoxLayout()
+        header = QLabel(_("Study Plan"))
+        header.setObjectName("HeaderLabel")
+        header_row.addWidget(header)
+        header_row.addStretch()
+        self.summary_label = QLabel(f"{done_count}/{len(plan)}")
+        self.summary_label.setObjectName("SubLabel")
+        header_row.addWidget(self.summary_label)
+        layout.addLayout(header_row)
+
+        from aqt.qt import QScrollArea, QProgressBar
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        inner = QWidget()
+        inner_layout = QVBoxLayout(inner)
+        inner_layout.setContentsMargins(0, 0, 8, 0)
+        inner_layout.setSpacing(8)
+        colours = _palette(is_night_mode)
+
+        if not plan:
+            empty = QLabel(_("No learning plan configured yet."))
+            empty.setObjectName("SubLabel")
+            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            inner_layout.addWidget(empty)
+        else:
+            for item in plan:
+                subject = str(item.get("subject") or _("Unknown Subject"))
+                target = max(0, int(item.get("target_seconds") or 0))
+                elapsed = max(0, min(target, int(item.get("elapsed_seconds") or 0)))
+                progress = int((elapsed / target) * 100) if target else 0
+
+                card = QFrame()
+                card.setObjectName("CardFrame")
+                card_layout = QVBoxLayout(card)
+                card_layout.setContentsMargins(13, 10, 13, 10)
+                card_layout.setSpacing(7)
+
+                row = QHBoxLayout()
+                checkbox = QCheckBox(subject)
+                checkbox.setChecked(item.get("state") == "Done")
+                row.addWidget(checkbox, 1)
+                minutes = max(1, round(target / 60)) if target else 0
+                duration = QLabel(_("{} min").format(minutes) if minutes else "—")
+                duration.setObjectName("SubLabel")
+                row.addWidget(duration)
+                state = item.get("state") or "Not Started"
+                if state != "Done":
+                    if state == "Running":
+                        action_text = _("Pause")
+                    elif state == "Paused":
+                        action_text = _("Resume")
+                    else:
+                        action_text = _("Start")
+                    action = QPushButton(action_text)
+                    if state == "Running":
+                        action.setObjectName("SecondaryButton")
+                    action.setCursor(Qt.CursorShape.PointingHandCursor)
+                    action.clicked.connect(
+                        lambda _checked=False, name=subject, running=(state == "Running"):
+                            self._toggle_timer(name, running)
+                    )
+                    row.addWidget(action)
+                card_layout.addLayout(row)
+
+                bar = QProgressBar()
+                bar.setRange(0, 100)
+                bar.setValue(progress)
+                bar.setTextVisible(False)
+                bar.setFixedHeight(7)
+                bar.setStyleSheet(
+                    f"QProgressBar {{ background: {colours['grey_light']}; border-radius: 3px; border: none; }}"
+                    f"QProgressBar::chunk {{ background: {colours['blue']}; border-radius: 3px; }}"
+                )
+                card_layout.addWidget(bar)
+
+                checkbox.toggled.connect(
+                    lambda checked, name=subject, progress_bar=bar: self._set_done(
+                        name, checked, progress_bar
+                    )
+                )
+                inner_layout.addWidget(card)
+
+        inner_layout.addStretch()
+        scroll.setWidget(inner)
+        layout.addWidget(scroll)
+
+        buttons = QHBoxLayout()
+        configure = QPushButton(_("Configure Study Plan"))
+        configure.setObjectName("SecondaryButton")
+        configure.clicked.connect(self._open_config)
+        buttons.addWidget(configure)
+        buttons.addStretch()
+        close = QPushButton(_("Close"))
+        close.clicked.connect(self.accept)
+        buttons.addWidget(close)
+        layout.addLayout(buttons)
+
+    def _set_done(self, subject: str, checked: bool, progress_bar=None):
+        if self.learning_plan_manager:
+            self.learning_plan_manager.set_subject_done(subject, checked)
+            if progress_bar is not None:
+                progress_bar.setValue(100 if checked else 0)
+            try:
+                plan = self.learning_plan_manager.get_plan_for_display() or []
+                done = sum(1 for item in plan if item.get("state") == "Done")
+                self.summary_label.setText(f"{done}/{len(plan)}")
+            except Exception:
+                pass
+
+    def _toggle_timer(self, subject: str, currently_running: bool):
+        if not self.learning_plan_manager:
+            return
+        if currently_running:
+            self.learning_plan_manager.pause_timer(subject)
+        else:
+            # The compact dashboard intentionally has one prominent countdown.
+            # Pause any other running subject before starting the selected one.
+            for item in self.learning_plan_manager.get_plan_for_display() or []:
+                if item.get("state") == "Running" and item.get("subject") != subject:
+                    self.learning_plan_manager.pause_timer(str(item.get("subject")))
+            self.learning_plan_manager.start_timer(subject)
+        self.accept()
+
+    def _open_config(self):
+        if LearningPlanConfigDialog(self.config_json_path, self).exec():
+            if self.learning_plan_manager:
+                self.learning_plan_manager._initialize_status_for_today()
+            self.accept()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1337,5 +1741,5 @@ class DeadlineViewerDialog(QDialog):
         layout.addLayout(btn_row)
 
     def _open_config(self):
-        DeadlineConfigDialog(self.deadline_manager, parent=self).exec()
-        self.accept()  # Close viewer; user can reopen to see updated list
+        if DeadlineConfigDialog(self.deadline_manager, parent=self).exec():
+            self.accept()  # Close viewer; user can reopen to see updated list

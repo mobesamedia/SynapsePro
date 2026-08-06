@@ -46,6 +46,12 @@ body {
 
 /* === Hintergrundgradienten === */
 /* Hier wurde 'body:has(#custom-dashboard)' hinzugefügt, damit dein Deck Overview den Gradienten bekommt */
+/* html painted too: prevents a dark seam line between the main view and
+   the bottom button bar at fractional display scaling. */
+html:has(body.deckbrowser),
+html:has(body.overview),
+html:has(body.review),
+html:has(#custom-dashboard),
 body.deckbrowser,
 body.overview,
 body.review,
@@ -54,6 +60,10 @@ body:has(#custom-dashboard) {
     background-attachment: fixed !important;
 }
 
+html:has(body.nightMode.deckbrowser),
+html:has(body.nightMode.overview),
+html:has(body.nightMode.review),
+html:has(body.nightMode):has(#custom-dashboard),
 body.nightMode.deckbrowser,
 body.nightMode.overview,
 body.nightMode.review,
@@ -69,14 +79,14 @@ body.nightMode:has(#custom-dashboard) {
     border-radius: var(--deck-border-radius) !important;
     box-shadow: none !important; border: 1px solid var(--medical-border-color) !important;
     overflow: hidden; box-sizing: border-box; position: relative; z-index: 1; margin-top: 15px; margin-bottom: 15px;
-    min-width: 860px !important; max-width: 860px !important; width: 860px !important; margin-left: auto !important; margin-right: auto !important;
+    margin-left: auto !important; margin-right: auto !important;
 }
 body.nightMode .deckbrowser .decks-container,
 body.nightMode .deckbrowser > center > table {
     background: var(--medical-bg-paper) !important;
     border-radius: var(--deck-border-radius) !important;
     box-shadow: none !important; border: 1px solid var(--medical-border-color) !important;
-    overflow: hidden; box-sizing: border-box; position: relative; z-index: 1; margin-top: 15px; margin-bottom: 15px; min-width: 860px !important; max-width: 860px !important; width: 860px !important; margin-left: auto !important; margin-right: auto !important;
+    overflow: hidden; box-sizing: border-box; position: relative; z-index: 1; margin-top: 15px; margin-bottom: 15px; margin-left: auto !important; margin-right: auto !important;
 }
 
 /* === Deck Browser Zählerfarben === */
@@ -119,10 +129,31 @@ body.nightMode .overview .deck-desc {
 /* === Top Toolbar (Leiste oben) === */
 body.top-toolbar {
     box-shadow: none !important;
-    border-bottom: 1px solid var(--medical-border-color) !important;
+    border-bottom: none !important;
 }
 
 /* Falls der Schatten auf einem inneren Element liegt, killen wir den auch: */
 body.top-toolbar div {
     box-shadow: none !important;
+}
+
+/* === Dashboard: hide the page scrollbar (scrolling itself still works) ====
+   The overlay scrollbar looks out of place on the widget dashboard; wheel,
+   trackpad and keyboard scrolling are unaffected. Scoped to the deck browser
+   and the custom deck-overview dashboard only. */
+body.deckbrowser::-webkit-scrollbar,
+body:has(#custom-dashboard)::-webkit-scrollbar,
+html:has(body.deckbrowser)::-webkit-scrollbar,
+html:has(#custom-dashboard)::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+}
+
+/* Keep SynapsePro’s wide deck list only in the regular dashboard mode. */
+body.deckbrowser:not(.synapse-minimal-dashboard) .decks-container,
+body.deckbrowser:not(.synapse-minimal-dashboard) > center > table {
+    min-width: 860px !important;
+    max-width: 860px !important;
+    width: 860px !important;
 }

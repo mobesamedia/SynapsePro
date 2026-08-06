@@ -226,6 +226,7 @@ h2.screen-title {
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
+.theme-card:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
 .theme-card.selected {
   border-color: #2563EB;
 }
@@ -484,7 +485,38 @@ h2.screen-title {
   margin-bottom: 18px;
   display: block;
 }
+
+/* Anki night mode. Screenshots keep their original colours, while every
+   interactive surface and text colour receives a dark counterpart. */
+html.dark { color-scheme: dark; }
+html.dark body, html.dark .dialog { background: #1f2329; color: #f3f4f6; }
+html.dark .right-panel { background: #1f2329; }
+html.dark h1.brand, html.dark h2.screen-title, html.dark .support-content h2,
+html.dark .support-p strong, html.dark .tos-modal-header h3,
+html.dark .tos-modal-body h4 { color: #f3f4f6; }
+html.dark .welcome-eyebrow, html.dark .welcome-tagline, html.dark .tip-text,
+html.dark .support-p, html.dark .tos-row label, html.dark .tos-modal-body p,
+html.dark .tos-modal-body ul li { color: #cbd5e1; }
+html.dark .screen-subtitle, html.dark .progress-label,
+html.dark .loading-label, html.dark .tos-last-updated { color: #94a3b8; }
+html.dark .progress-track, html.dark .loading-track { background: #374151; }
+html.dark .opt { background: #282e38; border-color: #4b5563; color: #e5e7eb; }
+html.dark .opt:hover { background: #243349; border-color: #60a5fa; }
+html.dark .opt.selected { background: #1e3a5f; border-color: #60a5fa; color: #bfdbfe; }
+html.dark .theme-card { background: #282e38; box-shadow: 0 4px 12px rgba(0,0,0,.35); }
+html.dark .theme-card.selected { border-color: #60a5fa; }
+html.dark .tos-row, html.dark .support-text-box { background: #282e38; border-color: #4b5563; }
+html.dark .tos-modal { background: #242a33; box-shadow: 0 24px 64px rgba(0,0,0,.55); }
+html.dark .tos-modal-header { border-color: #3b4350; }
+html.dark .tos-close { background: #343c48; color: #cbd5e1; }
+html.dark .tos-close:hover { background: #46505f; color: #fff; }
+html.dark .tos-row a { color: #93c5fd; }
 </style>
+<script>
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.classList.add('dark');
+  }
+</script>
 </head>
 <body>
 
@@ -496,7 +528,7 @@ h2.screen-title {
   <div class="screen active" id="screen-0">
     <div class="left-panel">
       <!-- BILD 1 -->
-      <img src="img_welcome.png" class="left-img" alt="Welcome Background">
+      <img src="img_welcome.png" class="left-img" alt="">
     </div>
     <div class="right-panel" style="justify-content:flex-start; padding-top: 80px;">
       <p class="welcome-eyebrow" data-i18n="welcomeTo">Welcome to</p>
@@ -519,7 +551,7 @@ h2.screen-title {
   <div class="screen" id="screen-1">
     <div class="left-panel slim">
       <!-- SIDEBAR BILD 1 -->
-      <img src="img_sidebar_1.png" class="left-img" alt="Sidebar Background 1">
+      <img src="img_sidebar_1.png" class="left-img" alt="">
     </div>
     <div class="right-panel">
       <div class="progress-wrap">
@@ -550,7 +582,7 @@ h2.screen-title {
   <div class="screen" id="screen-2">
     <div class="left-panel slim">
       <!-- SIDEBAR BILD 2 -->
-      <img src="img_sidebar_2.png" class="left-img" alt="Sidebar Background 2">
+      <img src="img_sidebar_2.png" class="left-img" alt="">
     </div>
     <div class="right-panel">
       <div class="progress-wrap">
@@ -561,7 +593,7 @@ h2.screen-title {
       <div class="option-grid cols-2" >
         <button class="opt" data-group="role" data-value="medical"    onclick="selectOpt(this)" data-i18n="medicalStudent">Medical Student</button>
         <button class="opt" data-group="role" data-value="law"        onclick="selectOpt(this)" data-i18n="lawStudent">Law Student</button>
-        <button class="opt" data-group="role" data-value="highschool" onclick="selectOpt(this)" data-i18n="highschoolStudent">Highschool Student</button>
+        <button class="opt" data-group="role" data-value="highschool" onclick="selectOpt(this)" data-i18n="highschoolStudent">High School Student</button>
         <button class="opt" data-group="role" data-value="programmer" onclick="selectOpt(this)" data-i18n="programmer">Programmer</button>
         <button class="opt" data-group="role" data-value="language"   onclick="selectOpt(this)" data-i18n="languageLearner">Language Learner</button>
         <button class="opt" data-group="role" data-value="other"      onclick="selectOpt(this)" data-i18n="other">Other</button>
@@ -578,7 +610,7 @@ h2.screen-title {
   <div class="screen" id="screen-3">
     <div class="left-panel slim">
       <!-- SIDEBAR BILD 3 -->
-      <img src="img_sidebar_3.png" class="left-img" alt="Sidebar Background 3">
+      <img src="img_sidebar_3.png" class="left-img" alt="">
     </div>
     <div class="right-panel">
       <div class="progress-wrap">
@@ -615,24 +647,24 @@ h2.screen-title {
       
       <!-- HIER KOMMEN DEINE 6 THEME BILDER REIN -->
       <div class="theme-grid">
-        <div class="theme-card" data-group="theme" onclick="selectTheme(this)">
-          <img src="img_theme_1.png" class="theme-img" alt="Theme 1">
-        </div>
-        <div class="theme-card" data-group="theme" onclick="selectTheme(this)">
-          <img src="img_theme_2.png" class="theme-img" alt="Theme 2">
-        </div>
-        <div class="theme-card" data-group="theme" onclick="selectTheme(this)">
-          <img src="img_theme_3.png" class="theme-img" alt="Theme 3">
-        </div>
-        <div class="theme-card" data-group="theme" onclick="selectTheme(this)">
-          <img src="img_theme_4.png" class="theme-img" alt="Theme 4">
-        </div>
-        <div class="theme-card" data-group="theme" onclick="selectTheme(this)">
-          <img src="img_theme_5.png" class="theme-img" alt="Theme 5">
-        </div>
-        <div class="theme-card" data-group="theme" onclick="selectTheme(this)">
-          <img src="img_theme_6.png" class="theme-img" alt="Theme 6">
-        </div>
+        <button type="button" class="theme-card" data-group="theme" data-theme-index="0" onclick="selectTheme(this)">
+          <img src="img_theme_1.png" class="theme-img" alt="">
+        </button>
+        <button type="button" class="theme-card" data-group="theme" data-theme-index="1" onclick="selectTheme(this)">
+          <img src="img_theme_2.png" class="theme-img" alt="">
+        </button>
+        <button type="button" class="theme-card" data-group="theme" data-theme-index="2" onclick="selectTheme(this)">
+          <img src="img_theme_3.png" class="theme-img" alt="">
+        </button>
+        <button type="button" class="theme-card" data-group="theme" data-theme-index="3" onclick="selectTheme(this)">
+          <img src="img_theme_4.png" class="theme-img" alt="">
+        </button>
+        <button type="button" class="theme-card" data-group="theme" data-theme-index="4" onclick="selectTheme(this)">
+          <img src="img_theme_5.png" class="theme-img" alt="">
+        </button>
+        <button type="button" class="theme-card" data-group="theme" data-theme-index="5" onclick="selectTheme(this)">
+          <img src="img_theme_6.png" class="theme-img" alt="">
+        </button>
       </div>
     </div>
     <div class="bottom-row">
@@ -655,7 +687,7 @@ h2.screen-title {
           You can find all settings by clicking on the <strong>SynapsePro logo</strong> in the top-left corner of the Anki interface.
         </p>
         
-        <img src="img_settings_tip.png" class="tip-img" alt="Settings Tip Screenshot">
+        <img src="img_settings_tip.png" class="tip-img" alt="">
       </div>
     </div>
     <div class="bottom-row">
@@ -678,8 +710,8 @@ h2.screen-title {
         <!-- NEUE GRAUE BOX FÜR DEN TEXT -->
         <div class="support-text-box">
           <p class="support-p" data-i18n="supportText1">
-            Please keep in mind that this project was created solo by myself to improve
-            everyones Anki Experience. There can be Bugs and occasional Errors.
+            Please keep in mind that this project was developed by one person to improve
+            everyone's Anki experience. Bugs and occasional errors may occur.
           </p>
           <p class="support-p">
             <strong><span data-i18n="supportText2">Please support this Project with a thumbs up on AnkiWeb if you like it.
@@ -688,7 +720,7 @@ h2.screen-title {
           </p>
         </div>
 
-        <img src="img_support.png" class="support-img" alt="Support Banner">
+        <img src="img_support.png" class="support-img" alt="">
 
         <!-- Loading bar -->
         <div class="loading-wrap">
@@ -712,11 +744,11 @@ h2.screen-title {
 <div class="tos-overlay" id="tos-overlay" onclick="closeTosOnOverlay(event)">
   <div class="tos-modal">
     <div class="tos-modal-header">
-      <h3>Terms of Service &amp; Privacy Notice</h3>
-      <button class="tos-close" onclick="closeTos()">✕</button>
+      <h3 id="tos-title">Terms of Service &amp; Privacy Notice</h3>
+      <button class="tos-close" onclick="closeTos()" aria-label="Close" data-i18n-aria="close">✕</button>
     </div>
-    <div class="tos-modal-body">
-      <span class="tos-last-updated">Last updated: May 2026</span>
+    <div class="tos-modal-body" id="tos-content">
+      <span class="tos-last-updated" id="tos-updated">Last updated: July 2026</span>
 
       <h4>1. Acceptance of Terms</h4>
       <p>By installing and using SynapsePro ("the Add-On"), you agree to these Terms of Service. If you do not agree, please uninstall the Add-On.</p>
@@ -725,8 +757,8 @@ h2.screen-title {
       <p>SynapsePro is a free, independently developed add-on provided without any warranty of any kind — express or implied. The developer makes no guarantees regarding functionality, reliability, accuracy, or fitness for a particular purpose.</p>
       <p>The developer is not liable for any data loss, errors, bugs, crashes, interruptions, or any other damages that may arise from using this software. <strong>You use it at your own risk.</strong></p>
 
-      <h4>3. Anonymous Data Collection</h4>
-      <p>During initial setup, SynapsePro optionally collects the following anonymous, non-personal information to help improve the Add-On:</p>
+      <h4>3. Information Collected During Setup</h4>
+      <p>During the initial setup, SynapsePro asks you a few short questions and collects the information listed below. <strong>Answering these questions is required in order to use SynapsePro.</strong> The Add-On needs your answers to configure and personalize itself for you — for example, if you select "Medical Student", SynapsePro will show you medicine-related daily facts and content tailored to that category.</p>
       <ul>
         <li>Selected interface language</li>
         <li>User category (e.g. Medical Student, Programmer)</li>
@@ -734,11 +766,12 @@ h2.screen-title {
         <li>Selected color theme</li>
         <li>Add-On and Anki version numbers</li>
       </ul>
-      <p>This data is <strong>completely anonymous</strong>. No personal information, Anki card contents, learning statistics, device identifiers, or IP addresses are stored or associated with your submission.</p>
+      <p>This information is also transmitted to the developer and stored in a database hosted by Supabase, the developer's hosting provider, which processes the data solely on the developer's behalf. The developer needs it to set up and maintain the Add-On, to understand how SynapsePro is actually used, and to continuously improve the project and decide which features to prioritize next.</p>
+      <p>No directly identifying personal data — such as your name, email address, Anki card contents, learning statistics, login credentials, or device identifiers — is collected or linked to your answers.</p>
 
       <h4>4. How Your Data Is Used</h4>
-      <p>The collected data is used exclusively by the developer to understand which features are most useful, which languages are most popular, and how to prioritize future improvements to the Add-On.</p>
-      <p><strong>Your data is never sold, shared with, or passed on to any third parties — under any circumstances.</strong></p>
+      <p>Your answers are used for two purposes: (1) to configure and personalize SynapsePro for you, and (2) to help the developer understand which features and languages are most useful and how to prioritize future improvements to the Add-On.</p>
+      <p><strong>Your data is never sold, shared with, or passed on to any third parties for their own purposes.</strong> It is stored exclusively in the developer's database at Supabase (the hosting provider), which acts only as a technical service provider on the developer's behalf.</p>
 
       <h4>5. No Account Required</h4>
       <p>SynapsePro does not require you to create an account. No login credentials, email addresses, or personal identifiers are ever collected.</p>
@@ -767,7 +800,7 @@ const T = {
     chooseLanguage: "Choose Your Language",
     whoAreYou: "Who Are You?",
     medicalStudent: "Medical Student", lawStudent: "Law Student",
-    highschoolStudent: "Highschool Student", programmer: "Programmer",
+    highschoolStudent: "High School Student", programmer: "Programmer",
     languageLearner: "Language Learner", other: "Other",
     whereDidYouFind: "Where did you find out about SynapsePro?",
     ankiStore: "Anki Add-On Store", friends: "Friends", google: "Google",
@@ -777,11 +810,11 @@ const T = {
     settingsTipTitle: "Find Your Settings",
     settingsTipText: "You can find all settings by clicking on the SynapsePro logo in the top-left corner of the Anki interface.",
     supportTitle: "Support My Project!",
-    supportText1: "Please keep in mind that this project was created solo by myself to improve everyones Anki Experience. There can be Bugs and occasional Errors.",
+    supportText1: "Please keep in mind that this project was developed by one person to improve everyone's Anki experience. Bugs and occasional errors may occur.",
     supportText2: "Please support this Project with a thumbs up on AnkiWeb if you like it. This is the only motivation for me to further improve this Add-On and keep updating it.",
     thankYou: "Thank you!",
     preparingAddon: "Preparing your SynapsePro...",
-    loadingDone: "✓ SynapsePro is ready!",
+    loadingDone: "✓ SynapsePro is ready!", close: "Close",
   },
   de: {
     welcomeTo: "Willkommen bei", welcomeSub: "Bereit, deine Anki-Erfahrung zu verbessern?",
@@ -804,7 +837,7 @@ const T = {
     supportText2: "Bitte unterstütze dieses Projekt mit einem Daumen hoch auf AnkiWeb. Das ist meine einzige Motivation, das Add-On weiterzuentwickeln.",
     thankYou: "Danke!",
     preparingAddon: "SynapsePro wird vorbereitet...",
-    loadingDone: "✓ SynapsePro ist bereit!",
+    loadingDone: "✓ SynapsePro ist bereit!", close: "Schließen",
   },
   es: {
     welcomeTo: "Bienvenido a", welcomeSub: "¿Listo para mejorar tu experiencia en Anki?",
@@ -827,7 +860,7 @@ const T = {
     supportText2: "Por favor, apoya este proyecto con un pulgar arriba en AnkiWeb si te gusta. Esa es mi única motivación para seguir mejorando.",
     thankYou: "¡Gracias!",
     preparingAddon: "Preparando SynapsePro...",
-    loadingDone: "✓ ¡SynapsePro está listo!",
+    loadingDone: "✓ ¡SynapsePro está listo!", close: "Cerrar",
   },
   pt: {
     welcomeTo: "Bem-vindo ao", welcomeSub: "Pronto para melhorar sua experiência no Anki?",
@@ -850,7 +883,7 @@ const T = {
     supportText2: "Por favor, apoie este projeto com um joinha no AnkiWeb se gostar. Essa é minha única motivação para continuar melhorando.",
     thankYou: "Obrigado!",
     preparingAddon: "Preparando seu SynapsePro...",
-    loadingDone: "✓ SynapsePro está pronto!",
+    loadingDone: "✓ SynapsePro está pronto!", close: "Fechar",
   },
   vi: {
     welcomeTo: "Chào mừng đến với", welcomeSub: "Sẵn sàng nâng cao trải nghiệm Anki của bạn?",
@@ -873,7 +906,7 @@ const T = {
     supportText2: "Hãy ủng hộ dự án này bằng cách thả tim trên AnkiWeb nếu bạn thích. Đó là động lực duy nhất của tôi.",
     thankYou: "Cảm ơn!",
     preparingAddon: "Đang chuẩn bị SynapsePro...",
-    loadingDone: "✓ SynapsePro đã sẵn sàng!",
+    loadingDone: "✓ SynapsePro đã sẵn sàng!", close: "Đóng",
   },
   fr: {
     welcomeTo: "Bienvenue sur", welcomeSub: "Prêt à améliorer votre expérience Anki ?",
@@ -896,7 +929,7 @@ const T = {
     supportText2: "Veuillez soutenir ce projet avec un pouce levé sur AnkiWeb si vous l'aimez. C'est ma seule motivation pour continuer.",
     thankYou: "Merci !",
     preparingAddon: "Préparation de SynapsePro...",
-    loadingDone: "✓ SynapsePro est prêt !",
+    loadingDone: "✓ SynapsePro est prêt !", close: "Fermer",
   },
   hi: {
     welcomeTo: "स्वागत है", welcomeSub: "अपने Anki अनुभव को बेहतर बनाने के लिए तैयार हैं?",
@@ -919,10 +952,10 @@ const T = {
     supportText2: "अगर आपको यह पसंद आया तो AnkiWeb पर थम्स अप देकर इसे सपोर्ट करें। यही मेरी प्रेरणा है।",
     thankYou: "धन्यवाद!",
     preparingAddon: "SynapsePro तैयार हो रहा है...",
-    loadingDone: "✓ SynapsePro तैयार है!",
+    loadingDone: "✓ SynapsePro तैयार है!", close: "बंद करें",
   },
   ko: {
-    welcomeTo: "에 오신 것을 환영합니다", welcomeSub: "Anki 경험을 향상시킬 준비가 되셨나요?",
+    welcomeTo: "환영합니다", welcomeSub: "Anki 경험을 향상시킬 준비가 되셨나요?",
     tosText: "다음에 동의합니다:", tosLink: "서비스 약관",
     getStarted: "시작하기", continue: "계속", start: "시작",
     chooseLanguage: "언어를 선택하세요",
@@ -942,7 +975,7 @@ const T = {
     supportText2: "마음에 드신다면 AnkiWeb에서 좋아요를 눌러 응원해 주세요. 이것이 저의 유일한 동기입니다.",
     thankYou: "감사합니다!",
     preparingAddon: "SynapsePro 준비 중...",
-    loadingDone: "✓ SynapsePro 준비 완료!",
+    loadingDone: "✓ SynapsePro 준비 완료!", close: "닫기",
   },
   zh: {
     welcomeTo: "欢迎使用", welcomeSub: "准备好提升您的 Anki 体验了吗？",
@@ -965,7 +998,7 @@ const T = {
     supportText2: "如果您喜欢，请在 AnkiWeb 上点赞支持。这是我继续改进此插件的唯一动力。",
     thankYou: "谢谢！",
     preparingAddon: "正在准备 SynapsePro...",
-    loadingDone: "✓ SynapsePro 已就绪！",
+    loadingDone: "✓ SynapsePro 已就绪！", close: "关闭",
   }
 };
 
@@ -975,16 +1008,51 @@ const T = {
 let currentScreen = 0;
 let selectedLang = 'en';
 const TOTAL = 6;
+let onboardingExtra = {terms: {}, errors: {}, themes: {}};
+
+window.initOnboarding = function(payload) {
+  onboardingExtra = payload || onboardingExtra;
+  document.documentElement.classList.toggle('dark', !!onboardingExtra.isDark);
+  document.body.classList.toggle('dark', !!onboardingExtra.isDark);
+  applyLang(selectedLang);
+};
+
+function applyTerms(lang) {
+  const item = onboardingExtra.terms && (onboardingExtra.terms[lang] || onboardingExtra.terms.en);
+  if (!item) return;
+  document.getElementById('tos-title').textContent = item.title;
+  const body = document.getElementById('tos-content');
+  body.innerHTML = '<span class="tos-last-updated" id="tos-updated"></span>' + item.html;
+  document.getElementById('tos-updated').textContent = item.updated;
+}
+
+function errorTr(source) {
+  const dict = onboardingExtra.errors && (onboardingExtra.errors[selectedLang] || onboardingExtra.errors.en);
+  return dict && dict[source] ? dict[source] : source;
+}
 
 /* ─────────────────────────────────
    i18n
 ───────────────────────────────── */
 function applyLang(lang) {
   selectedLang = lang;
+  document.documentElement.lang = lang;
   const dict = T[lang] || T['en'];
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
     if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    const key = el.dataset.i18nAria;
+    if (dict[key] !== undefined) el.setAttribute('aria-label', dict[key]);
+  });
+  const themeNames = (onboardingExtra.themes &&
+    (onboardingExtra.themes[lang] || onboardingExtra.themes.en)) || [];
+  document.querySelectorAll('[data-theme-index]').forEach(el => {
+    const index = Number(el.dataset.themeIndex);
+    const name = themeNames[index] || ('Theme ' + (index + 1));
+    el.setAttribute('aria-label', name);
+    el.setAttribute('title', name);
   });
   const tipEl = document.querySelector('[data-i18n="settingsTipText"]');
   if (tipEl) {
@@ -1000,6 +1068,7 @@ function applyLang(lang) {
   }
   const s2 = document.querySelector('[data-i18n="supportText2"]');
   if (s2) s2.textContent = dict['supportText2'] || '';
+  applyTerms(lang);
 }
 
 /* ─────────────────────────────────
@@ -1136,5 +1205,88 @@ function closeTosOnOverlay(e) {
   if (e.target === document.getElementById('tos-overlay')) closeTos();
 }
 </script>
+
+    <script>
+    /* ── SynapsePro global error reporter ─────────────────────────────────
+       Self-contained (inline styles, no page-CSS dependencies): invisible
+       until a JS error occurs, then shows a dismissible banner with the
+       real traceback so users can report actionable bugs instead of
+       "buttons are not working". Never throws itself. */
+    (function() {
+        if (window.__spReportError) return;
+        function isDark() {
+            try {
+                if (document.documentElement.classList.contains('nightMode') || document.body.classList.contains('nightMode')
+                    || document.documentElement.classList.contains('dark') || document.body.classList.contains('dark')) return true;
+                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } catch (e) { return false; }
+        }
+        function ensureBanner() {
+            var b = document.getElementById('sp-error-banner');
+            if (b) return b;
+            if (!document.body) return null;
+            var dark = isDark();
+            b = document.createElement('div');
+            b.id = 'sp-error-banner';
+            b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483000;display:none;'
+                + 'font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:left;'
+                + 'padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,0.25);border-top:2px solid #dc3545;'
+                + (dark ? 'background:#2c2c2c;color:#e0e0e0;' : 'background:#ffffff;color:#333333;');
+            var btnCss = 'margin-right:8px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;border-radius:7px;'
+                + (dark ? 'background:#303030;color:#e0e0e0;border:1px solid #555;' : 'background:#fff;color:#333;border:1px solid #ccc;');
+            var preCss = 'display:none;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+                + 'font-size:11px;border-radius:6px;padding:8px;margin:0 0 8px 0;'
+                + (dark ? 'background:#404040;border:1px solid #555;' : 'background:#f5f5f5;border:1px solid #ccc;');
+            b.innerHTML = '<div style="font-weight:700;color:#dc3545;margin-bottom:4px;">' + errorTr('SynapsePro error') + '</div>'
+                + '<div class="sp-eb-msg" style="margin-bottom:6px;word-break:break-word;"></div>'
+                + '<pre class="sp-eb-pre" style="' + preCss + '"></pre>'
+                + '<div><button type="button" data-spact="details" style="' + btnCss + '">' + errorTr('Show details') + '</button>'
+                + '<button type="button" data-spact="copy" style="' + btnCss + '">' + errorTr('Copy error') + '</button>'
+                + '<button type="button" data-spact="dismiss" style="' + btnCss + '">' + errorTr('Dismiss') + '</button></div>';
+            document.body.appendChild(b);
+            b.addEventListener('click', function(e) {
+                var act = e.target && e.target.getAttribute && e.target.getAttribute('data-spact');
+                if (act === 'dismiss') b.style.display = 'none';
+                if (act === 'details') {
+                    var pre = b.querySelector('.sp-eb-pre');
+                    var open = pre.style.display === 'block';
+                    pre.style.display = open ? 'none' : 'block';
+                    e.target.textContent = open ? errorTr('Show details') : errorTr('Hide details');
+                }
+                if (act === 'copy') {
+                    var text = b.querySelector('.sp-eb-msg').textContent + '\n\n' + b.querySelector('.sp-eb-pre').textContent;
+                    try { navigator.clipboard.writeText(text); e.target.textContent = errorTr('Copied!'); setTimeout(function() { e.target.textContent = errorTr('Copy error'); }, 2000); } catch (err) {}
+                }
+            });
+            return b;
+        }
+        window.__spReportError = function(err, context) {
+            try {
+                var msg = (err && err.message) ? err.message : String(err);
+                var stack = (err && err.stack) ? String(err.stack) : errorTr('(no stack trace available)');
+                console.error('[SynapsePro]' + (context ? ' [' + context + ']' : ''), err);
+                var show = function() {
+                    var b = ensureBanner();
+                    if (!b) return;
+                    b.querySelector('.sp-eb-msg').textContent = (context ? context + ': ' : '') + msg
+                        + ' — ' + errorTr('Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('.sp-eb-pre').textContent = stack;
+                    b.style.display = 'block';
+                };
+                if (document.body) show();
+                else document.addEventListener('DOMContentLoaded', show);
+            } catch (e) { try { console.error('[SynapsePro] error while reporting error', e, err); } catch (e2) {} }
+        };
+        window.addEventListener('error', function(e) {
+            if (e.error && (e.error.message || e.error.stack)) window.__spReportError(e.error, errorTr('Unexpected error'));
+            else console.warn('[SynapsePro] Background browser error:', e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            if (e.reason && e.reason.synapseCritical === true) window.__spReportError(e.reason, errorTr('Unexpected error (async)'));
+            else console.warn('[SynapsePro] Background task rejected:', e.reason);
+            e.preventDefault();
+        });
+    })();
+    </script>
 </body>
 </html>

@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SynapsePro Settings</title>
+<style>
+  :root{
+    /* color-scheme drives how Chromium renders native widgets (e.g. the
+       dropdown popup of <select>). Without it the popup can appear with
+       mismatched colours / odd styling, especially in dark mode. */
+    color-scheme:light;
+    --accent:#0071D3; --accent-press:#004990;
+    --win-bg:#ffffff; --side-bg:#f5f5f7; --content-bg:#ffffff;
+    --group-bg:#ffffff; --group-border:rgba(0,0,0,0.08);
+    --hairline:rgba(0,0,0,0.08); --text:#1d1d1f; --muted:#6e6e73;
+    --chip-hover:rgba(0,0,0,0.05); --field-bg:#f0f0f2; --switch-off:#d8d8dd;
+    --green:#34A853; --green-soft:rgba(52,168,83,0.12); --green-border:rgba(52,168,83,0.35);
+  }
+  html.dark, body.dark{
+    color-scheme:dark;
+    --win-bg:#1c1c1e; --side-bg:#222224; --content-bg:#1c1c1e;
+    --group-bg:#2a2a2c; --group-border:rgba(255,255,255,0.08);
+    --hairline:rgba(255,255,255,0.10); --text:#f5f5f7; --muted:#9a9aa0;
+    --chip-hover:rgba(255,255,255,0.07); --field-bg:#3a3a3c; --switch-off:#48484a;
+    --green:#41C463; --green-soft:rgba(65,196,99,0.14); --green-border:rgba(65,196,99,0.4);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--win-bg);color:var(--text);-webkit-font-smoothing:antialiased;font-size:13px;
+  }
+  .app{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+  .body{display:flex;flex:1;min-height:0;}
+
+  /* sidebar */
+  .sidebar{width:212px;flex-shrink:0;background:var(--side-bg);border-right:1px solid var(--hairline);
+    display:flex;flex-direction:column;padding:14px 10px 10px;}
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px;user-select:none;}
+  .brand img{width:34px;height:34px;border-radius:9px;flex-shrink:0;object-fit:contain;}
+  .brand .name{font-size:14.5px;font-weight:650;letter-spacing:-0.01em;line-height:1.1;}
+  .brand .ver{font-size:11px;color:var(--muted);margin-top:2px;}
+  .nav{display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;
+    font-size:13px;font-weight:500;color:var(--text);user-select:none;}
+  .nav-item .ic{width:17px;height:17px;flex-shrink:0;color:var(--muted);display:flex;}
+  .nav-item:hover{background:var(--chip-hover);}
+  .nav-item.active{background:var(--accent);color:#fff;}
+  .nav-item.active .ic{color:#fff;}
+  .nav-sep{flex:1;}
+  .side-foot{display:flex;align-items:center;padding:6px 6px 2px;}
+  .mode-toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);cursor:pointer;
+    padding:6px 9px;border-radius:8px;}
+  .mode-toggle:hover{background:var(--chip-hover);}
+
+  /* content */
+  .content{flex:1;min-width:0;background:var(--content-bg);overflow:auto;}
+  .page{display:none;padding:28px 32px 34px;}
+  .page.active{display:block;animation:fade .22s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+  .page-title{font-size:23px;font-weight:700;letter-spacing:-0.02em;margin:0 0 4px;}
+  .page-sub{font-size:13px;color:var(--muted);margin:0 0 20px;line-height:1.45;max-width:48ch;}
+  .group-label{font-size:11px;font-weight:650;letter-spacing:0.04em;text-transform:uppercase;
+    color:var(--muted);margin:22px 4px 8px;}
+
+  .group{background:var(--group-bg);border:1px solid var(--group-border);border-radius:11px;overflow:hidden;}
+  .row{display:flex;align-items:center;gap:14px;padding:13px 16px;border-top:1px solid var(--hairline);}
+  .row:first-child{border-top:none;}
+  .row .rl{flex:1;min-width:0;}
+  .row .rt{font-size:14px;font-weight:550;letter-spacing:-0.01em;}
+  .row .rd{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4;}
+  .row .rc{flex-shrink:0;}
+
+  /* switch */
+  .switch{position:relative;display:inline-block;width:42px;height:26px;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:var(--switch-off);border-radius:26px;transition:background .2s;cursor:pointer;}
+  .slider::before{content:"";position:absolute;height:22px;width:22px;left:2px;top:2px;background:#fff;border-radius:50%;
+    transition:transform .2s cubic-bezier(.4,1.3,.5,1);box-shadow:0 1px 3px rgba(0,0,0,0.3);}
+  .switch input:checked + .slider{background:var(--accent);}
+  .switch input:checked + .slider::before{transform:translateX(16px);}
+  .row.mode-locked{opacity:.48;}
+  .row.mode-locked .slider{background:var(--switch-off)!important;cursor:not-allowed;}
+  .row.mode-locked .slider::before{transform:none!important;}
+  .dashboard-lock-note{display:none;margin:10px 4px 0;color:var(--muted);font-size:12px;line-height:1.45;}
+  .dashboard-lock-note.visible{display:block;}
+  .side-controls{display:flex;align-items:center;gap:10px;}
+  .shortcut-btn{appearance:none;-webkit-appearance:none;min-width:112px;max-width:170px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--field-bg);color:var(--muted);
+    border:1px solid transparent;border-radius:8px;padding:6px 10px;font:inherit;font-size:11.5px;font-weight:550;
+    cursor:pointer;text-align:center;}
+  .shortcut-btn:hover,.shortcut-btn:focus{border-color:var(--accent);color:var(--accent);outline:none;}
+  .shortcut-btn.set{color:var(--text);border-color:var(--group-border);}
+
+  /* select — the native <select> stays in the DOM as the value store, but is
+     hidden: QtWebEngine renders the native popup mis-scaled (and it grows a
+     bit more each time it opens). We draw our own dropdown in HTML instead. */
+  select.field{display:none;}
+  .dd-btn{appearance:none;-webkit-appearance:none;background:var(--field-bg);color:var(--text);
+    border:1px solid transparent;border-radius:8px;padding:7px 30px 7px 12px;font-size:13.5px;font-weight:500;cursor:pointer;
+    outline:none;min-width:170px;text-align:left;font-family:inherit;line-height:1.35;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center;}
+  .dd-btn:focus{border-color:var(--accent);}
+  .dd-menu{position:fixed;z-index:9999;background:var(--group-bg);border:1px solid var(--group-border);
+    border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,0.18);padding:5px;overflow-y:auto;overflow-x:hidden;}
+  html.dark .dd-menu, body.dark .dd-menu{box-shadow:0 10px 32px rgba(0,0,0,0.55);}
+  .dd-item{position:relative;padding:6px 12px 6px 26px;border-radius:6px;font-size:13px;font-weight:450;
+    color:var(--text);cursor:pointer;white-space:nowrap;}
+  .dd-item:hover{background:var(--accent);color:#fff;}
+  .dd-item.sel::before{content:"✓";position:absolute;left:9px;top:50%;transform:translateY(-50%);
+    font-size:11px;font-weight:700;}
+  .dd-group{padding:7px 10px 3px;font-size:11px;font-weight:650;letter-spacing:0.03em;text-transform:uppercase;
+    color:var(--muted);cursor:default;}
+
+  .btn{border:none;border-radius:9px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;
+    font-family:inherit;transition:filter .15s ease,background .15s ease;}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{filter:brightness(1.07);}
+  .btn-grey{background:var(--field-bg);color:var(--text);}
+  .btn-grey:hover{background:var(--chip-hover);}
+
+  /* home hero */
+  .hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px 20px 26px;
+    border-radius:14px;background:var(--group-bg);border:1px solid var(--group-border);}
+  .hero img{width:76px;height:76px;border-radius:18px;object-fit:contain;margin-bottom:12px;}
+  .hero h2{margin:0;font-size:21px;font-weight:700;letter-spacing:-0.02em;}
+  .hero .meta{font-size:12.5px;color:var(--muted);margin-top:4px;}
+  .hero .by{font-size:11px;color:var(--muted);opacity:.85;margin-top:1px;}
+  .hero .links{display:flex;gap:10px;margin-top:18px;}
+
+  /* home: community cards (GitHub purple, Reddit orange — subtle tinted
+     borders, only the action button carries the full colour) */
+  .community-strip{display:flex;gap:12px;margin-top:18px;}
+  .comm-card{flex:1;min-width:0;display:flex;align-items:center;gap:12px;
+    border:1px solid var(--group-border);border-radius:11px;padding:13px 16px;}
+  .comm-card .rt{font-weight:700;}
+  .comm-btn{color:#fff;flex-shrink:0;}
+  /* soft tinted backgrounds, same recipe as the green rating CTA */
+  .comm-github{border-color:rgba(110,64,201,0.40);background:rgba(110,64,201,0.11);}
+  .comm-github .comm-btn{background:#6e40c9;}
+  .comm-github .comm-btn:hover{filter:brightness(1.1);}
+  .comm-reddit{border-color:rgba(255,69,0,0.38);background:rgba(255,69,0,0.10);}
+  .comm-reddit .comm-btn{background:#FF4500;}
+  .comm-reddit .comm-btn:hover{filter:brightness(1.08);}
+  html.dark .comm-github, body.dark .comm-github{background:rgba(140,95,225,0.14);}
+  html.dark .comm-reddit, body.dark .comm-reddit{background:rgba(255,90,25,0.13);}
+
+  .cta{margin-top:18px;display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:13px;
+    background:var(--green-soft);border:1px solid var(--green-border);}
+  .cta .thumb{width:44px;height:44px;border-radius:12px;flex-shrink:0;background:var(--green);
+    display:flex;align-items:center;justify-content:center;color:#fff;}
+  /* Home banner (remote, swappable image with an offline fallback) */
+  /* Banner box locked to the image's 1800x1000 (9:5) ratio; padding-bottom hack
+     keeps it working even on older WebEngine builds. */
+  .banner-wrap{position:relative;display:block;width:100%;padding-bottom:55.56%;
+    border-radius:12px;overflow:hidden;background:var(--field-bg);border:1px solid var(--group-border);}
+  .banner{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;
+    opacity:0;transition:opacity .35s ease;}
+  .banner.banner-visible{opacity:1;}
+  .banner-wrap.clickable{cursor:pointer;}
+  .cta .ct{flex:1;}
+  .cta .ct b{font-size:14px;font-weight:650;}
+  .cta .ct p{margin:3px 0 0;font-size:12px;color:var(--muted);line-height:1.4;}
+  .cta .btn{background:var(--green);color:#fff;}
+  .cta .btn:hover{filter:brightness(1.06);}
+
+  /* swatches */
+  .swatches{display:flex;gap:13px;flex-wrap:wrap;align-items:flex-start;}
+  .sw{width:42px;height:42px;border-radius:50%;cursor:pointer;position:relative;border:2px solid transparent;
+    transition:transform .12s;display:flex;align-items:center;justify-content:center;}
+  .sw:hover{transform:scale(1.08);}
+  .sw.sel{box-shadow:0 0 0 2px var(--content-bg),0 0 0 4px currentColor;}
+  .sw svg{opacity:0;color:#fff;transition:opacity .12s;}
+  .sw.sel svg{opacity:1;}
+  .sw .nm{position:absolute;top:47px;left:50%;transform:translateX(-50%);font-size:10.5px;color:var(--muted);white-space:nowrap;}
+
+  /* changelog */
+  .cl-entry{margin-bottom:8px;}
+  .cl-head{display:flex;align-items:baseline;gap:10px;padding:13px 16px 8px;}
+  .cl-ver{font-size:15px;font-weight:700;}
+  .cl-date{font-size:12px;color:var(--muted);}
+  .cl-items{list-style:none;margin:0;padding:0 16px 14px;}
+  .cl-items li{display:flex;align-items:flex-start;gap:10px;padding:6px 0;font-size:13px;line-height:1.45;color:var(--text);}
+  .cl-tag{flex:0 0 72px;border-radius:6px;padding:3px 7px;text-align:center;text-transform:uppercase;
+    font-size:9.5px;font-weight:750;letter-spacing:.035em;background:var(--field-bg);color:var(--muted);}
+  .cl-tag.highlight{background:rgba(0,113,211,.14);color:var(--accent);}
+  .cl-tag.new{background:rgba(52,168,83,.14);color:var(--green);}
+  .cl-tag.improved{background:rgba(255,149,0,.14);color:#b86b00;}
+  html.dark .cl-tag.improved,body.dark .cl-tag.improved{color:#ffb340;}
+  .cl-tag.fix{background:rgba(220,53,69,.13);color:#c93445;}
+  html.dark .cl-tag.fix,body.dark .cl-tag.fix{color:#ff6978;}
+  .cl-text{flex:1;min-width:0;}
+
+  /* support */
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    padding:42px 24px;color:var(--muted);}
+  .empty .ic{width:46px;height:46px;border-radius:50%;background:var(--field-bg);display:flex;align-items:center;
+    justify-content:center;margin-bottom:14px;color:var(--accent);}
+  .empty b{color:var(--text);font-size:15px;font-weight:600;}
+  .empty p{margin:6px 0 0;font-size:13px;max-width:38ch;line-height:1.5;}
+  .supp-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+  .supp-chip{background:var(--field-bg);border-radius:20px;padding:6px 14px;font-size:13px;font-weight:500;}
+  /* Deliberately understated: the list will grow with many supporters. */
+  .supporter-card{padding:13px 16px;}
+  .supporter-card + .supporter-card{border-top:1px solid var(--hairline);}
+  .supporter-name{font-size:13.5px;font-weight:650;color:var(--text);letter-spacing:0.01em;}
+  .supporter-description{margin:3px 0 8px;color:var(--muted);font-size:12px;line-height:1.5;}
+  .supporter-contributions{margin:0;padding-left:18px;color:var(--text);font-size:12.5px;line-height:1.55;}
+  .supporter-note{margin:18px 4px 0;color:var(--muted);font-size:12px;line-height:1.55;max-width:68ch;}
+
+  /* Hidden About page opened by clicking the otherwise ordinary brand block. */
+  .about-card{max-width:760px;}
+  .about-logo-frame{width:100%;aspect-ratio:9/5;border-radius:12px;overflow:hidden;
+    background:var(--field-bg);border:1px solid var(--group-border);}
+  .about-logo-frame img{display:block;width:100%;height:100%;object-fit:contain;}
+  .about-copy{padding:20px;text-align:center;}
+  .about-copy h2{margin:0;font-size:22px;letter-spacing:-.02em;}
+  .about-version{margin:5px 0 12px;color:var(--muted);font-size:12.5px;}
+  .about-credit{margin:0;color:var(--text);font-size:14px;}
+
+  /* footer */
+  .footer{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:11px 18px;
+    border-top:1px solid var(--hairline);background:var(--win-bg);}
+</style>
+<script>
+  var TR = {};
+  function tr(source){ return Object.prototype.hasOwnProperty.call(TR, source) ? TR[source] : source; }
+  function applySynapseTranslations(root){
+    root = root || document;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    var nodes = [], node;
+    while((node = walker.nextNode())) nodes.push(node);
+    nodes.forEach(function(textNode){
+      var parent = textNode.parentElement;
+      if(!parent || /^(SCRIPT|STYLE|CODE|PRE)$/i.test(parent.tagName)) return;
+      var raw = textNode.nodeValue || '', key = raw.trim();
+      if(key && Object.prototype.hasOwnProperty.call(TR, key)){
+        textNode.nodeValue = raw.replace(key, TR[key]);
+      }
+    });
+    root.querySelectorAll('[title],[placeholder],[aria-label],[alt]').forEach(function(el){
+      ['title','placeholder','aria-label','alt'].forEach(function(attr){
+        var value = el.getAttribute(attr);
+        if(value && Object.prototype.hasOwnProperty.call(TR, value)) el.setAttribute(attr, TR[value]);
+      });
+    });
+    if(document.title && Object.prototype.hasOwnProperty.call(TR, document.title)) document.title = TR[document.title];
+  }
+
+  /* Apply dark mode BEFORE the first paint — Anki propagates its theme to the
+     webview via prefers-color-scheme. Without this the page renders one light
+     frame and only turns dark once Python calls initSettings() (white flash).
+     initSettings(isDark) remains authoritative and can override this. */
+  try{
+    if(window.matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.classList.add('dark');
+  }catch(e){}
+</script>
+</head>
+<body>
+  <div class="app">
+    <div class="body">
+      <aside class="sidebar">
+        <div class="brand" id="brandBlock">
+          <img id="brandLogo" alt="">
+          <div>
+            <div class="name" id="brandName">SynapsePro</div>
+            <div class="ver" id="brandVer">Version</div>
+          </div>
+        </div>
+        <nav class="nav" id="nav">
+          <div class="nav-item active" data-page="general"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><circle cx="9" cy="7" r="2.3"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="15" cy="17" r="2.3"/></svg></span>General</div>
+          <div class="nav-item" data-page="news"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-6v14L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span>News</div>
+          <div class="nav-item" data-page="appearance"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg></span>Appearance</div>
+          <div class="nav-item" data-page="dashboard"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Dashboard</div>
+          <div class="nav-item" data-page="deck"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Deck Overview</div>
+          <div class="nav-item" data-page="sidebar"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg></span>Sidebar</div>
+          <div class="nav-sep"></div>
+          <div class="nav-item" data-page="changelog"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h9"/><path d="M9 12h9"/><path d="M9 19h9"/><circle cx="4.5" cy="5" r="1.3"/><circle cx="4.5" cy="12" r="1.3"/><circle cx="4.5" cy="19" r="1.3"/></svg></span>Changelog</div>
+          <div class="nav-item" data-page="support"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.2l-1.7-1.6a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z"/></svg></span>Supporters</div>
+        </nav>
+      </aside>
+
+      <main class="content" id="content">
+        <!-- HOME -->
+        <!-- NEWS -->
+        <section class="page" data-page="news">
+          <h1 class="page-title">News</h1>
+          <p class="page-sub">Announcements, tips and updates from SynapsePro.</p>
+          <a class="banner-wrap" id="bannerWrap"><img id="homeBanner" class="banner" alt=""></a>
+        </section>
+
+        <!-- GENERAL -->
+        <section class="page active" data-page="general">
+          <h1 class="page-title">General</h1>
+          <p class="page-sub">Language, daily facts, the statistics range and when the sidebar is shown.</p>
+          <div class="group">
+            <div class="row">
+              <div class="rl"><div class="rt">Language</div><div class="rd">Interface language. “Auto” follows your Anki language.</div></div>
+              <div class="rc"><select class="field" id="language">
+                <option value="auto">Auto</option><option value="en">English</option><option value="de">Deutsch</option>
+                <option value="es">Español</option><option value="fr">Français</option><option value="pt">Português</option>
+                <option value="vi">Tiếng Việt</option><option value="ko">한국어</option><option value="zh">中文</option><option value="hi">हिन्दी</option>
+              </select></div>
+            </div>
+            <div class="row">
+              <div class="rl"><div class="rt">Daily Fact Topic</div><div class="rd">Subject the daily fact on the home screen is drawn from.</div></div>
+              <div class="rc"><select class="field" id="fact_theme">
+                <option value="Medical">Medical</option><option value="Law">Law</option><option value="General">General</option><option value="Countries">Countries</option>
+              </select></div>
+            </div>
+            <div class="row">
+              <div class="rl"><div class="rt">Statistics Time Range</div><div class="rd">Period covered by the statistics widget.</div></div>
+              <div class="rc"><select class="field" id="stats_time_range">
+                <option value="1">Last 24 Hours</option><option value="7">Last 7 Days</option><option value="30">Last 30 Days</option>
+              </select></div>
+            </div>
+            <div class="row">
+              <div class="rl"><div class="rt">Sidebar Visibility</div><div class="rd">Show the launcher always, or hide it while you review.</div></div>
+              <div class="rc"><select class="field" id="sidebar_visibility">
+                <option value="always_show">Always Show</option><option value="hide_review">Hide while Reviewing</option>
+              </select></div>
+            </div>
+          </div>
+
+          <div class="community-strip">
+            <div class="comm-card comm-github">
+              <div class="rl"><div class="rt">GitHub</div><div class="rd">Source code, issues and contributions.</div></div>
+              <button class="btn comm-btn" onclick="openUrl('https://github.com/mobesamedia/SynapsePro')">Open</button>
+            </div>
+            <div class="comm-card comm-reddit">
+              <div class="rl"><div class="rt">Reddit</div><div class="rd">Join the community on r/SynapseProAnki.</div></div>
+              <button class="btn comm-btn" onclick="openUrl('https://www.reddit.com/r/SynapseProAnki/')">Join</button>
+            </div>
+          </div>
+
+          <div class="cta" style="margin-top:18px;">
+            <div class="thumb"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M2 10.5A1.5 1.5 0 0 1 3.5 9H6v11H3.5A1.5 1.5 0 0 1 2 18.5v-8zM8 9.2l4.2-6.3a1.6 1.6 0 0 1 2.9 1.1L14.4 9H20a2 2 0 0 1 2 2.3l-1.2 7A2.4 2.4 0 0 1 18.4 20H8V9.2z"/></svg></div>
+            <div class="ct">
+              <b>Enjoying SynapsePro and got 5 seconds?</b>
+              <p>Leaving a thumbs up on AnkiWeb supports development the most. Thank you so much!</p>
+            </div>
+            <button class="btn" onclick="openUrl('https://ankiweb.net/shared/review/236979321')">Rate on AnkiWeb</button>
+          </div>
+        </section>
+
+        <!-- APPEARANCE -->
+        <section class="page" data-page="appearance">
+          <h1 class="page-title">Appearance</h1>
+          <p class="page-sub">Choose the accent colour used across SynapsePro and the background style.</p>
+          <div class="group-label">Color Theme</div>
+          <div class="group">
+            <div class="row" style="display:block;">
+              <div class="rd" style="margin:0 0 18px;">Accent colour for buttons, highlights and widgets. Pick one to preview it live.</div>
+              <div class="swatches" id="swatches"></div>
+              <div style="margin-top:42px;"><button class="btn btn-grey" onclick="bridge('editTheme')">Edit Theme ✎</button></div>
+            </div>
+          </div>
+          <div class="group-label">Background</div>
+          <div class="group">
+            <div class="row">
+              <div class="rl"><div class="rt">Background Style</div><div class="rd">Overall background of the add-on screens.</div></div>
+              <div class="rc"><select class="field" id="background_style"></select></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- DASHBOARD -->
+        <section class="page" data-page="dashboard">
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-sub">Widgets shown on the Anki home screen (the deck list).</p>
+          <div class="group" id="minimalGroup"></div>
+          <div style="height:12px"></div>
+          <div class="group" id="dashGroup"></div>
+          <p class="dashboard-lock-note" id="dashboardLockNote">Individual dashboard widgets are unavailable while Minimalist Dashboard is enabled.</p>
+        </section>
+
+        <!-- DECK -->
+        <section class="page" data-page="deck">
+          <h1 class="page-title">Deck Overview</h1>
+          <p class="page-sub">The screen shown after you click a deck, before studying.</p>
+          <div class="group" id="deckGroup"></div>
+        </section>
+
+        <!-- SIDEBAR -->
+        <section class="page" data-page="sidebar">
+          <h1 class="page-title">Sidebar</h1>
+          <p class="page-sub">Tools available in the launcher bar on the side of Anki.</p>
+          <div class="group" id="sideGroup"></div>
+          <p class="rd" style="margin:12px 4px 0;">Shortcuts apply immediately after saving. Restart Anki after enabling or disabling sidebar tools.</p>
+        </section>
+
+        <!-- CHANGELOG -->
+        <section class="page" data-page="changelog">
+          <h1 class="page-title">Changelog</h1>
+          <p class="page-sub">What changed in recent versions of SynapsePro.</p>
+          <div id="changelogBody"></div>
+        </section>
+
+        <!-- SUPPORTERS -->
+        <section class="page" data-page="support">
+          <h1 class="page-title">Supporters</h1>
+          <p class="page-sub">The people who help keep SynapsePro going.</p>
+          <div class="group"><div id="supportBody"></div></div>
+          <p class="supporter-note" id="supportersNote"></p>
+        </section>
+
+        <!-- ABOUT (opened only through the brand Easter egg) -->
+        <section class="page" data-page="about">
+          <h1 class="page-title">About SynapsePro</h1>
+          <p class="page-sub">General information about SynapsePro.</p>
+          <div class="group about-card">
+            <div class="about-logo-frame" id="aboutLogoFrame" hidden>
+              <img id="aboutLogo" width="1800" height="1000" alt="MobesaMedia">
+            </div>
+            <div class="about-copy">
+              <h2>SynapsePro</h2>
+              <p class="about-version" id="aboutVersion">Version</p>
+              <p class="about-credit">Designed and created by MobesaMedia from Germany.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="footer">
+      <button class="btn btn-grey" onclick="bridge('cancel')">Cancel</button>
+      <button class="btn btn-primary" onclick="save()">Save Settings</button>
+    </div>
+  </div>
+
+<script>
+  var PRESETS = [
+    ['ocean','Ocean','#0071D3','#004990'],
+    ['orchid','Orchid','#E95ACC','#CB51B3'],
+    ['forest','Forest','#619971','#477154'],
+    ['deluge','Deluge','#7961A9','#65508D'],
+    ['horizon','Horizon','#6183A9','#4B6683'],
+    ['dusty','Dusty','#5A9491','#4E8280'],
+  ];
+  var DASH = [
+    ['gamification_widgets_enabled','Gamification Widgets','Your level, XP and daily streak.'],
+    ['daily_widgets_enabled','Daily Widgets','Your study plan and the daily fact.'],
+    ['deadline_bar_enabled','Deadline Bar','A countdown bar towards your exam or deadline.'],
+    ['statistics_widget_enabled','Advanced Statistics','An extra panel with detailed review statistics.'],
+  ];
+  var MINIMAL_DASH = [
+    ['minimal_dashboard_enabled','Minimalist Dashboard','Shows level, streak, challenge, study plan, deadline and key statistics in one compact panel.'],
+  ];
+  var DECK = [
+    ['deck_overview_enabled','Custom Deck Dashboard','Replaces the standard overview with retention, hard cards and more.'],
+  ];
+  var SIDE = [
+    ['mindmap_enabled','Mind Map','A visual mind-mapping panel.'],
+    ['gamification_sidebar_enabled','Gamification Sidebar','Progress, rewards and motivation panel.'],
+    ['music_player_enabled','Music Player','Background music while you study.'],
+    ['pomodoro_enabled','Pomodoro Timer','A focus timer with work and break intervals.'],
+    ['ai_assistant_enabled','AI Assistant','Chat assistant that can explain your cards.'],
+    ['website_viewer_enabled','Website Viewer','Open websites in a panel without leaving Anki.'],
+    ['notebook_enabled','Notebook','Notes, to-dos and PDFs alongside your cards.'],
+  ];
+
+  var _logos = {}, _activeTheme = 'ocean';
+  var _shortcutValues = {}, _shortcutDisplays = {};
+
+  function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function bridge(action, payload){ try{ console.log('SYNAPSEPRO_SETTINGS:'+action+(payload!==undefined?(':'+payload):'')); }catch(e){} }
+  function openUrl(u){ bridge('openUrl', u); }
+
+  function toggleRow(key,title,desc,on,withShortcut){
+    var controls = '<label class="switch"><input type="checkbox" data-key="'+key+'" '+(on?'checked':'')+'><span class="slider"></span></label>';
+    if(withShortcut){
+      var shortcut = _shortcutDisplays[key] || _shortcutValues[key] || '';
+      controls += '<button type="button" class="shortcut-btn'+(shortcut?' set':'')+'" data-shortcut-key="'+key+'" title="'+esc(tr('Set keyboard shortcut'))+'">'+esc(shortcut || tr('Add Shortcut'))+'</button>';
+    }
+    return '<div class="row" data-setting-key="'+esc(key)+'"><div class="rl"><div class="rt">'+esc(title)+'</div><div class="rd">'+esc(desc)+'</div></div>'+
+      '<div class="rc'+(withShortcut?' side-controls':'')+'">'+controls+'</div></div>';
+  }
+  function renderToggles(id, defs, cfg, withShortcuts){
+    var group = document.getElementById(id);
+    group.innerHTML = defs.map(function(d){
+      var on = cfg && (d[0] in cfg) ? !!cfg[d[0]] : true;
+      return toggleRow(d[0], tr(d[1]), tr(d[2]), on, !!withShortcuts);
+    }).join('');
+    if(withShortcuts){
+      Array.prototype.forEach.call(group.querySelectorAll('.shortcut-btn'), function(btn){
+        btn.addEventListener('click', function(){ bridge('editShortcut', btn.dataset.shortcutKey); });
+      });
+    }
+  }
+
+  function syncMinimalDashboardControls(){
+    var minimal = document.querySelector('input[data-key="minimal_dashboard_enabled"]');
+    var locked = !!(minimal && minimal.checked);
+    DASH.forEach(function(def){
+      var cb = document.querySelector('input[data-key="'+def[0]+'"]');
+      if(!cb) return;
+      cb.disabled = locked;
+      var row = cb.closest('.row');
+      if(row) row.classList.toggle('mode-locked', locked);
+    });
+    var note = document.getElementById('dashboardLockNote');
+    if(note) note.classList.toggle('visible', locked);
+  }
+
+  window.setSidebarShortcut = function(data){
+    if(!data || !data.key) return;
+    if(data.value) _shortcutValues[data.key] = data.value;
+    else delete _shortcutValues[data.key];
+    if(data.display) _shortcutDisplays[data.key] = data.display;
+    else delete _shortcutDisplays[data.key];
+    var btn = document.querySelector('.shortcut-btn[data-shortcut-key="'+data.key+'"]');
+    if(btn){
+      var label = data.display || data.value || '';
+      btn.textContent = label || tr('Add Shortcut');
+      btn.classList.toggle('set', !!label);
+    }
+  };
+
+  function buildSwatches(){
+    document.getElementById('swatches').innerHTML = PRESETS.map(function(p){
+      return '<div class="sw" data-key="'+p[0]+'" data-c="'+p[2]+'" data-p="'+p[3]+'" style="background:'+p[2]+';color:'+p[2]+'">'+
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'+
+        '<span class="nm">'+esc(tr(p[1]))+'</span></div>';
+    }).join('');
+    document.querySelectorAll('.sw').forEach(function(sw){
+      sw.addEventListener('click', function(){ selectTheme(sw.dataset.key, sw.dataset.c, sw.dataset.p); });
+    });
+  }
+  function selectTheme(key, c, p){
+    _activeTheme = key;
+    document.querySelectorAll('.sw').forEach(function(s){ s.classList.toggle('sel', s.dataset.key===key); });
+    applyAccent(c, p);
+    setLogo(key);
+  }
+  function applyAccent(c, p){
+    document.documentElement.style.setProperty('--accent', c);
+    document.documentElement.style.setProperty('--accent-press', p);
+  }
+  function setLogo(key){
+    var uri = _logos[key] || _logos.ocean || '';
+    var bl = document.getElementById('brandLogo');
+    if(uri && bl){ bl.src = uri; }
+  }
+  // Called from Python after the native colour editor is used.
+  window.applyCustomTheme = function(data){
+    _activeTheme = 'custom';
+    document.querySelectorAll('.sw').forEach(function(s){ s.classList.remove('sel'); });
+    applyAccent(data.accent, data.accentPress);
+    setLogo('custom');
+  };
+
+  function renderChangelog(list){
+    var el = document.getElementById('changelogBody');
+    if(!list || !list.length){ el.innerHTML = '<div class="empty"><b>'+esc(tr('No changelog yet'))+'</b></div>'; return; }
+    el.innerHTML = list.map(function(e){
+      var items = (e.items||[]).map(function(i){
+        var item = (i && typeof i === 'object') ? i : {text:i};
+        var tag = item.tag || '';
+        var cls = /^(Highlight|New|Improved|Fix)$/.test(tag) ? tag.toLowerCase() : '';
+        return '<li>'+(tag?'<span class="cl-tag '+cls+'">'+esc(tag)+'</span>':'')+
+          '<span class="cl-text">'+esc(item.text||'')+'</span></li>';
+      }).join('');
+      return '<div class="group cl-entry"><div class="cl-head"><span class="cl-ver">'+esc(e.version||'')+'</span>'+
+        (e.date?'<span class="cl-date">'+esc(e.date)+'</span>':'')+'</div><ul class="cl-items">'+items+'</ul></div>';
+    }).join('');
+  }
+
+  function renderSupport(list, note){
+    var el = document.getElementById('supportBody');
+    if(list && list.length){
+      el.innerHTML = list.map(function(s){
+        var contributions = (s.contributions||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
+        return '<article class="supporter-card"><div class="supporter-name">'+esc(s.name||'')+'</div>'+
+          '<p class="supporter-description">'+esc(s.description||'')+'</p>'+
+          (contributions?'<ul class="supporter-contributions">'+contributions+'</ul>':'')+'</article>';
+      }).join('');
+    } else {
+      el.innerHTML = '<div class="empty"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.2l-1.7-1.6a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z"/></svg></div>'+
+        '<b>'+esc(tr('Supporters will be listed here soon'))+'</b><p>'+esc(tr('A heartfelt thank you to everyone who supports SynapsePro. This space is reserved for you.'))+'</p></div>';
+    }
+    document.getElementById('supportersNote').textContent = note || '';
+  }
+
+  // Home banner without the "flash of fallback": the <img> starts invisible.
+  // The remote image gets a short head start (BANNER_GRACE_MS); if it loads
+  // in time it fades in directly and the offline fallback is never shown.
+  // Only when the remote image is slow/unreachable does the fallback fade in,
+  // and a late-arriving remote image then replaces it via a soft cross-fade.
+  var BANNER_GRACE_MS = 900;
+  var _bannerShown = false;   // something is currently displayed
+  var _bannerRemote = false;  // the displayed image is the remote one
+
+  function _bannerImg(){ return document.getElementById('homeBanner'); }
+
+  function _fadeInBanner(src){
+    var img = _bannerImg();
+    if(!img) return;
+    img.onload = function(){ img.classList.add('banner-visible'); };
+    img.src = src;
+    _bannerShown = true;
+  }
+
+  function _crossSwapBanner(src){
+    var img = _bannerImg();
+    if(!img) return;
+    img.classList.remove('banner-visible');
+    setTimeout(function(){ _fadeInBanner(src); }, 260);
+  }
+
+  function _showRemote(src){
+    if(_bannerRemote) return;
+    _bannerRemote = true;
+    if(_bannerShown){ _crossSwapBanner(src); }
+    else{ _fadeInBanner(src); }
+  }
+
+  function _showFallback(fallback){
+    if(_bannerShown || !fallback) return;
+    _fadeInBanner(fallback);
+  }
+
+  function _probeBanner(url, onOk, onFail){
+    var probe = new Image();
+    probe.onload = function(){ onOk(url); };
+    probe.onerror = function(){ if(onFail) onFail(); };
+    probe.src = url;
+  }
+
+  function _setBannerLink(link){
+    var wrap = document.getElementById('bannerWrap');
+    if(!wrap || !link) return;
+    wrap.classList.add('clickable');
+    wrap.onclick = function(){ openUrl(link); };
+  }
+
+  function loadBanner(b){
+    var img = _bannerImg();
+    var wrap = document.getElementById('bannerWrap');
+    if(!img || !wrap) return;
+    var fallback = b.fallback || '';
+    _setBannerLink(b.link);
+    if(!fallback && !b.url){ wrap.style.display = 'none'; return; }
+
+    if(b.url){
+      _probeBanner(b.url, _showRemote, function(){ _showFallback(fallback); });
+      // Fallback only appears if the remote image hasn't made it in time.
+      setTimeout(function(){ _showFallback(fallback); }, BANNER_GRACE_MS);
+    } else {
+      _showFallback(fallback);
+    }
+  }
+
+  // Remote override pushed from Python (home_banner.json on the website):
+  // may replace the click target and/or the banner image without an update.
+  function updateBanner(cfg){
+    if(!cfg) return;
+    if(cfg.link){ _setBannerLink(cfg.link); }
+    if(cfg.image){
+      _probeBanner(cfg.image, function(src){
+        _bannerRemote = false;   // allow replacing an earlier remote image
+        _showRemote(src);
+      });
+    }
+  }
+  window.updateBanner = updateBanner;
+
+  function setSelect(id, value){
+    var el = document.getElementById(id); if(!el) return;
+    var v = String(value);
+    for(var i=0;i<el.options.length;i++){ if(el.options[i].value===v){ el.selectedIndex=i; break; } }
+    if(el._ddBtn) el._ddBtn.textContent = ddLabel(el);
+  }
+
+  // ── custom dropdowns ──
+  // QtWebEngine draws the native <select> popup mis-scaled and it keeps
+  // growing on every open, so we render the popup ourselves in HTML.
+  var _ddOpen = null;
+  function ddLabel(sel){
+    var o = sel.options[sel.selectedIndex];
+    return o ? o.textContent : '';
+  }
+  function closeDD(){
+    if(!_ddOpen) return;
+    if(_ddOpen.menu.parentNode) _ddOpen.menu.parentNode.removeChild(_ddOpen.menu);
+    _ddOpen = null;
+  }
+  function ddItem(sel, btn, o){
+    var d = document.createElement('div');
+    d.className = 'dd-item' + (o.selected ? ' sel' : '');
+    d.textContent = o.textContent;
+    d.addEventListener('click', function(){
+      sel.value = o.value;
+      btn.textContent = o.textContent;
+      closeDD();
+      sel.dispatchEvent(new Event('change'));
+    });
+    return d;
+  }
+  function openDD(sel, btn){
+    closeDD();
+    var menu = document.createElement('div');
+    menu.className = 'dd-menu';
+    Array.prototype.forEach.call(sel.children, function(node){
+      if(node.tagName === 'OPTGROUP'){
+        var g = document.createElement('div'); g.className = 'dd-group'; g.textContent = node.label;
+        menu.appendChild(g);
+        Array.prototype.forEach.call(node.children, function(o){ menu.appendChild(ddItem(sel, btn, o)); });
+      } else if(node.tagName === 'OPTION'){
+        menu.appendChild(ddItem(sel, btn, node));
+      }
+    });
+    menu.addEventListener('click', function(e){ e.stopPropagation(); });
+    menu.style.maxHeight = '320px';
+    document.body.appendChild(menu);
+    var r = btn.getBoundingClientRect();
+    menu.style.minWidth = r.width + 'px';
+    var h = menu.offsetHeight;
+    var spaceBelow = window.innerHeight - r.bottom - 10;
+    var spaceAbove = r.top - 10;
+    if(h <= spaceBelow){ menu.style.top = (r.bottom + 4) + 'px'; }
+    else if(h <= spaceAbove){ menu.style.top = (r.top - h - 4) + 'px'; }
+    else if(spaceBelow >= spaceAbove){ menu.style.maxHeight = spaceBelow + 'px'; menu.style.top = (r.bottom + 4) + 'px'; }
+    else { menu.style.maxHeight = spaceAbove + 'px'; menu.style.top = '10px'; }
+    var left = Math.min(r.left, window.innerWidth - menu.offsetWidth - 10);
+    menu.style.left = Math.max(8, left) + 'px';
+    var s = menu.querySelector('.dd-item.sel');
+    if(s && s.scrollIntoView) s.scrollIntoView({block:'nearest'});
+    _ddOpen = {menu:menu, sel:sel};
+  }
+  function enhanceSelects(){
+    document.querySelectorAll('select.field').forEach(function(sel){
+      if(sel._ddBtn) return;
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'dd-btn';
+      btn.textContent = ddLabel(sel);
+      sel.parentNode.insertBefore(btn, sel);
+      sel._ddBtn = btn;
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        if(_ddOpen && _ddOpen.sel === sel){ closeDD(); } else { openDD(sel, btn); }
+      });
+    });
+  }
+  document.addEventListener('click', closeDD);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeDD(); });
+  window.addEventListener('resize', closeDD);
+  // Close when the page behind scrolls — but NOT when scrolling inside the
+  // open menu itself, otherwise long option lists become unusable.
+  document.addEventListener('scroll', function(e){
+    if(_ddOpen && e.target && _ddOpen.menu.contains(e.target)) return;
+    closeDD();
+  }, true);
+
+  // ── Python entry point ──
+  window.initSettings = function(data){
+    try{
+      data = data || {}; var cfg = data.config || {};
+      TR = (data.translations && typeof data.translations === 'object') ? data.translations : {};
+      applySynapseTranslations(document);
+      if(data.isDark){ document.documentElement.classList.add('dark'); document.body.classList.add('dark'); }
+      else{ document.documentElement.classList.remove('dark'); document.body.classList.remove('dark'); }
+
+      document.getElementById('brandName').textContent = data.displayName || 'SynapsePro';
+      var ver = data.version ? (tr('Version')+' '+data.version) : tr('Version');
+      document.getElementById('brandVer').textContent = ver;
+
+      _logos = data.logos || {};
+      _activeTheme = cfg.active_color_theme || 'ocean';
+      _shortcutValues = (cfg.sidebar_shortcuts && typeof cfg.sidebar_shortcuts === 'object') ? Object.assign({}, cfg.sidebar_shortcuts) : {};
+      _shortcutDisplays = (data.shortcutDisplays && typeof data.shortcutDisplays === 'object') ? Object.assign({}, data.shortcutDisplays) : {};
+      applyAccent(data.accent || '#0071D3', data.accentPress || '#004990');
+
+      // background style options (gradients only)
+      var bg = document.getElementById('background_style');
+      var themes = data.backgroundThemes || [];
+      bg.innerHTML = themes.map(function(t){
+        return '<option value="'+esc(t.value)+'">'+esc(t.label)+'</option>';
+      }).join('');
+
+      // selects
+      enhanceSelects();
+      setSelect('language', cfg.language || 'auto');
+      setSelect('fact_theme', cfg.fact_theme || 'Medical');
+      setSelect('stats_time_range', cfg.stats_time_range != null ? cfg.stats_time_range : 7);
+      setSelect('sidebar_visibility', cfg.sidebar_visibility_mode || 'always_show');
+      setSelect('background_style', cfg.active_theme || 'medical_theme.css');
+
+      // toggles
+      renderToggles('minimalGroup', MINIMAL_DASH, cfg);
+      renderToggles('dashGroup', DASH, cfg);
+      renderToggles('deckGroup', DECK, cfg);
+      renderToggles('sideGroup', SIDE, cfg, true);
+      var minimalToggle = document.querySelector('input[data-key="minimal_dashboard_enabled"]');
+      if(minimalToggle) minimalToggle.addEventListener('change', syncMinimalDashboardControls);
+      syncMinimalDashboardControls();
+
+      // swatches + logo
+      buildSwatches();
+      document.querySelectorAll('.sw').forEach(function(s){ s.classList.toggle('sel', s.dataset.key===_activeTheme); });
+      setLogo(_activeTheme);
+
+      renderChangelog(data.changelog);
+      renderSupport(data.supporters, data.supportersNote);
+
+      var aboutVersion = document.getElementById('aboutVersion');
+      aboutVersion.textContent = data.version ? ('Version '+data.version) : 'Version';
+      if(data.aboutLogo){
+        document.getElementById('aboutLogo').src = data.aboutLogo;
+        document.getElementById('aboutLogoFrame').hidden = false;
+      }
+      // The banner lives on the News tab; loading it here means it is
+      // already in place (no flash) by the time the tab is opened.
+      loadBanner(data.banner || {});
+    }catch(e){ console.log('SYNAPSEPRO_SETTINGS:err:'+e); }
+  };
+
+  function val(id){ var el=document.getElementById(id); return el?el.value:''; }
+  function collect(){
+    var out = {
+      language: val('language'),
+      fact_theme: val('fact_theme'),
+      stats_time_range: Number(val('stats_time_range')) || 7,
+      sidebar_visibility_mode: val('sidebar_visibility'),
+      active_theme: val('background_style'),
+      active_color_theme: _activeTheme || 'ocean',
+      custom_bg_light: '#f5f5f7',
+      custom_bg_dark: '#1f1f21',
+      sidebar_shortcuts: Object.assign({}, _shortcutValues)
+    };
+    document.querySelectorAll('input[type=checkbox][data-key]').forEach(function(cb){ out[cb.dataset.key]=cb.checked; });
+    return out;
+  }
+  function save(){ bridge('save', JSON.stringify(collect())); }
+
+  // navigation
+  function gotoPage(p){
+    document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.toggle('active', n.dataset.page===p); });
+    document.querySelectorAll('.page').forEach(function(pg){ pg.classList.toggle('active', pg.dataset.page===p); });
+    document.getElementById('content').scrollTop = 0;
+  }
+  document.querySelectorAll('.nav-item').forEach(function(it){
+    it.addEventListener('click', function(){ gotoPage(it.dataset.page); });
+  });
+  document.getElementById('brandBlock').addEventListener('click', function(){ gotoPage('about'); });
+  // tell Python we're ready (Python also injects on loadFinished as a backup)
+  document.addEventListener('DOMContentLoaded', function(){ enhanceSelects(); bridge('ready'); });
+</script>
+
+    <script>
+    /* ── SynapsePro global error reporter ─────────────────────────────────
+       Self-contained (inline styles, no page-CSS dependencies): invisible
+       until a JS error occurs, then shows a dismissible banner with the
+       real traceback so users can report actionable bugs instead of
+       "buttons are not working". Never throws itself. */
+    (function() {
+        if (window.__spReportError) return;
+        function isDark() {
+            try {
+                if (document.documentElement.classList.contains('nightMode') || document.body.classList.contains('nightMode')
+                    || document.documentElement.classList.contains('dark') || document.body.classList.contains('dark')) return true;
+                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } catch (e) { return false; }
+        }
+        function ensureBanner() {
+            var b = document.getElementById('sp-error-banner');
+            if (b) return b;
+            if (!document.body) return null;
+            var dark = isDark();
+            b = document.createElement('div');
+            b.id = 'sp-error-banner';
+            b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483000;display:none;'
+                + 'font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:left;'
+                + 'padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,0.25);border-top:2px solid #dc3545;'
+                + (dark ? 'background:#2c2c2c;color:#e0e0e0;' : 'background:#ffffff;color:#333333;');
+            var btnCss = 'margin-right:8px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;border-radius:7px;'
+                + (dark ? 'background:#303030;color:#e0e0e0;border:1px solid #555;' : 'background:#fff;color:#333;border:1px solid #ccc;');
+            var preCss = 'display:none;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+                + 'font-size:11px;border-radius:6px;padding:8px;margin:0 0 8px 0;'
+                + (dark ? 'background:#404040;border:1px solid #555;' : 'background:#f5f5f5;border:1px solid #ccc;');
+            b.innerHTML = '<div style="font-weight:700;color:#dc3545;margin-bottom:4px;">'+tr('SynapsePro error')+'</div>'
+                + '<div class="sp-eb-msg" style="margin-bottom:6px;word-break:break-word;"></div>'
+                + '<pre class="sp-eb-pre" style="' + preCss + '"></pre>'
+                + '<div><button type="button" data-spact="details" style="' + btnCss + '">'+tr('Show details')+'</button>'
+                + '<button type="button" data-spact="copy" style="' + btnCss + '">'+tr('Copy error')+'</button>'
+                + '<button type="button" data-spact="dismiss" style="' + btnCss + '">'+tr('Dismiss')+'</button></div>';
+            document.body.appendChild(b);
+            b.addEventListener('click', function(e) {
+                var act = e.target && e.target.getAttribute && e.target.getAttribute('data-spact');
+                if (act === 'dismiss') b.style.display = 'none';
+                if (act === 'details') {
+                    var pre = b.querySelector('.sp-eb-pre');
+                    var open = pre.style.display === 'block';
+                    pre.style.display = open ? 'none' : 'block';
+                    e.target.textContent = open ? tr('Show details') : tr('Hide details');
+                }
+                if (act === 'copy') {
+                    var text = b.querySelector('.sp-eb-msg').textContent + '\n\n' + b.querySelector('.sp-eb-pre').textContent;
+                    var copyButton = e.target;
+                    try {
+                        var result = navigator.clipboard && navigator.clipboard.writeText
+                            ? navigator.clipboard.writeText(text) : null;
+                        if(result && typeof result.then === 'function'){
+                            result.then(function(){
+                                copyButton.textContent = tr('Copied!');
+                                setTimeout(function(){ copyButton.textContent = tr('Copy error'); }, 2000);
+                            }).catch(function(){ /* Clipboard permission is optional in QtWebEngine. */ });
+                        }
+                    } catch (err) { /* Do not turn an optional clipboard denial into an add-on error. */ }
+                }
+            });
+            return b;
+        }
+        window.__spReportError = function(err, context) {
+            try {
+                var msg = (err && err.message) ? err.message : String(err);
+                var stack = (err && err.stack) ? String(err.stack) : tr('(no stack trace available)');
+                console.error('[SynapsePro]' + (context ? ' [' + context + ']' : ''), err);
+                var show = function() {
+                    var b = ensureBanner();
+                    if (!b) return;
+                    b.querySelector('.sp-eb-msg').textContent = (context ? context + ': ' : '') + msg
+                        + ' — ' + tr('Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('.sp-eb-pre').textContent = stack;
+                    b.style.display = 'block';
+                };
+                if (document.body) show();
+                else document.addEventListener('DOMContentLoaded', show);
+            } catch (e) { try { console.error('[SynapsePro] error while reporting error', e, err); } catch (e2) {} }
+        };
+        window.addEventListener('error', function(e) {
+            if (e.error && (e.error.message || e.error.stack)) window.__spReportError(e.error, tr('Unexpected error'));
+            else console.warn('[SynapsePro] Background browser error:', e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            if (e.reason && e.reason.synapseCritical === true) window.__spReportError(e.reason, tr('Unexpected error (async)'));
+            else console.warn('[SynapsePro] Background task rejected:', e.reason);
+            e.preventDefault();
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -4,6 +4,63 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Pro Mind Map Tool - Complete (Dark Mode & Optimized Learning)</title>
+    <script>
+      (function () {
+        const root = document.documentElement;
+        if (window.__SYNAPSE_MM_DARK__ ||
+            (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          root.classList.add('dark');
+        }
+        // These values are injected at DocumentCreation, before the first
+        // paint. The map therefore never renders once with the default blue.
+        if (window.__SYNAPSE_MM_ACCENT__) {
+          root.style.setProperty('--primary-color', window.__SYNAPSE_MM_ACCENT__);
+          root.style.setProperty(
+            '--primary-color-dark',
+            window.__SYNAPSE_MM_ACCENT_PRESSED__ || window.__SYNAPSE_MM_ACCENT__
+          );
+        }
+
+        const bootState = { layout: false, theme: false, revealing: false };
+        const bootStartedAt = performance.now();
+
+        function revealWhenReady() {
+          if (!bootState.layout || !bootState.theme || bootState.revealing) return;
+          bootState.revealing = true;
+          // A short minimum duration prevents a distracting one-frame flash,
+          // while the two frames ensure the final centering has been painted.
+          const delay = Math.max(0, 420 - (performance.now() - bootStartedAt));
+          setTimeout(function () {
+            requestAnimationFrame(function () {
+              requestAnimationFrame(function () {
+                const overlay = document.getElementById('mindmap-loading-overlay');
+                if (!overlay) return;
+                overlay.classList.add('is-hidden');
+                overlay.setAttribute('aria-hidden', 'true');
+                setTimeout(function () { overlay.remove(); }, 220);
+              });
+            });
+          }, delay);
+        }
+
+        window.__synapseMarkMindmapLayoutReady = function () {
+          bootState.layout = true;
+          revealWhenReady();
+        };
+        window.__synapseMarkMindmapThemeReady = function () {
+          bootState.theme = true;
+          revealWhenReady();
+        };
+
+        // Last-resort escape hatch: an initialization error must remain visible
+        // instead of being hidden forever behind the loading cover.
+        setTimeout(function () {
+          bootState.layout = true;
+          bootState.theme = true;
+          revealWhenReady();
+        }, 6000);
+      })();
+    </script>
     <style>
         :root {
             --primary-color: #0071D3;
@@ -26,6 +83,12 @@
             --button-hover: #e6f2ff;
             --header-border: #d4d4d4;
             --scrollbar-thumb: #ccc;
+            /* Unified clean toolbar palette (matches the Notebook nav bar) */
+            --snav-bg: #f2f2f2;
+            --snav-border: rgba(0,0,0,0.10);
+            --snav-text: #37352f;
+            --snav-hover: #e6e6e6;
+            --snav-select-bg: #ffffff;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -50,7 +113,39 @@
                 --button-hover: #404040;
                 --header-border: #303030;
                 --scrollbar-thumb: #555;
+                --snav-bg: #2c2c2e;
+                --snav-border: rgba(255,255,255,0.12);
+                --snav-text: #e6e6e6;
+                --snav-hover: #3a3a3c;
+                --snav-select-bg: #3a3a3c;
             }
+        }
+        :root.dark {
+            --primary-color: #4da3ff;
+            --primary-color-dark: #0056a4;
+            --secondary-color: #2C2C2C;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+            --text-color: #e0e0e0;
+            --text-muted: #aaaaaa;
+            --line-color: #555555;
+            --background-color: #191919;
+            --canvas-bg: #191919;
+            --grid-dot: #303030;
+            --node-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            --modal-bg: #2C2C2C;
+            --input-bg: #404040;
+            --input-border: #555;
+            --button-bg: #303030;
+            --button-text: #e0e0e0;
+            --button-hover: #404040;
+            --header-border: #303030;
+            --scrollbar-thumb: #555;
+            --snav-bg: #2c2c2e;
+            --snav-border: rgba(255,255,255,0.12);
+            --snav-text: #e6e6e6;
+            --snav-hover: #3a3a3c;
+            --snav-select-bg: #3a3a3c;
         }
         
         body {
@@ -60,29 +155,83 @@
             transition: background-color 0.3s, color 0.3s;
         }
 
+        #mindmap-loading-overlay {
+            position: fixed; inset: 0; z-index: 10000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 13px; background: var(--background-color); color: var(--text-muted);
+            opacity: 1; visibility: visible; pointer-events: all;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+        #mindmap-loading-overlay.is-hidden {
+            opacity: 0; visibility: hidden; pointer-events: none;
+        }
+        .mindmap-loading-spinner {
+            width: 25px; height: 25px; box-sizing: border-box;
+            border: 3px solid var(--input-border); border-top-color: var(--text-muted);
+            border-radius: 50%; animation: mindmapLoadingSpin 0.75s linear infinite;
+        }
+        .mindmap-loading-label {
+            font-size: 12px; font-weight: 500; letter-spacing: 0.01em;
+        }
+        @keyframes mindmapLoadingSpin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .mindmap-loading-spinner { animation-duration: 1.5s; }
+        }
+
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
         .header {
-            background-color: var(--background-color);
-            padding: 10px 20px;
+            background-color: var(--snav-bg);
+            padding: 0 10px;
+            min-height: 44px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-shrink: 0;
             z-index: 10;
             box-shadow: none;
-            border-bottom: 1px solid var(--header-border);
+            border-bottom: 1px solid var(--snav-border);
             transition: transform 0.3s ease, background-color 0.3s;
         }
-        .map-switcher { display: flex; align-items: center; flex-wrap: wrap; }
+        .map-switcher { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+        /* Selector + "New" stay glued together on the left — also in wide/
+           fullscreen mode (the header's space-between pushes the rest right). */
+        .map-selector-container { display: flex; align-items: center; gap: 6px; }
+        #new-map-btn {
+            padding: 5px 11px; font-size: 0.82em; font-weight: 500;
+            color: var(--button-text); background-color: var(--button-bg);
+            margin-left: 0;
+        }
+        #new-map-btn, #new-map-btn:hover { box-shadow: none !important; }
         #fullscreen-btn { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
-        #mindmap-select { 
-            padding: 5px; border-radius: 5px; border: 1px solid var(--input-border); 
-            background-color: var(--input-bg); color: var(--text-color);
+        /* Custom dropdown for the map switcher — the native <select> popup
+           renders mis-scaled in QtWebEngine (same bug as in the settings). */
+        #mindmap-select { display: none; }
+        #mindmap-select-btn {
+            padding: 5px 26px 5px 8px; border-radius: 6px; border: 1px solid var(--snav-border);
+            background-color: var(--snav-select-bg); color: var(--snav-text);
+            font-size: 13px; font-family: inherit; cursor: pointer; text-align: left;
+            max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+            background-repeat: no-repeat; background-position: right 8px center;
+        }
+        #mindmap-select-menu {
+            position: fixed; z-index: 10000; background: var(--modal-bg);
+            border: 1px solid var(--snav-border); border-radius: 8px; padding: 4px;
+            overflow-y: auto; overflow-x: hidden;
+        }
+        .mm-dd-item {
+            position: relative; padding: 6px 12px 6px 24px; border-radius: 5px;
+            font-size: 13px; color: var(--text-color); cursor: pointer; white-space: nowrap;
+        }
+        .mm-dd-item:hover { background: var(--button-hover); }
+        .mm-dd-item.sel::before {
+            content: "✓"; position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+            font-size: 11px; font-weight: 700; color: var(--primary-color);
         }
 
         .button {
@@ -101,7 +250,40 @@
 
         .button.danger { background-color: var(--danger-color); color: white; border-color: var(--danger-color); }
         .button.danger:hover { filter: brightness(0.92); }
-        
+
+        /* ── Unified clean toolbar look (matches the Notebook nav bar) ──
+           Scoped to .header so modal/dialog buttons keep their colours. */
+        .header .button {
+            background: transparent;
+            color: var(--snav-text);
+            border: none;
+            box-shadow: none !important;
+            font-weight: 500;
+            font-size: 13px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            margin-left: 4px;
+        }
+        .header .button:hover { background: var(--snav-hover); box-shadow: none; }
+        .header .button:active { transform: scale(0.97); }
+        .header .button.primary {
+            background: var(--snav-select-bg);
+            color: var(--snav-text);
+            border: 1px solid var(--snav-border);
+            filter: none;
+            font-weight: 400;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06) !important;
+        }
+        .header .button.primary:hover { background: var(--snav-hover); filter: none; box-shadow: 0 1px 3px rgba(0,0,0,0.10) !important; }
+        .header .hamburger-btn,
+        .header #window-btn,
+        .header #fullscreen-btn {
+            width: 32px; height: 32px; padding: 0;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .header #window-btn svg,
+        .header #fullscreen-btn svg { opacity: 0.65; }
+
         /* Hamburger Menu */
         .hamburger-menu {
             position: relative;
@@ -187,7 +369,7 @@
 
         .map-switcher .button { padding: 5px 11px; font-size: 0.82em; font-weight: 500; color: var(--button-text); background-color: var(--button-bg); }
         
-        #center-view-btn { position: fixed; bottom: 58px; right: 20px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: var(--button-text); background-color: var(--button-bg); transition: opacity 0.3s ease, box-shadow 0.2s; border-radius: 10px; }
+        #center-view-btn { position: fixed; bottom: 58px; right: 20px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: var(--button-text); background-color: var(--button-bg); transition: opacity 0.3s ease, box-shadow 0.2s; border-radius: 10px; font-weight: 400; }
         #center-view-btn:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.22); }
         .zoom-controls { position: fixed; bottom: 58px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; transition: opacity 0.3s ease; }
         .zoom-btn { width: 42px; height: 42px; font-size: 22px; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: var(--button-text); background-color: var(--button-bg); margin: 0; border-radius: 10px; }
@@ -229,6 +411,12 @@
         
         .drag-handle { position: absolute; top: 50%; right: -14px; transform: translateY(-50%); width: 16px; height: 16px; background-color: var(--primary-color-dark); border: 2px solid white; border-radius: 50%; cursor: crosshair; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 1; opacity: 0; transition: opacity 0.2s ease; pointer-events: all; }
         .node:hover .drag-handle, .node.selected .drag-handle { opacity: 1; }
+
+        /* Resize grip in the bottom-right corner of a node. */
+        .node-resize-handle { position: absolute; right: -3px; bottom: -3px; width: 16px; height: 16px; cursor: nwse-resize; opacity: 0; transition: opacity 0.2s ease; z-index: 3; pointer-events: all; }
+        .node-resize-handle::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 8px; height: 8px; border-right: 2px solid var(--primary-color); border-bottom: 2px solid var(--primary-color); border-bottom-right-radius: 3px; }
+        .node:hover .node-resize-handle, .node.selected .node-resize-handle { opacity: 0.65; }
+        .node-resize-handle:hover { opacity: 1; }
         
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s; backdrop-filter: blur(2px); }
         .modal-overlay.visible { opacity: 1; visibility: visible; }
@@ -310,8 +498,10 @@
         body.hint-edit-mode .node { overflow: visible; cursor: default !important; }
         body.hint-edit-mode .node-hint-input { display: block; }
         body.hint-edit-mode .node .drag-handle,
+        body.hint-edit-mode .node .node-resize-handle,
         body.hint-edit-mode .node .node-controls { display: none !important; }
         body.hint-edit-mode .node .node-textarea { pointer-events: none; }
+        body.learning-mode .node .node-resize-handle { display: none !important; }
         body.learning-mode .node-hint-input { display: none !important; }
 
         #hint-edit-panel {
@@ -368,6 +558,7 @@
         body.selection-mode .node { cursor: pointer !important; }
         body.selection-mode .node .node-textarea { pointer-events: none; user-select: none; }
         body.selection-mode .node .drag-handle,
+        body.selection-mode .node .node-resize-handle,
         body.selection-mode .node .node-controls { display: none !important; }
         body.selection-mode { cursor: crosshair; }
 
@@ -388,16 +579,64 @@
         }
         #selection-panel.visible { display: flex; }
         #selection-count { font-weight: 600; min-width: 70px; }
+
+        /* ── Error handling UI (toasts + crash banner) ─────────────────── */
+        #mm-toast-container {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+            z-index: 4000; display: flex; flex-direction: column; gap: 8px;
+            align-items: center; pointer-events: none; max-width: 90%;
+        }
+        .mm-toast {
+            background: var(--modal-bg); color: var(--text-color);
+            border: 1px solid var(--header-border); border-left: 4px solid var(--primary-color);
+            border-radius: 10px; padding: 10px 16px; font-size: 0.86em;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2); pointer-events: auto;
+            max-width: 520px; text-align: left; opacity: 0; transform: translateY(-6px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        .mm-toast.show { opacity: 1; transform: translateY(0); }
+        .mm-toast.warning { border-left-color: #ffc107; }
+        .mm-toast.error { border-left-color: var(--danger-color); }
+        .mm-toast.success { border-left-color: var(--success-color); }
+        #mm-error-banner {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 5000;
+            background: var(--modal-bg); color: var(--text-color);
+            border-top: 2px solid var(--danger-color);
+            box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
+            padding: 12px 18px; font-size: 0.85em; display: none; text-align: left;
+        }
+        #mm-error-banner.visible { display: block; }
+        #mm-error-banner .mm-eb-title { font-weight: 700; color: var(--danger-color); margin-bottom: 4px; }
+        #mm-error-banner .mm-eb-msg { margin-bottom: 6px; word-break: break-word; }
+        #mm-error-banner pre {
+            background: var(--input-bg); border: 1px solid var(--input-border);
+            border-radius: 6px; padding: 8px; max-height: 140px; overflow: auto;
+            font-size: 0.85em; white-space: pre-wrap; word-break: break-word;
+            display: none; margin: 0 0 8px 0; text-align: left;
+        }
+        #mm-error-banner.expanded pre { display: block; }
+        #mm-error-banner .mm-eb-actions { display: flex; gap: 8px; }
+        #mm-error-banner .mm-eb-actions button {
+            background: var(--button-bg); color: var(--text-color);
+            border: 1px solid var(--input-border); border-radius: 7px;
+            padding: 4px 12px; font-size: 0.9em; cursor: pointer; font-family: inherit;
+        }
+        #mm-error-banner .mm-eb-actions button:hover { background: var(--button-hover); }
     </style>
 </head>
 <body>
 
+    <div id="mindmap-loading-overlay" role="status" aria-live="polite" aria-label="Loading mind map">
+        <div class="mindmap-loading-spinner" aria-hidden="true"></div>
+        <div class="mindmap-loading-label" data-i18n="loading_map">Loading mind map…</div>
+    </div>
+
     <div class="header">
         <div class="map-selector-container">
             <select id="mindmap-select"></select>
+            <button class="button primary" id="new-map-btn" data-i18n="new_map">New</button>
         </div>
         <div class="map-switcher">
-            <button class="button primary" id="new-map-btn" data-i18n="new_map">New</button>
             <div class="hamburger-menu">
                 <button class="button hamburger-btn" id="hamburger-btn" data-i18n-title="menu_title" title="Menu">&#9776;</button>
                 <div class="hamburger-dropdown" id="hamburger-dropdown">
@@ -405,7 +644,7 @@
                         <span class="dropdown-icon">▶</span> <span data-i18n="start_learning">Start Learning</span>
                     </button>
                     <button class="dropdown-item item-hint" id="edit-hints-btn">
-                        <span class="dropdown-icon">💡</span> <span>Edit Hints</span>
+                        <span class="dropdown-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span> <span data-i18n="edit_hints">Edit Hints</span>
                     </button>
                     <button class="dropdown-item item-ai" id="ai-helper-btn">
                         <span class="dropdown-icon">✦</span> <span data-i18n="create_with_ai">Create with AI</span>
@@ -427,9 +666,16 @@
                     </button>
                 </div>
             </div>
+            <button class="button" id="window-btn" data-i18n-title="window_open" title="New Window"
+                    onclick="__synapseWinToggle()">
+                <svg id="window-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                </svg>
+            </button>
             <button class="button" id="fullscreen-btn" data-i18n-title="fullscreen_enter" title="Fullscreen"
                     onclick="__synapseFsToggle()">
-                <svg id="fullscreen-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <svg id="fullscreen-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="15 3 21 3 21 9"></polyline>
                     <polyline points="9 21 3 21 3 15"></polyline>
                     <line x1="21" y1="3" x2="14" y2="10"></line>
@@ -446,8 +692,8 @@
     </div>
     
     <div class="history-controls">
-        <button class="button history-btn" id="undo-btn" title="Undo (Ctrl+Z)">↩</button>
-        <button class="button history-btn" id="redo-btn" title="Redo (Ctrl+Y)">↪</button>
+        <button class="button history-btn" id="undo-btn" title="Undo (Ctrl+Z)" data-i18n-title="undo">↩</button>
+        <button class="button history-btn" id="redo-btn" title="Redo (Ctrl+Y)" data-i18n-title="redo">↪</button>
     </div>
 
     <button class="button" id="center-view-btn" data-i18n="center_view">Center View</button>
@@ -506,9 +752,9 @@
 
     <!-- Hint Edit Panel -->
     <div id="hint-edit-panel">
-        <span>💡 Hints bearbeiten</span>
-        <button class="button primary" id="hint-save-btn">Speichern</button>
-        <button class="button" id="hint-cancel-btn">Abbrechen</button>
+        <span style="display:inline-flex;align-items:center;gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg> <span data-i18n="edit_hints">Edit Hints</span></span>
+        <button class="button primary" id="hint-save-btn" data-i18n="save">Save</button>
+        <button class="button" id="hint-cancel-btn" data-i18n="cancel">Cancel</button>
     </div>
 
     <!-- Node Selection Panel -->
@@ -525,12 +771,12 @@
             <div id="modal-info-content"></div>
             <div id="modal-ai-helper-content"></div> 
             <p id="modal-text"></p>
-            <input type="text" id="modal-input" class="modal-input" placeholder="Enter here...">
+            <input type="text" id="modal-input" class="modal-input" placeholder="Enter here..." data-i18n-placeholder="enter_here">
             <textarea id="json-textarea"></textarea>
             <div id="modal-error"></div>
             <div class="modal-buttons">
-                <button class="button" id="modal-cancel">Cancel</button>
-                <button class="button" id="modal-confirm">Confirm</button>
+                <button class="button" id="modal-cancel" data-i18n="cancel">Cancel</button>
+                <button class="button" id="modal-confirm" data-i18n="confirm">Confirm</button>
             </div>
         </div>
     </div>
@@ -539,41 +785,120 @@
     <footer class="hint-footer" data-i18n="footer_hint">Right-click on a node for options. Drag the blue dot to create new nodes.</footer>
 
     <script>
+        function mm(key, fallback) {
+            var t = window.__SYNAPSE_MM_I18N__ || {};
+            return t[key] !== undefined ? t[key] : fallback;
+        }
+        /* ── Global error reporting & toasts ───────────────────────────────
+           Standalone block: must work even if the main mind map script crashes.
+           Shows a dismissible banner with the real traceback instead of
+           silently leaving the UI half-initialized. */
+        (function() {
+            function ensureToastContainer() {
+                var c = document.getElementById('mm-toast-container');
+                if (!c) { c = document.createElement('div'); c.id = 'mm-toast-container'; document.body.appendChild(c); }
+                return c;
+            }
+            window.__mmToast = function(message, type, durationMs) {
+                try {
+                    var t = document.createElement('div');
+                    t.className = 'mm-toast ' + (type || 'info');
+                    t.textContent = message;
+                    ensureToastContainer().appendChild(t);
+                    requestAnimationFrame(function() { t.classList.add('show'); });
+                    setTimeout(function() {
+                        t.classList.remove('show');
+                        setTimeout(function() { t.remove(); }, 300);
+                    }, durationMs || 6000);
+                } catch (e) { /* toasts must never throw */ }
+            };
+            function ensureBanner() {
+                var b = document.getElementById('mm-error-banner');
+                if (b) return b;
+                b = document.createElement('div');
+                b.id = 'mm-error-banner';
+                b.innerHTML = '<div class="mm-eb-title">' + mm('error_title', 'Mind Map error') + '</div>'
+                    + '<div class="mm-eb-msg"></div><pre></pre>'
+                    + '<div class="mm-eb-actions">'
+                    + '<button data-act="details">' + mm('error_show', 'Show details') + '</button>'
+                    + '<button data-act="copy">' + mm('error_copy', 'Copy error') + '</button>'
+                    + '<button data-act="dismiss">' + mm('error_dismiss', 'Dismiss') + '</button></div>';
+                document.body.appendChild(b);
+                b.addEventListener('click', function(e) {
+                    var act = e.target && e.target.dataset && e.target.dataset.act;
+                    if (act === 'dismiss') b.classList.remove('visible');
+                    if (act === 'details') {
+                        b.classList.toggle('expanded');
+                        e.target.textContent = b.classList.contains('expanded') ? mm('error_hide', 'Hide details') : mm('error_show', 'Show details');
+                    }
+                    if (act === 'copy') {
+                        var text = b.querySelector('.mm-eb-msg').textContent + '\n\n' + b.querySelector('pre').textContent;
+                        try { navigator.clipboard.writeText(text); e.target.textContent = mm('error_copied', 'Copied!'); setTimeout(function(){ e.target.textContent = mm('error_copy', 'Copy error'); }, 2000); } catch (err) {}
+                    }
+                });
+                return b;
+            }
+            window.__mmReportError = function(err, context) {
+                try {
+                    var msg = (err && err.message) ? err.message : String(err);
+                    var stack = (err && err.stack) ? String(err.stack) : mm('error_no_stack', '(no stack trace available)');
+                    console.error('[MindMap]' + (context ? ' [' + context + ']' : ''), err);
+                    var b = ensureBanner();
+                    b.querySelector('.mm-eb-msg').textContent =
+                        (context ? context + ': ' : '') + msg
+                        + ' — ' + mm('error_safe', 'Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('pre').textContent = stack;
+                    b.classList.add('visible');
+                } catch (e) { console.error('[MindMap] error while reporting error', e, err); }
+            };
+            window.addEventListener('error', function(e) {
+                if (e.error && (e.error.message || e.error.stack)) window.__mmReportError(e.error, mm('error_unexpected', 'Unexpected error'));
+                else console.warn('[MindMap] Background browser error:', e.message || e);
+            });
+            window.addEventListener('unhandledrejection', function(e) {
+                if (e.reason && e.reason.synapseCritical === true) window.__mmReportError(e.reason, mm('error_unexpected_async', 'Unexpected error (async)'));
+                else console.warn('[MindMap] Background task rejected:', e.reason);
+                e.preventDefault();
+            });
+        })();
+    </script>
+    <script>
         const TUTORIAL_DATA = {
-          "name": "MindMap Tutorial",
+          "name": mm('tutorial_name', 'Mind Map Tutorial'),
           "nodes": [
-            { "id": 1, "text": "Welcome to the Mind Map Tool! ", "parent": null, "x": 1193, "y": -93, "width": 194, "height": 73, "size": "large" },
-            { "id": 2, "text": "Basic Controls ", "parent": 1, "x": 1191, "y": 149, "width": 194, "height": 51, "color": "#28a745", "size": "large" },
-            { "id": 3, "text": "Pan View: Click and drag the empty background to move around.", "parent": 2, "x": 453, "y": 401, "width": 154, "height": 119, "color": "#28a745" },
-            { "id": 4, "text": "Zoom View: Use your mouse wheel or the +/- buttons.", "parent": 2, "x": 730, "y": 400, "width": 154, "height": 100, "color": "#28a745" },
-            { "id": 5, "text": "Move Node: Click and drag any node to reposition it.", "parent": 2, "x": 1178, "y": 401, "width": 154, "height": 100, "color": "#28a745" },
-            { "id": 6, "text": "Center View: Click the 'Center View' button to focus on the root node.", "parent": 2, "x": 951, "y": 399, "width": 154, "height": 138, "color": "#28a745" },
-            { "id": 7, "text": "Managing Nodes", "parent": 1, "x": 990, "y": -208, "width": 194, "height": 51, "color": "#dc3545", "size": "large" },
-            { "id": 8, "text": "Create Child Node: Drag the blue dot from an existing node.", "parent": 7, "x": 587, "y": -404, "width": 154, "height": 100, "color": "#dc3545" },
-            { "id": 9, "text": "Edit Text: Double-click the text inside a node to change it.", "parent": 7, "x": 839, "y": -402, "width": 154, "height": 119, "color": "#dc3545" },
-            { "id": 10, "text": "Delete Node: Hover over a node and click the small '-' button.", "parent": 7, "x": 1089, "y": -399, "width": 154, "height": 119, "color": "#dc3545" },
-            { "id": 11, "text": "Customize Nodes (Right-Click!)", "parent": 7, "x": 878, "y": -116, "width": 154, "height": 81, "color": "#dc3545" },
-            { "id": 12, "text": "Change Color: Right-click a node and select a color swatch.", "parent": 11, "x": 667, "y": -120, "width": 104, "height": 91, "color": "#dc3545", "size": "small" },
-            { "id": 13, "text": "Change Size: Right-click and choose Small, Medium, or Large.", "parent": 11, "x": 894, "y": -2, "width": 104, "height": 106, "color": "#dc3545", "size": "small" },
-            { "id": 14, "text": "Special Features", "parent": 1, "x": 1490, "y": 87, "width": 194, "height": 51, "color": "#6f42c1", "size": "large" },
-            { "id": 15, "text": "Create with AI", "parent": 14, "x": 1513, "y": 229, "width": 154, "height": 43, "color": "#6f42c1" },
-            { "id": 16, "text": "1. Click 'Create with AI' button in the header.", "parent": 15, "x": 1761, "y": 229, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
-            { "id": 17, "text": "2. Copy the provided prompt and paste it into an AI (like ChatGPT).", "parent": 15, "x": 1770, "y": 311, "width": 104, "height": 106, "color": "#6f42c1", "size": "small" },
-            { "id": 18, "text": "3. Copy the AI's JSON response and paste it back into the tool.", "parent": 15, "x": 1766, "y": 427, "width": 104, "height": 106, "color": "#6f42c1", "size": "small" },
-            { "id": 19, "text": "Start Learning", "parent": 14, "x": 1782, "y": 86, "width": 154, "height": 43, "color": "#6f42c1" },
-            { "id": 20, "text": "Turns your map into an active recall session!", "parent": 19, "x": 2103, "y": -32, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
-            { "id": 21, "text": "It hides child nodes and asks you to remember them.", "parent": 19, "x": 2104, "y": 64, "width": 104, "height": 91, "color": "#6f42c1", "size": "small" },
-            { "id": 22, "text": "Rate yourself to reinforce your memory.", "parent": 19, "x": 2208, "y": 333, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
-            { "id": 23, "text": "Data & Maps", "parent": 1, "x": 1548, "y": -247, "width": 194, "height": 51, "color": "#ffc107", "size": "large" },
-            { "id": 24, "text": "Use the dropdown list at the top left to switch between maps.", "parent": 23, "x": 1368, "y": -397, "width": 154, "height": 119, "color": "#ffc107" },
-            { "id": 25, "text": "'New Map' / 'Delete Map' buttons manage your collection.", "parent": 23, "x": 1568, "y": -154, "width": 154, "height": 100, "color": "#ffc107", "size": "medium" },
-            { "id": 26, "text": "Imp. / Exp. (Backup!)", "parent": 23, "x": 1628, "y": -390, "width": 154, "height": 62, "color": "#ffc107" },
-            { "id": 27, "text": "Use 'Exp.' to save your map as a JSON file. This is your backup!", "parent": 26, "x": 1867, "y": -354, "width": 104, "height": 106, "size": "small", "color": "#ffc107" },
-            { "id": 28, "text": "Use 'Imp.' to load a map from a JSON file.", "parent": 26, "x": 1865, "y": -470, "width": 104, "height": 76, "size": "small", "color": "#ffc107" }
+            { "id": 1, "text": mm('tutorial_welcome', 'Welcome to the Mind Map Tool!'), "parent": null, "x": 1193, "y": -93, "width": 194, "height": 73, "size": "large" },
+            { "id": 2, "text": mm('info_basic', 'Basic Controls'), "parent": 1, "x": 1191, "y": 149, "width": 194, "height": 51, "color": "#28a745", "size": "large" },
+            { "id": 3, "text": mm('info_pan', 'Pan View: Click and drag on the empty background.'), "parent": 2, "x": 453, "y": 401, "width": 154, "height": 119, "color": "#28a745" },
+            { "id": 4, "text": mm('info_zoom', 'Zoom View: Use the mouse wheel or the +/- buttons.'), "parent": 2, "x": 730, "y": 400, "width": 154, "height": 100, "color": "#28a745" },
+            { "id": 5, "text": mm('info_move', 'Move Node: Click and drag any node.'), "parent": 2, "x": 1178, "y": 401, "width": 154, "height": 100, "color": "#28a745" },
+            { "id": 6, "text": mm('tutorial_center', 'Center View: Use the Center View button to focus on the root node.'), "parent": 2, "x": 951, "y": 399, "width": 154, "height": 138, "color": "#28a745" },
+            { "id": 7, "text": mm('tutorial_manage_nodes', 'Managing Nodes'), "parent": 1, "x": 990, "y": -208, "width": 194, "height": 51, "color": "#dc3545", "size": "large" },
+            { "id": 8, "text": mm('info_child', 'Create Child Node: Click and drag the blue dot on a node.'), "parent": 7, "x": 587, "y": -404, "width": 154, "height": 100, "color": "#dc3545" },
+            { "id": 9, "text": mm('info_edit', 'Edit Text: Double-click the text inside a node.'), "parent": 7, "x": 839, "y": -402, "width": 154, "height": 119, "color": "#dc3545" },
+            { "id": 10, "text": mm('tutorial_delete_node', 'Delete Node: Hover over a node and use the minus button.'), "parent": 7, "x": 1089, "y": -399, "width": 154, "height": 119, "color": "#dc3545" },
+            { "id": 11, "text": mm('tutorial_customize', 'Customize Nodes (right-click)'), "parent": 7, "x": 878, "y": -116, "width": 154, "height": 81, "color": "#dc3545" },
+            { "id": 12, "text": mm('tutorial_color', 'Change Color: Right-click a node and choose a color.'), "parent": 11, "x": 667, "y": -120, "width": 104, "height": 91, "color": "#dc3545", "size": "small" },
+            { "id": 13, "text": mm('tutorial_size', 'Change Size: Right-click and choose Small, Medium, or Large.'), "parent": 11, "x": 894, "y": -2, "width": 104, "height": 106, "color": "#dc3545", "size": "small" },
+            { "id": 14, "text": mm('tutorial_special', 'Special Features'), "parent": 1, "x": 1490, "y": 87, "width": 194, "height": 51, "color": "#6f42c1", "size": "large" },
+            { "id": 15, "text": mm('create_with_ai', 'Create with AI'), "parent": 14, "x": 1513, "y": 229, "width": 154, "height": 43, "color": "#6f42c1" },
+            { "id": 16, "text": mm('tutorial_ai_1', '1. Select Create with AI in the menu.'), "parent": 15, "x": 1761, "y": 229, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
+            { "id": 17, "text": mm('tutorial_ai_2', '2. Copy the prompt and paste it into an AI service.'), "parent": 15, "x": 1770, "y": 311, "width": 104, "height": 106, "color": "#6f42c1", "size": "small" },
+            { "id": 18, "text": mm('tutorial_ai_3', "3. Copy the AI's JSON response and paste it back into the tool."), "parent": 15, "x": 1766, "y": 427, "width": 104, "height": 106, "color": "#6f42c1", "size": "small" },
+            { "id": 19, "text": mm('start_learning', 'Start Learning'), "parent": 14, "x": 1782, "y": 86, "width": 154, "height": 43, "color": "#6f42c1" },
+            { "id": 20, "text": mm('tutorial_recall', 'Turns your map into an active-recall session.'), "parent": 19, "x": 2103, "y": -32, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
+            { "id": 21, "text": mm('tutorial_hidden', 'Child nodes are hidden so you can recall them.'), "parent": 19, "x": 2104, "y": 64, "width": 104, "height": 91, "color": "#6f42c1", "size": "small" },
+            { "id": 22, "text": mm('tutorial_rate', 'Rate your answer to reinforce your memory.'), "parent": 19, "x": 2208, "y": 333, "width": 104, "height": 76, "color": "#6f42c1", "size": "small" },
+            { "id": 23, "text": mm('tutorial_data', 'Data & Maps'), "parent": 1, "x": 1548, "y": -247, "width": 194, "height": 51, "color": "#ffc107", "size": "large" },
+            { "id": 24, "text": mm('tutorial_switch', 'Use the list at the top left to switch between maps.'), "parent": 23, "x": 1368, "y": -397, "width": 154, "height": 119, "color": "#ffc107" },
+            { "id": 25, "text": mm('tutorial_collection', 'New Map and Delete Map manage your collection.'), "parent": 23, "x": 1568, "y": -154, "width": 154, "height": 100, "color": "#ffc107", "size": "medium" },
+            { "id": 26, "text": mm('tutorial_backup', 'Import / Export (backup)'), "parent": 23, "x": 1628, "y": -390, "width": 154, "height": 62, "color": "#ffc107" },
+            { "id": 27, "text": mm('tutorial_export', 'Export saves your map as JSON for backup.'), "parent": 26, "x": 1867, "y": -354, "width": 104, "height": 106, "size": "small", "color": "#ffc107" },
+            { "id": 28, "text": mm('tutorial_import', 'Import loads a map from a JSON file.'), "parent": 26, "x": 1865, "y": -470, "width": 104, "height": 76, "size": "small", "color": "#ffc107" }
           ]
         };
 
         document.addEventListener('DOMContentLoaded', () => {
+            document.title = mm('app_title', 'Mind Map');
             const container = document.getElementById('mindmap-container');
             const viewport = document.getElementById('mindmap-viewport');
             const canvas = document.getElementById('mindmap-canvas');
@@ -622,42 +947,287 @@
                 saveCurrentMindmap();
             }
             
-            function getMindmaps() { return JSON.parse(localStorage.getItem('mindmaps')) || {}; }
-            function saveMindmaps(mindmaps) { localStorage.setItem('mindmaps', JSON.stringify(mindmaps)); }
-            function saveCurrentMindmap() {
-                if(activeMindmapId) {
-                    const mindmaps = getMindmaps();
-                    if(mindmaps[activeMindmapId]) {
-                        mindmaps[activeMindmapId].nodes = nodes;
-                        saveMindmaps(mindmaps);
+            let volatileMindmaps = null;
+
+            function getMindmaps() {
+                // If persistent browser storage is temporarily unavailable, keep
+                // operating on the newest in-memory collection. The Python-side
+                // recovery file remains the durable copy across WebView reloads.
+                if (volatileMindmaps) {
+                    return JSON.parse(JSON.stringify(volatileMindmaps));
+                }
+                // Never let corrupted storage take the whole feature down.
+                let raw = null;
+                try { raw = localStorage.getItem('mindmaps'); } catch (e) { window.__mmReportError(e, mm('storage_read_failed', 'Storage read failed')); return {}; }
+                if (!raw) return {};
+                let parsed;
+                try { parsed = JSON.parse(raw); } catch (e) {
+                    // Root storage is corrupt: quarantine the raw data instead of losing it.
+                    try { localStorage.setItem('mindmaps_corrupt_backup_' + Date.now(), raw); localStorage.removeItem('mindmaps'); } catch (e2) {}
+                    window.__mmToast(mm('storage_corrupt', 'Stored mind map data was corrupted and has been backed up. Starting fresh.'), 'error', 9000);
+                    return {};
+                }
+                if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+                return parsed;
+            }
+            let mindmapSaveTimer = null;
+            let lastMindmapSaveAt = (() => {
+                try { return Number(localStorage.getItem('mindmaps_saved_at')) || 0; }
+                catch (e) { return 0; }
+            })();
+
+            function saveMindmaps(mindmaps, savedAt = Date.now()) {
+                try {
+                    const serialized = JSON.stringify(mindmaps);
+                    localStorage.setItem('mindmaps', serialized);
+                    // Verify the write. QtWebEngine normally throws on quota errors,
+                    // but explicit verification also catches silent storage failure.
+                    if (localStorage.getItem('mindmaps') !== serialized) {
+                        throw new Error('Stored data did not match the saved snapshot.');
                     }
+                    volatileMindmaps = null;
+                    lastMindmapSaveAt = Number(savedAt) || Date.now();
+                    try { localStorage.setItem('mindmaps_saved_at', String(lastMindmapSaveAt)); } catch (e) {}
+                    return true;
+                } catch (e) {
+                    // Most likely QuotaExceededError (webview storage limit).
+                    const isQuota = e && (e.name === 'QuotaExceededError' || e.code === 22);
+                    window.__mmToast(isQuota
+                        ? mm('storage_full', 'Could not save: browser storage is full. Export your maps as backup and delete unused maps.')
+                        : mm('save_failed', 'Could not save mind maps: {error}').replace('{error}', (e && e.message ? e.message : e)), 'error', 9000);
+                    // Preserve the attempted snapshot in memory. A later flush also
+                    // mirrors it to the profile recovery file before WebView teardown.
+                    try { volatileMindmaps = JSON.parse(JSON.stringify(mindmaps)); } catch (copyError) {}
+                    console.error('[MindMap] saveMindmaps failed', e);
+                    return false;
                 }
             }
-            
-            function init() {
-                loadMindmapList();
-                const lastOpened = localStorage.getItem('lastOpenedMindmap');
+
+            function syncNodeTextsFromDom() {
+                nodes.forEach(node => {
+                    const textArea = document.querySelector(`#node-${node.id} .node-textarea`);
+                    if (textArea) node.text = textArea.value;
+                });
+            }
+
+            function currentMindmapSnapshot() {
+                syncNodeTextsFromDom();
+                if (isHintEditMode) {
+                    nodes.forEach(node => {
+                        const hintInput = document.querySelector(`#node-${node.id} .node-hint-input`);
+                        if (hintInput) node.hint = hintInput.value.trim();
+                    });
+                }
                 const mindmaps = getMindmaps();
-                
-                if (lastOpened && mindmaps[lastOpened]) {
-                    loadMindmap(lastOpened);
-                } else if (Object.keys(mindmaps).length > 0) {
-                    loadMindmap(Object.keys(mindmaps)[0]);
-                } else {
-                    loadTutorialMap();
+                if (activeMindmapId && mindmaps[activeMindmapId]) {
+                    mindmaps[activeMindmapId].nodes = nodes;
+                }
+                return mindmaps;
+            }
+
+            function saveCurrentMindmap() {
+                clearTimeout(mindmapSaveTimer);
+                mindmapSaveTimer = null;
+                if (!activeMindmapId) return true;
+                return saveMindmaps(currentMindmapSnapshot());
+            }
+
+            function scheduleCurrentMindmapSave() {
+                clearTimeout(mindmapSaveTimer);
+                mindmapSaveTimer = setTimeout(saveCurrentMindmap, 350);
+            }
+
+            window.__synapseFlushMindmap = function() {
+                clearTimeout(mindmapSaveTimer);
+                mindmapSaveTimer = null;
+                const mindmaps = currentMindmapSnapshot();
+                const savedAt = Date.now();
+                const saved = saveMindmaps(mindmaps, savedAt);
+                return { saved, savedAt, snapshot: JSON.stringify(mindmaps) };
+            };
+
+            window.__synapseRestoreMindmapRecovery = function(snapshotJson, savedAt) {
+                const recoveryTime = Number(savedAt) || 0;
+                let storedTime = 0;
+                try { storedTime = Number(localStorage.getItem('mindmaps_saved_at')) || 0; } catch (e) {}
+                if (!recoveryTime || recoveryTime <= storedTime) return false;
+                let recovered;
+                try { recovered = JSON.parse(snapshotJson); }
+                catch (e) { window.__mmReportError(e, mm('recovery_invalid', 'Recovery data is invalid')); return false; }
+                if (!recovered || typeof recovered !== 'object' || Array.isArray(recovered)) return false;
+                const persisted = saveMindmaps(recovered, recoveryTime);
+                if (!persisted) volatileMindmaps = recovered;
+                loadMindmapList();
+                const ids = Object.keys(recovered);
+                if (ids.length) {
+                    const target = activeMindmapId && recovered[activeMindmapId] ? activeMindmapId : ids[0];
+                    loadMindmap(target);
+                }
+                window.__mmToast(persisted
+                    ? mm('recovery_restored', 'A newer mind map recovery copy was restored.')
+                    : mm('recovery_memory', 'Your recovery copy is open in memory. Free browser storage or export it before closing.'),
+                    persisted ? 'info' : 'warning', persisted ? 6000 : 10000);
+                return true;
+            };
+
+            window.addEventListener('pagehide', () => window.__synapseFlushMindmap());
+            window.addEventListener('beforeunload', () => window.__synapseFlushMindmap());
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') window.__synapseFlushMindmap();
+            });
+
+            /* ── Mind map validation & healing ──────────────────────────────
+               Every map goes through sanitizeMindmap() before it is saved or
+               rendered. Returns { ok:true, map, healed:[..] } with a normalized
+               deep copy, or { ok:false, error } with a targeted message. */
+            function sanitizeMindmap(input) {
+                const healed = [];
+                if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+                    return { ok: false, error: 'Expected a JSON object like { "name": "...", "nodes": [...] }, but got ' + (Array.isArray(input) ? 'an array' : typeof input) + '.' };
+                }
+                let data;
+                try { data = JSON.parse(JSON.stringify(input)); } catch (e) {
+                    return { ok: false, error: 'Data could not be copied: ' + e.message };
+                }
+                // Some AIs wrap the map in an extra key, e.g. { "mindmap": {...} }.
+                if (!Array.isArray(data.nodes)) {
+                    const wrapperKey = Object.keys(data).find(k => data[k] && typeof data[k] === 'object' && Array.isArray(data[k].nodes));
+                    if (wrapperKey) { data = data[wrapperKey]; healed.push('unwrapped "' + wrapperKey + '"'); }
+                }
+                if (!Array.isArray(data.nodes)) {
+                    return { ok: false, error: 'Missing "nodes" array. The JSON must contain "nodes": [ { "id": 1, "text": "...", "parent": null }, ... ].' };
+                }
+                // Keep only usable node objects.
+                const rawCount = data.nodes.length;
+                let nodesArr = data.nodes.filter(n => n && typeof n === 'object' && !Array.isArray(n));
+                if (nodesArr.length < rawCount) healed.push('removed ' + (rawCount - nodesArr.length) + ' invalid node entries');
+                if (nodesArr.length === 0) {
+                    return { ok: false, error: 'The "nodes" array contains no valid node objects.' };
+                }
+                // Normalize ids/parents: numeric strings → numbers, "null"/undefined parent → null.
+                const normId = v => (typeof v === 'string' && v.trim() !== '' && !isNaN(v)) ? Number(v) : v;
+                nodesArr.forEach(n => {
+                    n.id = normId(n.id);
+                    if (n.parent === undefined || n.parent === 'null' || n.parent === '') n.parent = null;
+                    n.parent = n.parent === null ? null : normId(n.parent);
+                });
+                // Assign missing ids and de-duplicate ids.
+                const seen = new Set();
+                let nextId = nodesArr.reduce((m, n) => (typeof n.id === 'number' && isFinite(n.id)) ? Math.max(m, n.id) : m, 0);
+                nodesArr.forEach(n => {
+                    const validId = (typeof n.id === 'number' && isFinite(n.id)) || (typeof n.id === 'string' && n.id !== '');
+                    if (!validId || seen.has(n.id)) { n.id = ++nextId; healed.push('reassigned a missing/duplicate node id'); }
+                    seen.add(n.id);
+                });
+                // Ensure exactly one root.
+                let roots = nodesArr.filter(n => n.parent === null);
+                if (roots.length === 0) { nodesArr[0].parent = null; roots = [nodesArr[0]]; healed.push('no root node found — made the first node the root'); }
+                const root = roots[0];
+                if (roots.length > 1) { roots.slice(1).forEach(r => { r.parent = root.id; }); healed.push('multiple root nodes — attached extras to the first root'); }
+                // Self-references and parents that don't exist → attach to root.
+                const idSet = new Set(nodesArr.map(n => n.id));
+                nodesArr.forEach(n => {
+                    if (n.parent !== null && (n.parent === n.id || !idSet.has(n.parent))) { n.parent = root.id; healed.push('fixed a node pointing to a missing parent'); }
+                });
+                // Break parent cycles (would cause infinite recursion when rendering/learning).
+                const childrenOf = new Map();
+                nodesArr.forEach(n => { if (n.parent !== null) { if (!childrenOf.has(n.parent)) childrenOf.set(n.parent, []); childrenOf.get(n.parent).push(n); } });
+                function reachable() {
+                    const r = new Set([root.id]); const stack = [root.id];
+                    while (stack.length) { (childrenOf.get(stack.pop()) || []).forEach(c => { if (!r.has(c.id)) { r.add(c.id); stack.push(c.id); } }); }
+                    return r;
+                }
+                let reach = reachable(); let guard = 0;
+                while (reach.size < nodesArr.length && guard++ <= nodesArr.length) {
+                    const orphan = nodesArr.find(n => !reach.has(n.id));
+                    const old = orphan.parent;
+                    if (old !== null && childrenOf.has(old)) { const arr = childrenOf.get(old); const i = arr.indexOf(orphan); if (i !== -1) arr.splice(i, 1); }
+                    orphan.parent = root.id;
+                    if (!childrenOf.has(root.id)) childrenOf.set(root.id, []);
+                    childrenOf.get(root.id).push(orphan);
+                    healed.push('broke a circular parent reference');
+                    reach = reachable();
+                }
+                // Normalize node fields without touching valid values (keeps look & features intact).
+                let needsLayout = false;
+                nodesArr.forEach(n => {
+                    if (typeof n.text !== 'string') { n.text = (n.text === undefined || n.text === null) ? '' : String(n.text); }
+                    if (typeof n.x !== 'number' || !isFinite(n.x) || typeof n.y !== 'number' || !isFinite(n.y)) needsLayout = true;
+                    if (n.size !== undefined && !['small', 'medium', 'large'].includes(n.size)) delete n.size;
+                    if (n.color !== undefined && typeof n.color !== 'string') delete n.color;
+                    if (n.hint !== undefined && typeof n.hint !== 'string') delete n.hint;
+                });
+                const name = (typeof data.name === 'string' && data.name.trim()) ? data.name : mm('unnamed_map', 'Unnamed Map');
+                if (name !== data.name) healed.push('added a default name');
+                return { ok: true, map: { ...data, name: name, nodes: nodesArr }, healed: healed, needsLayout: needsLayout };
+            }
+
+            // AI answers often wrap JSON in markdown fences or add prose around it.
+            function extractJsonText(text) {
+                let t = (text || '').trim();
+                const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+                if (fence) t = fence[1].trim();
+                if (!t.startsWith('{')) {
+                    const start = t.indexOf('{'); const end = t.lastIndexOf('}');
+                    if (start !== -1 && end > start) t = t.slice(start, end + 1);
+                }
+                return t;
+            }
+            
+            /* Startup self-healing: fix or quarantine corrupt maps so one bad
+               import can never brick the whole feature again. */
+            function healStoredMindmaps() {
+                const mindmaps = getMindmaps();
+                let changed = false; let quarantined = 0; let healedCount = 0;
+                for (const id of Object.keys(mindmaps)) {
+                    const res = sanitizeMindmap(mindmaps[id]);
+                    if (!res.ok) {
+                        try { localStorage.setItem('mindmap_quarantine_' + id, JSON.stringify(mindmaps[id])); } catch (e) {}
+                        delete mindmaps[id];
+                        quarantined++; changed = true;
+                    } else if (res.healed.length > 0) {
+                        mindmaps[id] = res.map;
+                        healedCount++; changed = true;
+                    }
+                }
+                if (changed) saveMindmaps(mindmaps);
+                if (quarantined > 0) window.__mmToast(mm('corrupt_removed_count', '{count} corrupted mind map(s) were removed so the tool works again. A backup was kept in storage.').replace('{count}', String(quarantined)), 'warning', 10000);
+                else if (healedCount > 0) window.__mmToast(mm('repaired_count', '{count} mind map(s) had invalid data and were repaired automatically.').replace('{count}', String(healedCount)), 'info', 7000);
+            }
+
+            function init() {
+                try { healStoredMindmaps(); } catch (e) { window.__mmReportError(e, mm('startup_check', 'Startup check')); }
+                loadMindmapList();
+                // Loading map data must never prevent the UI from being wired up,
+                // so everything below runs even if this block throws.
+                try {
+                    let lastOpened = null;
+                    try { lastOpened = localStorage.getItem('lastOpenedMindmap'); } catch (e) {}
+                    const mindmaps = getMindmaps();
+
+                    if (lastOpened && mindmaps[lastOpened]) {
+                        loadMindmap(lastOpened);
+                    } else if (Object.keys(mindmaps).length > 0) {
+                        loadMindmap(Object.keys(mindmaps)[0]);
+                    } else {
+                        loadTutorialMap();
+                    }
+                } catch (e) {
+                    window.__mmReportError(e, mm('loading_map', 'Loading mind map'));
                 }
                 setupEventListeners();
                 setupLearningOptionButtons();
                 updateLineColors();
             }
-            
+
             function loadTutorialMap() {
                 const id = `map_tutorial_${Date.now()}`;
-                const mindmaps = {};
+                const mindmaps = getMindmaps(); // merge — never overwrite existing maps
                 mindmaps[id] = TUTORIAL_DATA;
-                saveMindmaps(mindmaps);
+                if (!saveMindmaps(mindmaps)) return false;
                 loadMindmapList();
                 loadMindmap(id);
+                return true;
             }
             
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -669,24 +1239,24 @@
 
             function showInfoModal() {
                 const infoContent = `
-                    <h3>Basic Controls</h3>
+                    <h3>${mm('info_basic', 'Basic Controls')}</h3>
                     <ul>
-                        <li><b>Pan View:</b> Click and drag on the empty background.</li>
-                        <li><b>Zoom View:</b> Use the mouse wheel or the +/- buttons.</li>
-                        <li><b>Move Node:</b> Click and drag any node.</li>
-                        <li><b>Create Child Node:</b> Click and drag the blue dot on a node.</li>
-                        <li><b>Undo/Redo:</b> Use the arrows at the top right or Ctrl+Z / Ctrl+Y.</li>
-                        <li><b>Edit Text:</b> Double-click the text inside a node.</li>
+                        <li>${mm('info_pan', 'Pan View: Click and drag on the empty background.')}</li>
+                        <li>${mm('info_zoom', 'Zoom View: Use the mouse wheel or the +/- buttons.')}</li>
+                        <li>${mm('info_move', 'Move Node: Click and drag any node.')}</li>
+                        <li>${mm('info_child', 'Create Child Node: Click and drag the blue dot on a node.')}</li>
+                        <li>${mm('info_undo', 'Undo/Redo: Use the arrows at the top right or Ctrl+Z / Ctrl+Y.')}</li>
+                        <li>${mm('info_edit', 'Edit Text: Double-click the text inside a node.')}</li>
                     </ul>
-                    <h3>Features</h3>
+                    <h3>${mm('info_features', 'Features')}</h3>
                     <ul>
-                        <li><b>New Map / Delete Map:</b> Manage your mind maps.</li>
-                        <li><b>Create with AI:</b> Generate a mind map from a topic using AI.</li>
-                        <li><b>Start Learning:</b> Review mode with active recall.</li>
+                        <li>${mm('info_manage', 'New Map / Delete Map: Manage your mind maps.')}</li>
+                        <li>${mm('info_ai', 'Create with AI: Generate a mind map from a topic using AI.')}</li>
+                        <li>${mm('info_learn', 'Start Learning: Review mode with active recall.')}</li>
                     </ul>
                 `;
                 const modal = { overlay: document.getElementById('modal-overlay'), title: document.getElementById('modal-title'), infoContent: document.getElementById('modal-info-content'), text: document.getElementById('modal-text'), input: document.getElementById('modal-input'), jsonTextarea: document.getElementById('json-textarea'), aiHelperContent: document.getElementById('modal-ai-helper-content'), confirmBtn: document.getElementById('modal-confirm'), cancelBtn: document.getElementById('modal-cancel') };
-                modal.title.textContent = "Mind Map Information";
+                modal.title.textContent = mm('info_title', 'Mind Map Information');
                 modal.infoContent.innerHTML = infoContent;
                 modal.infoContent.style.display = 'block';
                 modal.text.style.display = 'none';
@@ -695,7 +1265,7 @@
                 modal.aiHelperContent.style.display = 'none';
                 document.getElementById('modal-error').style.display = 'none';
                 modal.confirmBtn.style.display = 'none';
-                modal.cancelBtn.textContent = 'Close';
+                modal.cancelBtn.textContent = mm('close', 'Close');
                 modal.overlay.classList.add('visible');
                 modal.cancelBtn.onclick = () => {
                     modal.overlay.classList.remove('visible');
@@ -704,42 +1274,42 @@
             }
 
             function getAiPromptTemplate() {
-                return `You are an expert assistant that creates mind maps in a specific JSON format.
-The output MUST be a valid JSON object and nothing else. Do not add explanations.
+                return `${mm('ai_prompt_intro', 'You are an expert assistant that creates mind maps in a specific JSON format.')}
+${mm('ai_prompt_json_only', 'The output must be one valid JSON object and nothing else. Do not add explanations.')}
 
-The JSON structure must be:
+${mm('ai_prompt_structure', 'Use this JSON structure:')}
 {
-  "name": "Name of the Mind Map",
+  "name": "${mm('ai_sample_name', 'Name of the Mind Map')}",
   "nodes": [
-    { "id": 1, "text": "Central Topic", "parent": null },
-    { "id": 2, "text": "Main Branch 1", "parent": 1 },
-    { "id": 3, "text": "Sub-point 1.1", "parent": 2 }
+    { "id": 1, "text": "${mm('ai_sample_central', 'Central Topic')}", "parent": null },
+    { "id": 2, "text": "${mm('ai_sample_branch', 'Main Branch')} 1", "parent": 1 },
+    { "id": 3, "text": "${mm('ai_sample_subpoint', 'Sub-point')} 1.1", "parent": 2 }
   ]
 }
-Generate the mind map JSON now.`;
+${mm('ai_prompt_generate', 'Generate the mind map JSON now.')}`;
             }
 
             function showAiHelperModal() {
                 const modal = { overlay: document.getElementById('modal-overlay'), title: document.getElementById('modal-title'), aiHelperContent: document.getElementById('modal-ai-helper-content'), confirmBtn: document.getElementById('modal-confirm'), cancelBtn: document.getElementById('modal-cancel'), modalError: document.getElementById('modal-error') };
-                ['modal-info-content', 'modal-text', 'modal-input', 'json-textarea'].forEach(id => document.getElementById(id).style.display = 'none');
-                modal.title.textContent = "Create Mind Map with AI";
+                ['modal-info-content', 'modal-text', 'modal-input', 'json-textarea', 'modal-error'].forEach(id => document.getElementById(id).style.display = 'none');
+                modal.title.textContent = mm('create_with_ai', 'Create with AI');
                 modal.aiHelperContent.style.display = 'block';
                 modal.aiHelperContent.innerHTML = `
-                    <p>Step 1: Customize and Copy the Prompt</p>
+                    <p>${mm('ai_step1', 'Step 1: Customize and Copy the Prompt')}</p>
                     <textarea id="ai-prompt-area"></textarea>
-                    <button class="button" id="copy-prompt-btn" style="margin-left: 0; margin-top: 5px;">Copy Prompt</button>
-                    <h3>Step 2: Paste the AI-Generated JSON</h3>
-                    <textarea id="ai-json-input" placeholder="Paste JSON here..."></textarea>
+                    <button class="button" id="copy-prompt-btn" style="margin-left: 0; margin-top: 5px;">${mm('copy_prompt', 'Copy Prompt')}</button>
+                    <h3>${mm('ai_step2', 'Step 2: Paste the AI-Generated JSON')}</h3>
+                    <textarea id="ai-json-input" placeholder="${mm('paste_json', 'Paste JSON here...')}"></textarea>
                 `;
                 document.getElementById('ai-prompt-area').value = getAiPromptTemplate();
                 document.getElementById('copy-prompt-btn').onclick = () => {
                     navigator.clipboard.writeText(document.getElementById('ai-prompt-area').value);
-                    const btn = document.getElementById('copy-prompt-btn'); btn.textContent = 'Copied!';
-                    setTimeout(() => { btn.textContent = 'Copy Prompt'; }, 2000);
+                    const btn = document.getElementById('copy-prompt-btn'); btn.textContent = mm('error_copied', 'Copied!');
+                    setTimeout(() => { btn.textContent = mm('copy_prompt', 'Copy Prompt'); }, 2000);
                 };
                 modal.confirmBtn.style.display = 'inline-block';
-                modal.confirmBtn.textContent = "Import Mind Map";
-                modal.cancelBtn.textContent = "Cancel";
+                modal.confirmBtn.textContent = mm('import_mindmap', 'Import Mind Map');
+                modal.cancelBtn.textContent = mm('cancel', 'Cancel');
                 modal.confirmBtn.onclick = handleAiImport;
                 modal.cancelBtn.onclick = () => modal.overlay.classList.remove('visible');
                 modal.overlay.classList.add('visible');
@@ -757,7 +1327,10 @@ Generate the mind map JSON now.`;
                 });
                 const containerRect = container.getBoundingClientRect();
                 const vSpacing = 100; const hSpacing = 180;
+                const visited = new Set(); // guard against cycles → infinite recursion
                 function positionNodes(node, x, y, level) {
+                    if (visited.has(node.id)) return;
+                    visited.add(node.id);
                     node.x = x; node.y = y;
                     const children = childrenMap.get(node.id) || [];
                     const totalWidth = (children.length - 1) * hSpacing;
@@ -769,19 +1342,48 @@ Generate the mind map JSON now.`;
                 positionNodes(root, containerRect.width / 2 - 75, 50, 0);
             }
 
-            function handleAiImport() {
-                const jsonText = document.getElementById('ai-json-input').value;
+            /* Shared, safe import path: parse → validate/heal → save → load.
+               Nothing is written to storage before the data is proven valid,
+               and a failed load rolls the import back completely. */
+            function importMindmap(rawText, errorEl) {
+                const showError = (msg) => {
+                    if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+                    else alert(msg);
+                };
+                if (!saveCurrentMindmap()) { showError(mm('import_save_failed', 'The current mind map could not be saved. Import was cancelled to protect your changes.')); return false; }
+                if (!rawText || !rawText.trim()) { showError(mm('import_paste_first', 'Please paste your mind map JSON first.')); return false; }
+                let data;
                 try {
-                    const data = JSON.parse(jsonText);
-                    autoLayoutNodes(data.nodes);
-                    const id = `map_${Date.now()}`;
-                    const mindmaps = getMindmaps();
-                    mindmaps[id] = data;
-                    saveMindmaps(mindmaps);
+                    data = JSON.parse(extractJsonText(rawText));
+                } catch (e) {
+                    showError(mm('invalid_json', 'Invalid JSON: {error}. Make sure you copied the complete JSON object.').replace('{error}', e.message));
+                    return false;
+                }
+                const res = sanitizeMindmap(data);
+                if (!res.ok) { showError(mm('invalid_map', 'This JSON is not a valid mind map: {error}').replace('{error}', res.error)); return false; }
+                if (res.needsLayout) { try { autoLayoutNodes(res.map.nodes); } catch (e) { console.error('[MindMap] auto layout failed', e); } }
+                const id = `map_${Date.now()}`;
+                const mindmaps = getMindmaps();
+                mindmaps[id] = res.map;
+                if (!saveMindmaps(mindmaps)) { showError(mm('import_store_failed', 'The mind map is valid but could not be saved (storage full?).')); return false; }
+                try {
                     loadMindmapList();
                     loadMindmap(id);
-                    document.getElementById('modal-overlay').classList.remove('visible');
-                } catch (e) { alert("Invalid JSON"); }
+                } catch (e) {
+                    // Roll back so a failed load can never leave a broken map behind.
+                    const rollback = getMindmaps(); delete rollback[id]; saveMindmaps(rollback);
+                    loadMindmapList();
+                    showError(mm('import_load_failed', 'Import failed while loading the map: {error}').replace('{error}', (e && e.message ? e.message : e)));
+                    window.__mmReportError(e, mm('import_map', 'Import'));
+                    return false;
+                }
+                if (res.healed.length > 0) window.__mmToast(mm('import_repaired', 'Mind map imported. Some data was repaired automatically: {details}').replace('{details}', [...new Set(res.healed)].join('; ')), 'warning', 8000);
+                return true;
+            }
+
+            function handleAiImport() {
+                const ok = importMindmap(document.getElementById('ai-json-input').value, document.getElementById('modal-error'));
+                if (ok) document.getElementById('modal-overlay').classList.remove('visible');
             }
 
             function loadMindmapList() {
@@ -789,23 +1391,31 @@ Generate the mind map JSON now.`;
                 const mindmaps = getMindmaps();
                 for (const id in mindmaps) {
                     const option = document.createElement('option');
-                    option.value = id; option.textContent = mindmaps[id].name;
+                    const m = mindmaps[id];
+                    option.value = id;
+                    option.textContent = (m && typeof m.name === 'string' && m.name.trim()) ? m.name : mm('unnamed_map', 'Unnamed Map');
                     mindmapSelect.appendChild(option);
                 }
             }
             
             async function createNewMindmap() {
+                if (!saveCurrentMindmap()) return;
+                modal.input.value = '';
                 const name = await new Promise(resolve => {
-                    setupModal({ title: "Create New Mind Map", text: "Please enter a name.", showInput: true, confirmText: "Create", onConfirm: () => resolve(document.getElementById('modal-input').value) });
+                    setupModal({ title: mm('create_title', 'Create New Mind Map'), text: mm('enter_name', 'Please enter a name.'), showInput: true, confirmText: mm('create', 'Create'), onConfirm: () => {
+                        const v = document.getElementById('modal-input').value.trim();
+                        if (!v) { modal.modalError.textContent = mm('enter_name', 'Please enter a name.'); modal.modalError.style.display = 'block'; return; }
+                        resolve(v);
+                    } });
                 });
                 if (name) {
                     pushState();
                     const id = `map_${Date.now()}`;
                     const containerRect = container.getBoundingClientRect();
-                    const newMap = { name, nodes: [{ id: 1, text: 'Central Topic', x: containerRect.width / 2 - 75, y: containerRect.height / 2 - 25, parent: null, color: 'var(--primary-color)', size: 'large' }] };
+                    const newMap = { name, nodes: [{ id: 1, text: mm('central_topic', 'Central Topic'), x: containerRect.width / 2 - 75, y: containerRect.height / 2 - 25, parent: null, color: 'var(--primary-color)', size: 'large' }] };
                     const mindmaps = getMindmaps();
                     mindmaps[id] = newMap;
-                    saveMindmaps(mindmaps);
+                    if (!saveMindmaps(mindmaps)) return;
                     loadMindmapList();
                     loadMindmap(id);
                     document.getElementById('modal-overlay').classList.remove('visible');
@@ -854,14 +1464,17 @@ Generate the mind map JSON now.`;
                 modal.confirmBtn.style.display = 'inline-block';
                 modal.confirmBtn.textContent = config.confirmText;
                 modal.confirmBtn.onclick = config.onConfirm;
-                modal.cancelBtn.textContent = config.cancelText || "Cancel";
+                modal.cancelBtn.textContent = config.cancelText || mm('cancel', 'Cancel');
                 modal.cancelBtn.onclick = () => modal.overlay.classList.remove('visible');
                 modal.overlay.classList.add('visible');
             }
-            function showImportModal() { modal.jsonTextarea.value = ''; modal.jsonTextarea.readOnly = false; setupModal({ title: "Import from JSON", text: "Paste your mind map JSON data below.", showJsonArea: true, confirmText: "Import", onConfirm: handleImport }); }
-            function showExportModal() { if (!activeMindmapId) return; const mindmap = getMindmaps()[activeMindmapId]; modal.jsonTextarea.value = JSON.stringify(mindmap, null, 2); modal.jsonTextarea.readOnly = true; setupModal({ title: "Export to JSON", text: "Copy the JSON data below.", showJsonArea: true, confirmText: "Copy to Clipboard", cancelText: "Close", onConfirm: handleCopyToClipboard }); }
-            function handleImport() { try { pushState(); const data = JSON.parse(modal.jsonTextarea.value); const id = `map_${Date.now()}`; const mindmaps = getMindmaps(); mindmaps[id] = data; saveMindmaps(mindmaps); loadMindmapList(); loadMindmap(id); modal.overlay.classList.remove('visible'); } catch (e) { alert("Import failed"); } }
-            function handleCopyToClipboard() { navigator.clipboard.writeText(modal.jsonTextarea.value).then(() => { modal.confirmBtn.textContent = "Copied!"; setTimeout(() => { modal.confirmBtn.textContent = "Copy to Clipboard"; }, 2000); }); }
+            function showImportModal() { modal.jsonTextarea.value = ''; modal.jsonTextarea.readOnly = false; setupModal({ title: mm('import_json', 'Import from JSON'), text: mm('paste_map_json', 'Paste your mind map JSON data below.'), showJsonArea: true, confirmText: mm('import_map', 'Import'), onConfirm: handleImport }); }
+            function showExportModal() { if (!activeMindmapId) return; if (!saveCurrentMindmap()) return; const mindmap = getMindmaps()[activeMindmapId]; if (!mindmap) { window.__mmToast(mm('nothing_export', 'Nothing to export: the current mind map was not found in storage.'), 'error'); return; } modal.jsonTextarea.value = JSON.stringify(mindmap, null, 2); modal.jsonTextarea.readOnly = true; setupModal({ title: mm('export_json', 'Export to JSON'), text: mm('copy_json', 'Copy the JSON data below.'), showJsonArea: true, confirmText: mm('copy_clipboard', 'Copy to Clipboard'), cancelText: mm('close', 'Close'), onConfirm: handleCopyToClipboard }); }
+            function handleImport() {
+                const ok = importMindmap(modal.jsonTextarea.value, modal.modalError);
+                if (ok) modal.overlay.classList.remove('visible');
+            }
+            function handleCopyToClipboard() { navigator.clipboard.writeText(modal.jsonTextarea.value).then(() => { modal.confirmBtn.textContent = mm('error_copied', 'Copied!'); setTimeout(() => { modal.confirmBtn.textContent = mm('copy_clipboard', 'Copy to Clipboard'); }, 2000); }); }
             function centerOnNode(nodeId, immediate = false) { const node = nodes.find(n => n.id === nodeId); if (!node || !node.width) return; const containerRect = container.getBoundingClientRect(); const targetX = (containerRect.width / 2) - (node.x + node.width / 2) * view.scale; const targetY = (containerRect.height / 2) - (node.y + node.height / 2) * view.scale; if (immediate) { view.x = targetX; view.y = targetY; updateView(); return; } const startX = view.x; const startY = view.y; const duration = 400; let startTime = null; function animate(currentTime) { if (!startTime) startTime = currentTime; const elapsed = currentTime - startTime; const progress = Math.min(elapsed / duration, 1); const ease = t => t<.5 ? 2*t*t : -1+(4-2*t)*t; view.x = startX + (targetX - startX) * ease(progress); view.y = startY + (targetY - startY) * ease(progress); updateView(); if (progress < 1) requestAnimationFrame(animate); } requestAnimationFrame(animate); }
             function centerOnRootNode() { const rootNode = nodes.find(node => node.parent === null); if (rootNode) centerOnNode(rootNode.id); }
             
@@ -880,7 +1493,11 @@ Generate the mind map JSON now.`;
                 zoomOutBtn.onclick = () => applyZoom(1 / 1.25);
                 undoBtn.onclick = undo;
                 redoBtn.onclick = redo;
-                mindmapSelect.onchange = (e) => loadMindmap(e.target.value);
+                mindmapSelect.onchange = (e) => {
+                    const targetId = e.target.value;
+                    if (saveCurrentMindmap()) loadMindmap(targetId);
+                    else e.target.value = activeMindmapId || '';
+                };
                 window.addEventListener('keydown', handleKeyDown);
                 window.addEventListener('resize', updateView);
                 document.addEventListener('click', hideContextMenu);
@@ -967,7 +1584,7 @@ Generate the mind map JSON now.`;
 
             function showContextMenu(e, nodeId) {
                 if (isLearningMode) return; e.preventDefault(); e.stopPropagation(); contextNodeId = nodeId;
-                contextMenu.innerHTML = `<div class="context-menu-section"><div class="context-menu-title">Color</div><div class="context-menu-colors"><div class="color-swatch" data-color="#0071D3" style="background-color: #0071D3;"></div><div class="color-swatch" data-color="#28a745" style="background-color: #28a745;"></div><div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;"></div><div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;"></div><div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;"></div></div></div><div class="context-menu-section"><div class="context-menu-title">Size</div><div class="context-menu-item" data-size="small">Small</div><div class="context-menu-item" data-size="medium">Medium</div><div class="context-menu-item" data-size="large">Large</div></div>`;
+                contextMenu.innerHTML = `<div class="context-menu-section"><div class="context-menu-title">${mm('color', 'Color')}</div><div class="context-menu-colors"><div class="color-swatch" data-color="#0071D3" style="background-color: #0071D3;"></div><div class="color-swatch" data-color="#28a745" style="background-color: #28a745;"></div><div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;"></div><div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;"></div><div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;"></div></div></div><div class="context-menu-section"><div class="context-menu-title">${mm('size', 'Size')}</div><div class="context-menu-item" data-size="small">${mm('small', 'Small')}</div><div class="context-menu-item" data-size="medium">${mm('medium', 'Medium')}</div><div class="context-menu-item" data-size="large">${mm('large', 'Large')}</div></div>`;
                 contextMenu.style.display = 'block'; 
                 const rect = container.getBoundingClientRect(); 
                 let left = e.clientX - rect.left; let top = e.clientY - rect.top; 
@@ -994,31 +1611,113 @@ Generate the mind map JSON now.`;
             
             async function deleteCurrentMindmap() { 
                 if (!activeMindmapId) return; 
-                const confirmed = confirm("Delete this map?"); 
-                if (confirmed) { 
-                    const mindmaps = getMindmaps(); delete mindmaps[activeMindmapId]; saveMindmaps(mindmaps); 
-                    viewport.innerHTML = ''; nodes = []; drawLines(); 
-                    if (Object.keys(mindmaps).length > 0) { loadMindmapList(); loadMindmap(Object.keys(mindmaps)[0]); } else createNewMindmap(); 
-                } 
+                const confirmed = confirm(mm('delete_map_confirm', 'Delete this map?')); 
+                if (confirmed) {
+                    const mindmaps = getMindmaps();
+                    delete mindmaps[activeMindmapId];
+                    if (!saveMindmaps(mindmaps)) return;
+                    try { if (localStorage.getItem('lastOpenedMindmap') === activeMindmapId) localStorage.removeItem('lastOpenedMindmap'); } catch (e) {}
+                    activeMindmapId = null;
+                    viewport.innerHTML = ''; nodes = []; drawLines();
+                    if (Object.keys(mindmaps).length > 0) { loadMindmapList(); loadMindmap(Object.keys(mindmaps)[0]); } else createNewMindmap();
+                }
             }
-            function loadMindmap(id) { 
-                activeMindmapId = id; mindmapSelect.value = id; localStorage.setItem('lastOpenedMindmap', id); 
-                nodes = getMindmaps()[id].nodes; 
+            function loadMindmap(id) {
+                const mindmaps = getMindmaps();
+                let map = mindmaps[id];
+                // Validate before rendering; heal or fall back instead of crashing.
+                const res = sanitizeMindmap(map);
+                if (!res.ok) {
+                    try { localStorage.setItem('mindmap_quarantine_' + id, JSON.stringify(map)); } catch (e) {}
+                    delete mindmaps[id];
+                    if (!saveMindmaps(mindmaps)) return;
+                    window.__mmToast(mm('corrupt_map_removed', 'This mind map was corrupted and has been removed. A backup was kept in storage.'), 'error', 9000);
+                    loadMindmapList();
+                    const remaining = Object.keys(getMindmaps());
+                    if (remaining.length > 0) { loadMindmap(remaining[0]); } else { loadTutorialMap(); }
+                    return;
+                }
+                if (res.healed.length > 0) {
+                    mindmaps[id] = res.map;
+                    if (!saveMindmaps(mindmaps)) return;
+                }
+                map = res.map;
+                activeMindmapId = id; mindmapSelect.value = id;
+                nodes = map.nodes;
                 historyStack = []; redoStack = [];
-                viewport.innerHTML = ''; nodes.forEach(createNodeElement); 
-                updateView(); 
-                setTimeout(() => { const rootNode = nodes.find(n => n.parent === null); if(rootNode) centerOnNode(rootNode.id, true);}, 50); 
+                viewport.innerHTML = ''; nodes.forEach(createNodeElement);
+                updateView();
+                // Only remember this map as "last opened" after it loaded successfully,
+                // so a broken map can never become the permanent startup map.
+                try { localStorage.setItem('lastOpenedMindmap', id); } catch (e) {}
+                setTimeout(() => {
+                    const rootNode = nodes.find(n => n.parent === null);
+                    if (rootNode) centerOnNode(rootNode.id, true);
+                    if (window.__synapseMarkMindmapLayoutReady) {
+                        window.__synapseMarkMindmapLayoutReady();
+                    }
+                }, 50);
             }
             function updateNodeDimensions(node) { const nodeEl = document.getElementById(`node-${node.id}`); if (nodeEl) { node.width = nodeEl.offsetWidth; node.height = nodeEl.offsetHeight; } }
+
+            // Apply a user-defined size (from corner-resizing) to a node element.
+            // Width is fixed (text rewraps to fit); height is a minimum so the
+            // text can still grow taller and is never clipped.
+            function applyNodeSize(node, el) {
+                if (node.userWidth) { el.style.width = `${node.userWidth}px`; el.style.maxWidth = 'none'; }
+                if (node.userHeight) { el.style.minHeight = `${node.userHeight}px`; }
+            }
+
+            function startNodeResize(e, node, el) {
+                if (isLearningMode || isHintEditMode || isSelectionMode || e.button !== 0) return;
+                e.preventDefault(); e.stopPropagation();
+                hideContextMenu(); selectNode(node.id);
+                const startX = e.clientX, startY = e.clientY;
+                const startW = el.offsetWidth, startH = el.offsetHeight;
+                let pushed = false;
+                function onMove(ev) {
+                    ev.preventDefault();
+                    if (!pushed) { pushState(); pushed = true; }
+                    const newW = Math.max(80, startW + (ev.clientX - startX) / view.scale);
+                    const newH = Math.max(40, startH + (ev.clientY - startY) / view.scale);
+                    node.userWidth = Math.round(newW); node.userHeight = Math.round(newH);
+                    el.style.width = `${node.userWidth}px`; el.style.maxWidth = 'none';
+                    el.style.minHeight = `${node.userHeight}px`;
+                    updateNodeDimensions(node); drawLines();
+                }
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    updateNodeDimensions(node); drawLines(); saveCurrentMindmap();
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            }
             
             function createNodeElement(node) { 
                 const nodeEl = document.createElement('div'); nodeEl.id = `node-${node.id}`; nodeEl.className = 'node'; nodeEl.classList.add(node.size || 'medium'); 
                 nodeEl.style.left = `${node.x}px`; nodeEl.style.top = `${node.y}px`; nodeEl.style.borderColor = node.color || 'var(--primary-color)'; 
                 if (node.parent === null) nodeEl.classList.add('root'); 
                 nodeEl.addEventListener('contextmenu', (e) => showContextMenu(e, node.id)); 
-                const textArea = document.createElement('textarea'); textArea.className = 'node-textarea'; textArea.value = node.text; textArea.rows = 1; 
-                textArea.addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; updateNodeDimensions(node); drawLines(); }); 
-                textArea.addEventListener('change', () => { pushState(); node.text = textArea.value; saveCurrentMindmap(); }); 
+                const textArea = document.createElement('textarea'); textArea.className = 'node-textarea'; textArea.value = node.text; textArea.rows = 1;
+                let textUndoCaptured = false;
+                textArea.addEventListener('input', (e) => {
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                    if (node.text !== textArea.value) {
+                        // Capture the pre-edit state exactly once per focus/edit
+                        // session, then update the model on every keystroke.
+                        if (!textUndoCaptured) { pushState(); textUndoCaptured = true; }
+                        node.text = textArea.value;
+                        scheduleCurrentMindmapSave();
+                    }
+                    updateNodeDimensions(node);
+                    drawLines();
+                });
+                textArea.addEventListener('blur', () => {
+                    if (textUndoCaptured) saveCurrentMindmap();
+                    textUndoCaptured = false;
+                });
                 nodeEl.appendChild(textArea); 
                 const dragHandle = document.createElement('div'); dragHandle.className = 'drag-handle'; 
                 dragHandle.addEventListener('mousedown', (e) => startNodeCreation(e, node.id)); 
@@ -1030,10 +1729,14 @@ Generate the mind map JSON now.`;
                     controls.appendChild(deleteBtn); 
                 } 
                 nodeEl.appendChild(controls);
+                const resizeHandle = document.createElement('div'); resizeHandle.className = 'node-resize-handle'; resizeHandle.title = mm('resize', 'Resize');
+                resizeHandle.addEventListener('mousedown', (e) => startNodeResize(e, node, nodeEl));
+                nodeEl.appendChild(resizeHandle);
+                applyNodeSize(node, nodeEl);
                 if (node.hint) { const dot = document.createElement('div'); dot.className = 'node-hint-dot'; nodeEl.appendChild(dot); }
                 const hintInput = document.createElement('textarea');
                 hintInput.className = 'node-hint-input';
-                hintInput.placeholder = 'Hint…';
+                hintInput.placeholder = mm('hint_placeholder', 'Hint…');
                 hintInput.value = node.hint || '';
                 hintInput.rows = 1;
                 hintInput.addEventListener('mousedown', e => e.stopPropagation());
@@ -1048,7 +1751,7 @@ Generate the mind map JSON now.`;
                 el.onmousedown = (e) => {
                     if (isHintEditMode) return;
                     if (isSelectionMode) { e.stopPropagation(); handleSelectionModeClick(node.id); return; }
-                    if (isLearningMode || e.target.closest('.drag-handle, .control-btn, .node-textarea') || isPanning || e.button !== 0) return; 
+                    if (isLearningMode || e.target.closest('.drag-handle, .node-resize-handle, .control-btn, .node-textarea') || isPanning || e.button !== 0) return;
                     e.stopPropagation(); hideContextMenu(); 
                     let startX = e.clientX, startY = e.clientY; 
                     let hasMoved = false;
@@ -1082,20 +1785,23 @@ Generate the mind map JSON now.`;
                 pushState();
                 const parentNode = nodes.find(n => n.id === parentId); if (!parentNode) return; 
                 const newId = (nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) : 0) + 1; 
-                const newNode = { id: newId, text: 'New Node', x: position.x - 68, y: position.y - 21, parent: parentId, color: parentNode.color, size: 'medium' }; 
+                const newNode = { id: newId, text: mm('new_node', 'New Node'), x: position.x - 68, y: position.y - 21, parent: parentId, color: parentNode.color, size: 'medium' }; 
                 nodes.push(newNode); createNodeElement(newNode); saveCurrentMindmap(); selectNode(newId); 
                 setTimeout(() => document.querySelector(`#node-${newId} textarea`)?.focus(), 0); 
             }
             async function deleteNode(nodeId) { 
                 const nodeToDelete = nodes.find(n => n.id === nodeId); if (!nodeToDelete || nodeToDelete.parent === null) return; 
-                if (confirm("Delete node?")) { 
+                if (confirm(mm('delete_node_confirm', 'Delete node?'))) {
                     pushState();
-                    function recursiveDelete(id) { 
-                        nodes.filter(n => n.parent === id).forEach(child => recursiveDelete(child.id)); 
-                        document.getElementById(`node-${id}`)?.remove(); nodes = nodes.filter(n => n.id !== id); 
-                    } 
-                    recursiveDelete(nodeId); saveCurrentMindmap(); drawLines(); 
-                } 
+                    const visited = new Set(); // guard against cycles → infinite recursion
+                    function recursiveDelete(id) {
+                        if (visited.has(id)) return;
+                        visited.add(id);
+                        nodes.filter(n => n.parent === id).forEach(child => recursiveDelete(child.id));
+                        document.getElementById(`node-${id}`)?.remove(); nodes = nodes.filter(n => n.id !== id);
+                    }
+                    recursiveDelete(nodeId); saveCurrentMindmap(); drawLines();
+                }
             }
             function getMouseWorldPosition(e) { const rect = container.getBoundingClientRect(); return { x: (e.clientX - rect.left - view.x) / view.scale, y: (e.clientY - rect.top - view.y) / view.scale }; }
             function startNodeCreation(e, nodeId) { if (isLearningMode) return; e.stopPropagation(); isCreatingNode = true; creationStartNodeId = nodeId; creationLineEnd = getMouseWorldPosition(e); document.addEventListener('mousemove', handleNodeCreationDrag); document.addEventListener('mouseup', finishNodeCreation); drawLines(); }
@@ -1109,7 +1815,8 @@ Generate the mind map JSON now.`;
                 container.style.backgroundSize = `${gridSize}px ${gridSize}px`;
                 container.style.backgroundPosition = `${view.x % gridSize}px ${view.y % gridSize}px`;
                 const dotOpacity = Math.min(1, Math.max(0, (view.scale - 0.2) / 0.5));
-                const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const isDark = document.documentElement.classList.contains('dark') ||
+                    window.matchMedia('(prefers-color-scheme: dark)').matches;
                 const dotColor = isDark
                     ? `rgba(48, 48, 48, ${dotOpacity})`
                     : `rgba(215, 215, 215, ${dotOpacity})`;
@@ -1236,7 +1943,7 @@ Generate the mind map JSON now.`;
                 selDragStart = null;
             }
             function updateSelectionCount() {
-                document.getElementById('selection-count').textContent = `${selectedForLearning.size} selected`;
+                document.getElementById('selection-count').textContent = mm('selected_count', '{count} selected').replace('{count}', String(selectedForLearning.size));
                 document.getElementById('selection-start-btn').disabled = selectedForLearning.size === 0;
             }
             function handleSelectionModeClick(nodeId) {
@@ -1255,7 +1962,10 @@ Generate the mind map JSON now.`;
                 const result = [];
                 const rootNode = nodes.find(n => n.parent === null);
                 if (!rootNode) return result;
+                const visited = new Set(); // guard against cycles → infinite recursion
                 function dfs(nodeId) {
+                    if (visited.has(nodeId)) return;
+                    visited.add(nodeId);
                     if (filterIds === null || filterIds.includes(nodeId)) result.push(nodeId);
                     nodes.filter(n => n.parent === nodeId).forEach(child => dfs(child.id));
                 }
@@ -1299,12 +2009,12 @@ Generate the mind map JSON now.`;
                             [learningQueue[i], learningQueue[j]] = [learningQueue[j], learningQueue[i]];
                         }
                     }
-                    learningPrompt.textContent = '📋 Reviewing missed cards…';
+                    learningPrompt.textContent = '📋 ' + mm('review_missed', 'Reviewing missed cards…');
                     setTimeout(presentQuestion, 1100);
                     return;
                 }
                 if (learningQueue.length === 0) {
-                    learningPrompt.textContent = '🎉 Done! Great work!';
+                    learningPrompt.textContent = '🎉 ' + mm('learning_done', 'Done! Great work!');
                     setTimeout(stopLearningMode, 2500);
                     return;
                 }
@@ -1320,7 +2030,7 @@ Generate the mind map JSON now.`;
                 const targetEl = document.getElementById(`node-${nodeId}`);
                 if (targetEl) { targetEl.classList.add('learning-target'); targetEl.querySelector('.node-textarea')?.classList.add('node-text-hidden'); centerOnNode(nodeId); }
                 const remaining = learningQueue.length + wrongQueue.length;
-                learningPrompt.textContent = `Recall the highlighted node  ·  ${remaining} remaining`;
+                learningPrompt.textContent = mm('recall_prompt', 'Recall the highlighted node · {remaining} remaining').replace('{remaining}', String(remaining));
                 const hintEl = document.getElementById('learning-hint');
                 if (currentLearningNode.hint) {
                     hintEl.textContent = '💡 ' + currentLearningNode.hint;
@@ -1337,7 +2047,7 @@ Generate the mind map JSON now.`;
                 if (!currentLearningNode) return;
                 document.getElementById(`node-${currentLearningNode.id}`)?.querySelector('.node-textarea')?.classList.remove('node-text-hidden');
                 centerOnNode(currentLearningNode.id);
-                learningPrompt.textContent = 'Did you recall it correctly?';
+                learningPrompt.textContent = mm('recall_correct', 'Did you recall it correctly?');
                 const hintEl = document.getElementById('learning-hint');
                 hintEl.textContent = '';
                 hintEl.style.opacity = '0';
@@ -1368,7 +2078,18 @@ Generate the mind map JSON now.`;
                 centerOnRootNode();
             }
 
-            init();
+            try {
+                init();
+            } catch (e) {
+                // Last line of defense: report the error AND still wire up the UI,
+                // so the buttons can never end up dead again.
+                window.__mmReportError(e, mm('initialization', 'Initialization'));
+                try { setupEventListeners(); } catch (e2) { console.error('[MindMap]', e2); }
+                try { setupLearningOptionButtons(); } catch (e2) { console.error('[MindMap]', e2); }
+                if (window.__synapseMarkMindmapLayoutReady) {
+                    window.__synapseMarkMindmapLayoutReady();
+                }
+            }
         });
     </script>
 
@@ -1376,8 +2097,8 @@ Generate the mind map JSON now.`;
         /* ── Fullscreen toggle ─────────────────────────────────────────── */
         window.__mindmapFs = false;
 
-        var _FS_SVG_EXPAND = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>';
-        var _FS_SVG_COLLAPSE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="10" y1="14" x2="3" y2="21"></line><line x1="21" y1="3" x2="14" y2="10"></line></svg>';
+        var _FS_SVG_EXPAND = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>';
+        var _FS_SVG_COLLAPSE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="10" y1="14" x2="3" y2="21"></line><line x1="21" y1="3" x2="14" y2="10"></line></svg>';
 
         function __synapseFsToggle() {
             window.location.href = window.__mindmapFs ? 'mindmap://exitfullscreen' : 'mindmap://fullscreen';
@@ -1392,8 +2113,24 @@ Generate the mind map JSON now.`;
             btn.setAttribute('data-i18n-title', active ? 'fullscreen_exit' : 'fullscreen_enter');
         }
 
+        var _WIN_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line></svg>';
+        var _WIN_SVG_CLOSE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>';
+
+        function __synapseWinToggle() {
+            window.location.href = window.__mindmapWin ? 'mindmap://exitwindow' : 'mindmap://window';
+        }
+
+        function __synapseSetWindow(active, t) {
+            window.__mindmapWin = !!active;
+            var btn = document.getElementById('window-btn');
+            if (!btn) return;
+            btn.innerHTML = active ? _WIN_SVG_CLOSE : _WIN_SVG;
+            btn.title = active ? (t && t.window_exit || 'Close Window') : (t && t.window_open || 'New Window');
+            btn.setAttribute('data-i18n-title', active ? 'window_exit' : 'window_open');
+        }
+
         /* ── i18n ──────────────────────────────────────────────────────── */
-        window.__SYNAPSE_MM_I18N__ = null;
+        window.__SYNAPSE_MM_I18N__ = window.__SYNAPSE_MM_I18N__ || null;
 
         function applyMindmapI18n() {
             var t = window.__SYNAPSE_MM_I18N__;
@@ -1410,7 +2147,75 @@ Generate the mind map JSON now.`;
                 var key = el.getAttribute('data-i18n-placeholder');
                 if (t[key] !== undefined) el.placeholder = t[key];
             });
+            var selectionCount = document.getElementById('selection-count');
+            if (selectionCount && t.selected_count) {
+                var count = (selectionCount.textContent.match(/\d+/) || ['0'])[0];
+                selectionCount.textContent = t.selected_count.replace('{count}', count);
+            }
         }
+    </script>
+    <script>
+    /* Custom HTML dropdown replacing the native #mindmap-select popup
+       (QtWebEngine renders native select popups mis-scaled). The hidden
+       <select> stays the source of truth: options are read lazily when the
+       menu opens, value changes dispatch a normal 'change' event, and a
+       MutationObserver keeps the button label in sync with loadMindmapList(). */
+    (function() {
+        var sel = document.getElementById('mindmap-select');
+        if (!sel) return;
+        var btn = document.createElement('button');
+        btn.type = 'button'; btn.id = 'mindmap-select-btn';
+        sel.parentNode.insertBefore(btn, sel.nextSibling);
+        var menu = null;
+
+        function label() { var o = sel.options[sel.selectedIndex]; return o ? o.textContent : ''; }
+        function sync() { btn.textContent = label() || '…'; btn.title = label(); }
+        function close() { if (menu && menu.parentNode) menu.parentNode.removeChild(menu); menu = null; }
+        function open() {
+            close();
+            menu = document.createElement('div'); menu.id = 'mindmap-select-menu';
+            Array.prototype.forEach.call(sel.options, function(o) {
+                var d = document.createElement('div');
+                d.className = 'mm-dd-item' + (o.selected ? ' sel' : '');
+                d.textContent = o.textContent;
+                d.addEventListener('click', function(ev) {
+                    ev.stopPropagation();
+                    sel.value = o.value; sync(); close();
+                    sel.dispatchEvent(new Event('change'));
+                });
+                menu.appendChild(d);
+            });
+            menu.addEventListener('click', function(e) { e.stopPropagation(); });
+            menu.style.maxHeight = '300px';
+            document.body.appendChild(menu);
+            var r = btn.getBoundingClientRect();
+            menu.style.minWidth = Math.max(r.width, 160) + 'px';
+            var h = menu.offsetHeight;
+            var below = window.innerHeight - r.bottom - 10;
+            if (h <= below) { menu.style.top = (r.bottom + 4) + 'px'; }
+            else if (h <= r.top - 10) { menu.style.top = (r.top - h - 4) + 'px'; }
+            else { menu.style.maxHeight = Math.max(below, 120) + 'px'; menu.style.top = (r.bottom + 4) + 'px'; }
+            var left = Math.min(r.left, window.innerWidth - menu.offsetWidth - 10);
+            menu.style.left = Math.max(8, left) + 'px';
+            var s = menu.querySelector('.sel');
+            if (s && s.scrollIntoView) s.scrollIntoView({ block: 'nearest' });
+        }
+
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (menu) { close(); } else { open(); }
+        });
+        document.addEventListener('click', close);
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+        window.addEventListener('resize', close);
+        // Close when the page behind scrolls — but not when scrolling the menu.
+        document.addEventListener('scroll', function(e) {
+            if (menu && e.target && menu.contains(e.target)) return;
+            close();
+        }, true);
+        new MutationObserver(sync).observe(sel, { childList: true, subtree: true });
+        sync();
+    })();
     </script>
 </body>
 </html>

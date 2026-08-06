@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<!--
+  SynapsePro — Focus Music player UI (Apple-style).
+  Hosted in a QWebEngineView inside the music dialog (background_music.py).
+
+  Bridge JS -> Python:  console.log('SYNAPSEPRO_MUSIC:' + JSON.stringify({a:...}))
+  Python -> JS:         initMusic(payload) / musicState(s) / userTracks(list)
+                        / scState(s) / applyColors(c)
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root{
+    color-scheme:light;
+    --accent:#0071D3; --accent-bright:#007AFF;
+    --bg:#F5F5F7; --card:#FFFFFF; --border:rgba(0,0,0,0.08);
+    --text:#1D1D1F; --muted:#86868B; --track:#E5E5EA;
+  }
+  html.dark{
+    color-scheme:dark;
+    --bg:#191919; --card:#2C2C2C; --border:rgba(255,255,255,0.09);
+    --text:#E0E0E0; --muted:#AAAAAA; --track:#404040;
+  }
+  *{box-sizing:border-box;-webkit-user-select:none;user-select:none;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);font-size:13px;
+    -webkit-font-smoothing:antialiased;overflow:hidden;
+  }
+  .wrap{display:flex;flex-direction:column;height:100%;padding:14px 14px 12px;}
+
+  /* ── Segmented control ── */
+  .seg{display:flex;background:var(--track);border-radius:9px;padding:3px;flex-shrink:0;}
+  .seg button{
+    flex:1;border:none;background:transparent;color:var(--muted);
+    font:inherit;font-size:12.5px;font-weight:600;padding:6px 0;border-radius:7px;cursor:pointer;
+  }
+  .seg button.on{background:var(--card);color:var(--text);}
+  .seg button:disabled{opacity:.4;cursor:default;}
+
+  .panel{display:none;flex:1;min-height:0;flex-direction:column;}
+  .panel.on{display:flex;}
+
+  /* ── Local: player card (artwork + transport + bar in one box) ── */
+  .pcard{
+    background:var(--card);border:1px solid var(--border);border-radius:18px;
+    padding:16px 14px 8px;margin-top:12px;flex-shrink:0;
+  }
+  .hero{flex-shrink:0;text-align:center;padding:0 0 2px;}
+  .art{
+    width:168px;height:126px;object-fit:cover;border-radius:14px;
+    transition:transform .35s cubic-bezier(.3,1.4,.5,1);
+  }
+  .art.paused{transform:scale(0.94);}
+  .title{font-size:15.5px;font-weight:700;letter-spacing:-0.01em;margin-top:11px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+
+  /* ── Transport ── */
+  .transport{display:flex;align-items:center;justify-content:center;gap:22px;
+    padding:8px 0 2px;flex-shrink:0;}
+  .tbtn{
+    border:none;background:transparent;color:var(--text);cursor:pointer;
+    width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    transition:background .15s;
+  }
+  .tbtn:hover{background:var(--track);}
+  .tbtn svg{width:17px;height:17px;fill:currentColor;}
+  .pbtn{
+    width:52px;height:52px;border:none;border-radius:50%;cursor:pointer;
+    background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;
+    transition:filter .15s, transform .1s;
+  }
+  .pbtn:hover{filter:brightness(1.08);}
+  .pbtn:active{transform:scale(0.95);}
+  .pbtn svg{width:21px;height:21px;fill:#fff;}
+
+  /* ── Seek / volume bar ── */
+  .volrow{display:flex;align-items:center;gap:9px;padding:4px 10px 10px;flex-shrink:0;}
+  .volrow svg{width:14px;height:14px;fill:var(--muted);flex-shrink:0;}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;flex:1;height:4px;border-radius:2px;
+    background:linear-gradient(to right, var(--accent) 0%, var(--accent) var(--fill,50%), var(--track) var(--fill,50%));
+    outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;
+    border:1px solid rgba(0,0,0,0.15);
+  }
+  .barbox{padding:6px 4px 0;flex-shrink:0;}
+  .barbox input[type=range]{width:100%;display:block;}
+  .times{display:flex;align-items:center;justify-content:space-between;margin-top:1px;}
+  .times span{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:52px;}
+  .times span:last-child{text-align:right;}
+  .volbtn{
+    border:none;background:transparent;color:var(--muted);cursor:pointer;
+    padding:4px 6px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  }
+  .volbtn:hover{color:var(--text);}
+  .volbtn.on{color:var(--accent);}
+  .volbtn svg{width:15px;height:15px;fill:currentColor;}
+
+  /* ── Sound grid ── */
+  .scroll{flex:1;min-height:0;overflow-y:auto;padding:2px 2px 6px;}
+  .scroll::-webkit-scrollbar{width:0;height:0;}
+  .glabel{font-size:10.5px;font-weight:650;letter-spacing:0.06em;text-transform:uppercase;
+    color:var(--muted);margin:8px 4px 7px;}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
+  .tile{cursor:pointer;text-align:center;}
+  .tile img{
+    width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;display:block;
+    border:2px solid transparent;transition:transform .15s, border-color .15s;
+  }
+  .tile:hover img{transform:scale(1.04);}
+  .tile.on img{border-color:var(--accent);}
+  .tile span{display:block;font-size:10.5px;color:var(--muted);margin-top:4px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tile.on span{color:var(--accent);font-weight:650;}
+
+  /* ── User tracks ── */
+  .ulist{margin-top:2px;}
+  .urow{
+    display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;cursor:pointer;
+    background:var(--card);border:1px solid var(--border);margin-bottom:6px;
+  }
+  .urow:hover{border-color:var(--accent);}
+  .urow.on{border-color:var(--accent);}
+  .urow .nm{flex:1;min-width:0;font-size:12.5px;font-weight:550;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .urow.on .nm{color:var(--accent);}
+  .urow .del{
+    border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;
+    line-height:1;padding:2px 4px;border-radius:5px;
+  }
+  .urow .del:hover{color:#ff453a;}
+  .uadd{
+    display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:10px;
+    border:1.5px dashed var(--track);color:var(--muted);cursor:pointer;font-size:12px;font-weight:550;
+  }
+  .uadd:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* ── Footer (resume toggle) ── */
+  .foot{display:flex;align-items:center;justify-content:space-between;
+    padding:9px 4px 0;flex-shrink:0;border-top:1px solid var(--border);margin-top:6px;}
+  .foot span{font-size:11px;color:var(--muted);}
+  .sw{position:relative;width:34px;height:20px;flex-shrink:0;}
+  .sw input{opacity:0;width:0;height:0;position:absolute;}
+  .sw i{
+    position:absolute;inset:0;background:var(--track);border-radius:20px;cursor:pointer;
+    transition:background .2s;font-style:normal;
+  }
+  .sw i::before{
+    content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;background:#fff;
+    border-radius:50%;transition:transform .2s;
+  }
+  .sw input:checked + i{background:var(--accent);}
+  .sw input:checked + i::before{transform:translateX(14px);}
+
+  /* ── SoundCloud panel ── */
+  .pills{display:flex;flex-wrap:wrap;gap:6px;padding:12px 0 4px;flex-shrink:0;}
+  .pill{
+    border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;
+    font:inherit;font-size:11.5px;font-weight:550;padding:6px 11px;border-radius:20px;
+  }
+  .pill:hover{border-color:var(--accent);color:var(--accent);}
+  .pill.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .saved-pill{display:inline-flex;align-items:stretch;padding:0;overflow:hidden;cursor:default;}
+  .saved-pill button{
+    border:0;background:transparent;color:inherit;font:inherit;font-size:inherit;font-weight:inherit;
+    cursor:pointer;min-width:0;
+  }
+  .saved-pill .saved-open{padding:6px 7px 6px 11px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .saved-pill .saved-remove{
+    width:25px;padding:0 7px 1px 5px;font-size:16px;font-weight:500;line-height:1;
+    border-left:1px solid var(--border);opacity:.72;
+  }
+  .saved-pill.on .saved-remove{border-left-color:rgba(255,255,255,.28);}
+  .saved-pill .saved-remove:hover{opacity:1;background:rgba(127,127,127,.14);}
+  .urlrow{display:none;gap:6px;padding:4px 0;flex-shrink:0;}
+  .urlrow.on{display:flex;}
+  .urlrow input[type=text]{
+    flex:1;border:1px solid var(--border);background:var(--card);color:var(--text);
+    font:inherit;font-size:12px;border-radius:8px;padding:7px 10px;outline:none;
+    -webkit-user-select:text;user-select:text;
+  }
+  .urlrow input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent);}
+  .urlrow button{
+    border:none;background:var(--accent);color:#fff;font:inherit;font-size:12px;font-weight:600;
+    border-radius:8px;padding:0 14px;cursor:pointer;
+  }
+  .urlrow button:hover{filter:brightness(1.08);}
+  .scnow{font-size:12px;color:var(--muted);text-align:center;padding:8px 6px 0;
+    flex-shrink:0;min-height:18px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .schint{font-size:10.5px;color:var(--muted);opacity:.7;text-align:center;padding-top:2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="seg">
+    <button id="seg-local" class="on">Local</button>
+    <button id="seg-sc">SoundCloud</button>
+  </div>
+
+  <!-- ── LOCAL ─────────────────────────────── -->
+  <div class="panel on" id="panel-local">
+    <div class="pcard">
+      <div class="hero">
+        <img class="art paused" id="art" alt="">
+        <div class="title" id="tr-title">&nbsp;</div>
+        <div class="sub" id="tr-sub">Focus Music</div>
+      </div>
+
+      <div class="transport">
+        <button class="tbtn" id="btn-prev" title="">
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM20 6v12L9.5 12z"/></svg>
+        </button>
+        <button class="pbtn" id="btn-play" title="">
+          <svg id="ic-play" viewBox="0 0 24 24"><path d="M8 5.14v13.72L19 12z"/></svg>
+          <svg id="ic-pause" viewBox="0 0 24 24" style="display:none"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+        </button>
+        <button class="tbtn" id="btn-next" title="">
+          <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM4 6v12l10.5-6z"/></svg>
+        </button>
+      </div>
+
+      <div class="barbox">
+        <input type="range" id="bar" min="0" max="1000" value="0">
+        <div class="times">
+          <span id="t-l">0:00</span>
+          <button class="volbtn" id="vol-btn" title="">
+            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+          </button>
+          <span id="t-r">0:00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="scroll">
+      <div class="glabel" id="lbl-sounds">Sounds</div>
+      <div class="grid" id="grid"></div>
+      <div class="glabel" id="lbl-mytracks">My Tracks</div>
+      <div class="ulist" id="ulist"></div>
+    </div>
+
+    <div class="foot">
+      <span id="lbl-resume">Resume playback on startup</span>
+      <label class="sw"><input type="checkbox" id="resume-toggle"><i></i></label>
+    </div>
+  </div>
+
+  <!-- ── SOUNDCLOUD (chrome only; the widget itself is a Qt view below) ── -->
+  <div class="panel" id="panel-sc">
+    <div class="pills" id="sc-pills"></div>
+    <div class="urlrow" id="sc-urlrow">
+      <input type="text" id="sc-url" placeholder="https://soundcloud.com/...">
+      <button id="sc-load">Add</button>
+    </div>
+    <div class="scnow" id="sc-now">SoundCloud</div>
+    <div class="transport" id="sc-transport">
+      <button class="tbtn" id="sc-prev">
+        <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM20 6v12L9.5 12z"/></svg>
+      </button>
+      <button class="pbtn" id="sc-play">
+        <svg id="sc-ic-play" viewBox="0 0 24 24"><path d="M8 5.14v13.72L19 12z"/></svg>
+        <svg id="sc-ic-pause" viewBox="0 0 24 24" style="display:none"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+      </button>
+      <button class="tbtn" id="sc-next">
+        <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM4 6v12l10.5-6z"/></svg>
+      </button>
+    </div>
+    <div class="volrow">
+      <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3z"/></svg>
+      <input type="range" id="sc-vol" min="0" max="100" value="50">
+      <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+    </div>
+    <div class="schint" id="sc-hint">Player loads below</div>
+  </div>
+</div>
+
+<script>
+  var D = null;              // init payload
+  var _cur = null;           // current track id
+  var _playing = false;
+  var _scUrl = "";
+  var _pos = 0, _dur = 0;    // playback position / duration (ms)
+  var _barMode = 'seek';     // 'seek' | 'vol'
+  var _dragging = false;
+  var _volVal = 50;
+  var _volTimer = null;
+
+  function send(o){ try{ console.log('SYNAPSEPRO_MUSIC:' + JSON.stringify(o)); }catch(e){} }
+  function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function el(id){ return document.getElementById(id); }
+  function fmt(ms){
+    var s = Math.max(0, Math.round(ms/1000));
+    return Math.floor(s/60) + ':' + ('0' + (s%60)).slice(-2);
+  }
+
+  function applyColors(c){
+    if(!c) return;
+    var r = document.documentElement.style;
+    function set(n,v){ if(v) r.setProperty(n,v); }
+    set('--accent', c.accent); set('--accent-bright', c.accentBright);
+    set('--bg', c.bg); set('--card', c.card); set('--border', c.border);
+    set('--text', c.text); set('--muted', c.muted); set('--track', c.track);
+  }
+  window.applyColors = applyColors;
+
+  function _sliderFill(inp){
+    var max = +inp.max || 100;
+    inp.style.setProperty('--fill', (100 * (+inp.value) / max) + '%');
+  }
+
+  /* ── Seek bar / volume toggle ── */
+  function refreshBar(){
+    if(_barMode !== 'seek' || _dragging) return;
+    var b = el('bar');
+    b.value = _dur > 0 ? Math.round(_pos / _dur * 1000) : 0;
+    _sliderFill(b);
+    el('t-l').textContent = fmt(_pos);
+    el('t-r').textContent = fmt(_dur);
+  }
+
+  function enterVolMode(){
+    _barMode = 'vol';
+    el('vol-btn').classList.add('on');
+    var b = el('bar');
+    b.value = _volVal; b.max = 100;
+    _sliderFill(b);
+    el('t-l').textContent = (D && D.labels.volume) || 'Volume';
+    el('t-r').textContent = _volVal + '%';
+    bumpVolTimer();
+  }
+
+  function exitVolMode(){
+    _barMode = 'seek';
+    if(_volTimer){ clearTimeout(_volTimer); _volTimer = null; }
+    el('vol-btn').classList.remove('on');
+    el('bar').max = 1000;
+    refreshBar();
+  }
+
+  function bumpVolTimer(){
+    if(_volTimer) clearTimeout(_volTimer);
+    _volTimer = setTimeout(exitVolMode, 3500);   // auto-return to the seek bar
+  }
+
+  /* Python push: playback position / duration changed */
+  window.positionState = function(s){
+    if(!s) return;
+    if(s.pos !== undefined) _pos = s.pos;
+    if(s.dur !== undefined) _dur = s.dur;
+    refreshBar();
+  };
+
+  function _allTracks(){
+    return (D.tracks || []).concat(D.userTracks || []);
+  }
+  function _findTrack(id){
+    var all = _allTracks();
+    for(var i=0;i<all.length;i++) if(all[i].id===id) return all[i];
+    return all[0] || null;
+  }
+
+  function renderGrid(){
+    el('grid').innerHTML = (D.tracks || []).map(function(t){
+      return '<div class="tile' + (t.id===_cur?' on':'') + '" data-id="' + esc(t.id) + '">' +
+        '<img src="' + esc(t.cover) + '" alt=""><span>' + esc(t.title) + '</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(el('grid').children, function(n){
+      n.addEventListener('click', function(){ send({a:'select', id:n.dataset.id}); });
+    });
+  }
+
+  function renderUser(){
+    var list = D.userTracks || [];
+    el('lbl-mytracks').style.display = '';
+    var html = list.map(function(t){
+      return '<div class="urow' + (t.id===_cur?' on':'') + '" data-id="' + esc(t.id) + '">' +
+        '<div class="nm">' + esc(t.title) + '</div>' +
+        '<button class="del" title="' + esc(D.labels.removeTrack) + '">&#10005;</button></div>';
+    }).join('');
+    html += '<div class="uadd" id="uadd">+ ' + esc(D.labels.addTrack) + '</div>';
+    el('ulist').innerHTML = html;
+    Array.prototype.forEach.call(el('ulist').querySelectorAll('.urow'), function(n){
+      n.addEventListener('click', function(e){
+        if(e.target.classList.contains('del')){ send({a:'delTrack', id:n.dataset.id}); }
+        else{ send({a:'select', id:n.dataset.id}); }
+      });
+    });
+    el('uadd').addEventListener('click', function(){ send({a:'addTrack'}); });
+  }
+
+  function renderHero(){
+    var t = _findTrack(_cur);
+    if(!t) return;
+    el('art').src = t.cover;
+    el('tr-title').textContent = t.title;
+  }
+
+  function setPlaying(p){
+    _playing = !!p;
+    el('ic-play').style.display  = _playing ? 'none' : '';
+    el('ic-pause').style.display = _playing ? '' : 'none';
+    el('art').classList.toggle('paused', !_playing);
+  }
+
+  function markActive(){
+    Array.prototype.forEach.call(document.querySelectorAll('.tile'), function(n){
+      n.classList.toggle('on', n.dataset.id === _cur);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.urow'), function(n){
+      n.classList.toggle('on', n.dataset.id === _cur);
+    });
+  }
+
+  /* Python push: playback / selection changed */
+  window.musicState = function(s){
+    if(!s) return;
+    if(s.current !== undefined && s.current !== _cur){ _cur = s.current; renderHero(); markActive(); }
+    if(s.playing !== undefined) setPlaying(s.playing);
+  };
+
+  /* Python push: user track list changed */
+  window.userTracks = function(list){
+    D.userTracks = list || [];
+    renderUser(); markActive();
+  };
+
+  /* Python push: SoundCloud state */
+  window.scState = function(s){
+    if(!s) return;
+    if(s.now !== undefined) el('sc-now').textContent = s.now || 'SoundCloud';
+    if(s.playing !== undefined){
+      el('sc-ic-play').style.display  = s.playing ? 'none' : '';
+      el('sc-ic-pause').style.display = s.playing ? '' : 'none';
+    }
+    if(s.customStations !== undefined && D && D.sc){
+      D.sc.customStations = s.customStations || [];
+      renderStations();
+    }
+    if(s.url !== undefined){ _scUrl = s.url; markStations(); }
+  };
+
+  /* ── SoundCloud chrome ── */
+  function markStations(){
+    var known = false;
+    Array.prototype.forEach.call(document.querySelectorAll('#sc-pills .pill'), function(n){
+      var on = n.dataset.url === _scUrl;
+      if(n.dataset.url !== '__custom__' && on) known = true;
+      n.classList.toggle('on', on);
+    });
+    var cust = document.querySelector('#sc-pills .pill[data-url="__custom__"]');
+    if(cust) cust.classList.toggle('on', !known);
+    el('sc-urlrow').classList.toggle('on', !known);
+    if(!known) el('sc-url').value = _scUrl;
+  }
+
+  function renderStations(){
+    var pills = (D.sc.stations || []).map(function(s){
+      return '<button class="pill" data-url="' + esc(s.url) + '">' + esc(s.label) + '</button>';
+    }).join('');
+    pills += (D.sc.customStations || []).map(function(s){
+      return '<div class="pill saved-pill" data-url="' + esc(s.url) + '">' +
+        '<button type="button" class="saved-open" title="' + esc(s.url) + '">' + esc(s.label) + '</button>' +
+        '<button type="button" class="saved-remove" title="' + esc(D.labels.remove || 'Remove') +
+        '" aria-label="' + esc(D.labels.remove || 'Remove') + '">&minus;</button></div>';
+    }).join('');
+    pills += '<button class="pill" data-url="__custom__">' + esc(D.labels.customUrl) + '</button>';
+    el('sc-pills').innerHTML = pills;
+    Array.prototype.forEach.call(el('sc-pills').children, function(n){
+      var openStation = function(){
+        if(n.dataset.url === '__custom__'){
+          el('sc-url').value = '';
+          el('sc-urlrow').classList.add('on');
+          Array.prototype.forEach.call(document.querySelectorAll('#sc-pills .pill'), function(m){ m.classList.remove('on'); });
+          n.classList.add('on');
+          el('sc-url').focus();
+        } else {
+          _scUrl = n.dataset.url;
+          markStations();
+          send({a:'scStation', url:n.dataset.url});
+        }
+      };
+      var openButton = n.querySelector && n.querySelector('.saved-open');
+      var removeButton = n.querySelector && n.querySelector('.saved-remove');
+      if(openButton) openButton.addEventListener('click', openStation);
+      else n.addEventListener('click', openStation);
+      if(removeButton) removeButton.addEventListener('click', function(e){
+        e.stopPropagation();
+        send({a:'scDeleteCustom', url:n.dataset.url});
+      });
+    });
+    markStations();
+  }
+
+  function setMode(m){
+    var sc = (m === 'sc');
+    el('seg-local').classList.toggle('on', !sc);
+    el('seg-sc').classList.toggle('on', sc);
+    el('panel-local').classList.toggle('on', !sc);
+    el('panel-sc').classList.toggle('on', sc);
+  }
+
+  /* ── init from Python ── */
+  window.initMusic = function(d){
+    try{
+      D = d || {}; D.labels = D.labels || {}; D.sc = D.sc || {};
+      document.documentElement.classList.toggle('dark', !!D.isDark);
+      applyColors(D.colors);
+
+      el('seg-local').textContent = D.labels.local || 'Local';
+      el('seg-sc').textContent = 'SoundCloud';
+      el('tr-sub').textContent = D.labels.subtitle || 'Focus Music';
+      el('lbl-sounds').textContent = D.labels.sounds || 'Sounds';
+      el('lbl-mytracks').textContent = D.labels.myTracks || 'My Tracks';
+      el('lbl-resume').textContent = D.labels.resume || 'Resume playback on startup';
+      el('btn-play').title = D.labels.play || '';
+      el('btn-prev').title = D.labels.prev || '';
+      el('btn-next').title = D.labels.next || '';
+      el('vol-btn').title = D.labels.volume || 'Volume';
+      el('btn-play').setAttribute('aria-label', D.labels.play || '');
+      el('btn-prev').setAttribute('aria-label', D.labels.prev || '');
+      el('btn-next').setAttribute('aria-label', D.labels.next || '');
+      el('vol-btn').setAttribute('aria-label', D.labels.volume || 'Volume');
+      el('sc-play').setAttribute('aria-label', D.labels.play || '');
+      el('sc-prev').setAttribute('aria-label', D.labels.prev || '');
+      el('sc-next').setAttribute('aria-label', D.labels.next || '');
+      el('sc-load').textContent = D.labels.add || 'Add';
+      el('sc-hint').textContent = D.labels.scHint || '';
+      if(D.sc.enabled === false){
+        el('seg-sc').disabled = true;
+        el('seg-sc').title = D.labels.scUnavailable || '';
+      }
+
+      var st = D.state || {};
+      _cur = st.current || (D.tracks && D.tracks[0] && D.tracks[0].id) || null;
+      _volVal = st.volume != null ? st.volume : 50;
+      el('sc-vol').value = st.scVolume != null ? st.scVolume : _volVal;
+      _sliderFill(el('sc-vol'));
+      el('resume-toggle').checked = (st.resume !== false);
+      _scUrl = D.sc.url || '';
+      refreshBar();
+
+      renderGrid(); renderUser(); renderHero(); renderStations(); markStations();
+      setPlaying(!!st.playing);
+      window.scState({playing: !!D.sc.playing, now: D.sc.now || 'SoundCloud'});
+      setMode(st.mode === 'soundcloud' ? 'sc' : 'local');
+    }catch(e){ send({a:'err', m:String(e)}); }
+  };
+
+  /* ── wiring ── */
+  el('seg-local').addEventListener('click', function(){ setMode('local'); send({a:'mode', m:'local'}); });
+  el('seg-sc').addEventListener('click', function(){ if(!this.disabled){ setMode('sc'); send({a:'mode', m:'soundcloud'}); } });
+  el('btn-play').addEventListener('click', function(){ send({a: _playing ? 'pause' : 'play'}); });
+  el('btn-prev').addEventListener('click', function(){ send({a:'step', d:-1}); });
+  el('btn-next').addEventListener('click', function(){ send({a:'step', d:1}); });
+  el('resume-toggle').addEventListener('change', function(){ send({a:'resume', on:this.checked}); });
+
+  el('vol-btn').addEventListener('click', function(){
+    if(_barMode === 'vol') exitVolMode(); else enterVolMode();
+  });
+  el('bar').addEventListener('input', function(){
+    _sliderFill(this);
+    if(_barMode === 'vol'){
+      _volVal = +this.value;
+      el('t-r').textContent = _volVal + '%';
+      send({a:'volume', v:_volVal});
+      bumpVolTimer();
+    } else {
+      _dragging = true;
+      el('t-l').textContent = fmt(_dur * (+this.value) / 1000);
+    }
+  });
+  el('bar').addEventListener('change', function(){
+    if(_barMode === 'seek'){
+      _dragging = false;
+      if(_dur > 0) send({a:'seek', ms: Math.round(_dur * (+this.value) / 1000)});
+    }
+  });
+
+  el('sc-play').addEventListener('click', function(){ send({a:'sc', cmd:'toggle'}); });
+  el('sc-prev').addEventListener('click', function(){ send({a:'sc', cmd:'prev'}); });
+  el('sc-next').addEventListener('click', function(){ send({a:'sc', cmd:'next'}); });
+  el('sc-vol').addEventListener('input', function(){ _sliderFill(this); send({a:'scVolume', v:+this.value}); });
+  el('sc-load').addEventListener('click', function(){ send({a:'scCustom', url: el('sc-url').value.trim()}); });
+  el('sc-url').addEventListener('keydown', function(e){ if(e.key==='Enter') el('sc-load').click(); });
+
+  document.addEventListener('DOMContentLoaded', function(){ send({a:'ready'}); });
+</script>
+</body>
+</html>
