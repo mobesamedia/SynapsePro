@@ -40,7 +40,7 @@ def get_statistics_data(stats_days=7):
         day_start_ts = int(datetime(day.year, day.month, day.day).timestamp())
 
         count = mw.col.db.scalar(
-            "SELECT COUNT(*) FROM revlog WHERE id >= ? AND id < ?",
+            "SELECT COUNT(*) FROM revlog WHERE id >= ? AND id < ? AND type !=4",
             day_start_ts * 1000,
             (day_start_ts + 86400) * 1000,
         )
