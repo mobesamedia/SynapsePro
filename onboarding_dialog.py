@@ -26,9 +26,17 @@ import json
 
 # --- Translation ---
 try:
-    from .locales import _
+    from .locales import _, TRANSLATIONS
 except ImportError:
     def _(text): return text  # type: ignore
+    TRANSLATIONS = {}  # type: ignore
+
+try:
+    from .onboarding_terms import TERMS_TRANSLATIONS
+    from .web_translations import WEB_TRANSLATIONS
+except ImportError:
+    from onboarding_terms import TERMS_TRANSLATIONS  # type: ignore
+    from web_translations import WEB_TRANSLATIONS  # type: ignore
 
 # ── Theme mapping ──────────────────────────────────────────────────────────────
 # Maps the 1-based index of the theme card (img_theme_N.png) to the
@@ -55,27 +63,20 @@ ROLE_TO_FACT_THEME = {
     "other":      "General",
 }
 
-# ── Qt imports (PyQt6 / PyQt5 compatible) ─────────────────────────────────────
-_QT_VERSION = 0
+# ── Qt 6 imports ───────────────────────────────────────────────────────────────
+_QT_AVAILABLE = False
 
 try:
-    from PyQt6.QtWidgets import QDialog, QVBoxLayout
-    from PyQt6.QtCore import QUrl, Qt, pyqtSignal
+    from aqt.qt import QDialog, QVBoxLayout, QUrl, Qt, pyqtSignal, QColor
     from PyQt6.QtWebEngineWidgets import QWebEngineView
     from PyQt6.QtWebEngineCore import QWebEnginePage
-    _QT_VERSION = 6
+    _QT_AVAILABLE = True
 except ImportError:
-    try:
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout
-        from PyQt5.QtCore import QUrl, Qt, pyqtSignal
-        from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
-        _QT_VERSION = 5
-    except ImportError:
-        pass
+    pass
 
 
 # ── Real implementation (requires WebEngine) ───────────────────────────────────
-if _QT_VERSION > 0:
+if _QT_AVAILABLE:
 
     class _OnboardingPage(QWebEnginePage):
         """
@@ -85,8 +86,7 @@ if _QT_VERSION > 0:
         completed = pyqtSignal(dict)
 
         def javaScriptConsoleMessage(self, level, message, line, source):
-            # Both PyQt5 and PyQt6 share this positional signature.
-            # level type differs (int vs enum) but we never use it.
+            # The console level is not needed by the bridge.
             if isinstance(message, str) and message.startswith("SYNAPSEPRO_COMPLETE:"):
                 try:
                     payload = json.loads(message[len("SYNAPSEPRO_COMPLETE:"):])
@@ -129,15 +129,58 @@ if _QT_VERSION > 0:
             self._page = _OnboardingPage(self.view)
             self.view.setPage(self._page)
             self._page.completed.connect(self._on_completed)
+            self.view.loadFinished.connect(self._on_load_finished)
 
             layout.addWidget(self.view)
 
             html_path = os.path.join(addon_path, "onboarding", "onboarding.html")
             if os.path.exists(html_path):
+                try:
+                    dark = bool(parent and parent.pm and parent.pm.night_mode())
+                    self._page.setBackgroundColor(
+                        QColor("#1f2329") if dark else QColor("#ffffff"))
+                except Exception:
+                    pass
                 self.view.load(QUrl.fromLocalFile(html_path))
             else:
                 print(f"SynapsePro Onboarding: HTML file not found at {html_path!r}")
                 self.accept()  # Skip gracefully so the addon still initialises
+
+        def _on_load_finished(self, ok: bool):
+            if not ok:
+                return
+            error_sources = (
+                "SynapsePro error", "Show details", "Hide details", "Copy error",
+                "Copied!", "Dismiss", "Unexpected error", "Unexpected error (async)",
+                "Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.",
+                "(no stack trace available)",
+            )
+            errors = {
+                lang: {
+                    source: source if lang == "en" else WEB_TRANSLATIONS[source][lang]
+                    for source in error_sources
+                }
+                for lang in ("en", "de", "es", "ko", "pt", "fr", "vi", "zh", "hi")
+            }
+            theme_sources = ("Ocean", "Horizon", "Forest", "Dusty", "Deluge", "Orchid")
+            themes = {
+                lang: [
+                    source if lang == "en" else TRANSLATIONS.get(source, {}).get(lang, source)
+                    for source in theme_sources
+                ]
+                for lang in ("en", "de", "es", "ko", "pt", "fr", "vi", "zh", "hi")
+            }
+            try:
+                dark = bool(self.parent() and self.parent().pm and self.parent().pm.night_mode())
+            except Exception:
+                dark = False
+            payload = json.dumps(
+                {"terms": TERMS_TRANSLATIONS, "errors": errors, "themes": themes, "isDark": dark},
+                ensure_ascii=False,
+            ).replace("</", "<\\/")
+            self._page.runJavaScript(
+                f"window.initOnboarding && window.initOnboarding({payload});"
+            )
 
         def _on_completed(self, data: dict):
             """Called by the JS bridge when the user clicks 'Start'."""

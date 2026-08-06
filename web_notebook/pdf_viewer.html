@@ -1,10 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<style id="sp-dark-scrollbars">
+  /* Dark-mode scrollbars: Chromium styles native scrollbars from the
+     color-scheme property, which otherwise stays "light".
+     Theme comes from Anki (nightMode class injected by notebook_sidebar.py),
+     NOT from prefers-color-scheme — that follows the OS, not Anki. */
+  html.nightMode { color-scheme: dark; }
+  html:has(body.nightMode) { color-scheme: dark; }
+</style>
+
   <meta charset="UTF-8">
   <title>PDF</title>
-  <!-- PDF.js from CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Replaced at runtime with the pinned PDF.js bundle. -->
+  <script id="synapse-pdfjs-placeholder"></script>
   <style>
     :root {
       --bg:           #ffffff;
@@ -201,7 +210,18 @@
       display: none;
       flex-direction: column;
       flex: 1;
+      min-height: 0;
+      min-width: 0;
       overflow: hidden;
+      position: relative;
+    }
+
+    /* PDF and Card Creator are layout siblings. The creator uses a compact
+       row above the document in the sidebar and a real right column in wide
+       mode, so it never floats over PDF content. */
+    #viewer-workspace {
+      display: flex; flex: 1; min-width: 0; min-height: 0;
+      overflow: hidden; flex-direction: column;
     }
 
     /* Viewer toolbar */
@@ -241,8 +261,9 @@
     /* Canvas area */
     #canvas-wrap {
       flex: 1; overflow-y: auto; overflow-x: auto;
+      min-width: 0; min-height: 0; order: 2;
       background: #525659; padding: 12px 8px;
-      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      display: flex; flex-direction: column; align-items: safe center; gap: 8px;
     }
     #canvas-wrap::-webkit-scrollbar { width: 7px; height: 7px; }
     #canvas-wrap::-webkit-scrollbar-track { background: #404040; }
@@ -255,6 +276,9 @@
     .page-wrapper canvas { display: block; }
     .page-placeholder {
       background: #fff; display: flex; align-items: center; justify-content: center;
+    }
+    .page-placeholder-label {
+      color: #999; font-size: 11px; font-family: var(--font);
     }
     .page-placeholder-spinner {
       width: 24px; height: 24px; border: 3px solid rgba(0,113,211,0.25);
@@ -313,7 +337,10 @@
       top: 0; left: 0;
       overflow: hidden;
       line-height: 1;
-      pointer-events: none;
+      z-index: 2;
+      pointer-events: auto;
+      user-select: text;
+      -webkit-user-select: text;
     }
     .textLayer span,
     .textLayer br {
@@ -324,13 +351,187 @@
       transform-origin: 0% 0%;
       user-select: text;
       -webkit-user-select: text;
-      pointer-events: all;
+      pointer-events: auto;
     }
     .textLayer ::selection {
       background: rgba(0, 113, 211, 0.28);
     }
     .textLayer ::-moz-selection {
       background: rgba(0, 113, 211, 0.28);
+    }
+
+    /* Text-selection actions and the unsaved Anki card draft. */
+    #selection-toolbar {
+      display: none; position: fixed; z-index: 1000;
+      align-items: center; gap: 3px; padding: 4px;
+      max-width: calc(100vw - 16px);
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,0.28);
+    }
+    #selection-toolbar.show { display: flex; }
+    .selection-action {
+      border: none; border-radius: 5px; padding: 5px 7px;
+      background: transparent; color: var(--text); font-family: var(--font);
+      font-size: 11px; cursor: pointer; white-space: nowrap;
+    }
+    .selection-action:hover { background: var(--hover-bg); }
+    .selection-action.primary { color: var(--accent); font-weight: 600; }
+
+    /* ── Multi-card creator ─────────────────────────────────────── */
+    #creator-launch {
+      border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+      color: var(--accent); font-weight: 650;
+    }
+    #creator-count-badge {
+      display: none; min-width: 17px; height: 17px; padding: 0 5px;
+      align-items: center; justify-content: center; border-radius: 9px;
+      background: var(--accent); color: #fff; font-size: 10px; line-height: 17px;
+    }
+    #creator-count-badge.show { display: inline-flex; }
+    #card-creator-panel {
+      display: none; position: relative; z-index: 3; order: 1;
+      width: 100%; min-width: 0; min-height: 0;
+      flex: 0 1 46%; max-height: 360px;
+      background: var(--bg); border-bottom: 1px solid var(--border);
+      flex-direction: column; overflow: hidden;
+    }
+    #card-creator-panel.open { display: flex; }
+    .creator-header {
+      display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .creator-title-wrap { flex: 1; min-width: 0; }
+    .creator-title { font-size: 14px; font-weight: 700; }
+    .creator-subtitle { margin-top: 2px; color: var(--text-gray); font-size: 10.5px; }
+    #creator-sidebar-hint { display: block; margin-top: 3px; color: var(--accent); font-size: 9.5px; line-height: 1.3; }
+    .creator-close {
+      width: 28px; height: 28px; border: none; border-radius: 7px;
+      background: transparent; color: var(--text-gray); cursor: pointer;
+      font-size: 20px; line-height: 1;
+    }
+    .creator-close:hover { background: var(--hover-bg); color: var(--text); }
+    .creator-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 18px; }
+    .creator-scroll::-webkit-scrollbar { width: 5px; }
+    .creator-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .creator-field { margin-bottom: 10px; }
+    .creator-field-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; margin-bottom: 5px;
+    }
+    .creator-label { font-size: 11px; font-weight: 650; color: var(--text); }
+    .creator-page-hint { font-size: 10px; color: var(--text-gray); }
+    .creator-textarea, #creator-deck-name {
+      display: block; width: 100%; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--input-bg); color: var(--text);
+      font-family: var(--font); font-size: 12px; line-height: 1.45;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .creator-textarea { min-height: 82px; max-height: 180px; resize: vertical; padding: 8px 9px; }
+    #creator-back { min-height: 96px; }
+    #creator-deck-name { height: 34px; padding: 6px 9px; }
+    .creator-textarea:focus, #creator-deck-name:focus {
+      border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,113,211,.11);
+    }
+    .creator-textarea::placeholder, #creator-deck-name::placeholder { color: var(--text-gray); }
+    .creator-source-row {
+      display: flex; align-items: flex-start; gap: 8px; padding: 8px 9px;
+      border: 1px solid var(--border); border-radius: 8px; background: var(--header-bg);
+      cursor: pointer; margin-bottom: 10px;
+    }
+    .creator-source-row input { margin-top: 2px; accent-color: var(--accent); }
+    .creator-source-copy { flex: 1; min-width: 0; }
+    .creator-source-title { font-size: 11px; font-weight: 600; }
+    .creator-source-hint { margin-top: 2px; color: var(--text-gray); font-size: 9.5px; line-height: 1.35; }
+    .creator-form-actions { display: flex; gap: 7px; }
+    .creator-btn {
+      min-height: 31px; padding: 6px 10px; border: 1px solid var(--border);
+      border-radius: 7px; background: transparent; color: var(--text);
+      font-family: var(--font); font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: background .12s, opacity .12s;
+    }
+    .creator-btn:hover { background: var(--hover-bg); }
+    .creator-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .creator-btn.primary:hover { opacity: .86; }
+    .creator-btn.danger { color: var(--danger); }
+    .creator-btn:disabled { opacity: .42; cursor: default; }
+    #creator-add-card { flex: 1; }
+    #creator-new-card { display: none; }
+    #creator-new-card.show { display: block; }
+    .creator-divider { height: 1px; background: var(--border); margin: 14px 0 11px; }
+    .creator-list-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 7px;
+    }
+    #creator-ready-label { color: var(--text-gray); font-size: 10.5px; font-weight: 600; }
+    #creator-empty {
+      padding: 15px 10px; border: 1px dashed var(--border); border-radius: 8px;
+      text-align: center; color: var(--text-gray); font-size: 10.5px; line-height: 1.45;
+    }
+    .creator-card-item {
+      display: flex; align-items: flex-start; gap: 8px; padding: 8px;
+      border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px;
+      background: var(--card-bg);
+    }
+    .creator-card-number {
+      width: 20px; height: 20px; flex: 0 0 20px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: var(--accent); font-size: 10px; font-weight: 700;
+    }
+    .creator-card-copy { flex: 1; min-width: 0; }
+    .creator-card-front, .creator-card-back {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px;
+    }
+    .creator-card-front { color: var(--text); font-weight: 600; }
+    .creator-card-back { color: var(--text-gray); margin-top: 3px; }
+    .creator-card-meta { color: var(--text-gray); font-size: 9px; margin-top: 4px; }
+    .creator-item-btn {
+      border: none; background: transparent; color: var(--text-gray); cursor: pointer;
+      padding: 3px; border-radius: 4px; font-size: 10px;
+    }
+    .creator-item-btn:hover { background: var(--hover-bg); color: var(--text); }
+    .creator-item-btn.delete:hover { color: var(--danger); }
+    .creator-footer {
+      flex-shrink: 0; padding: 10px 14px 12px; border-top: 1px solid var(--border);
+      background: var(--card-bg);
+    }
+    .creator-footer-row { display: flex; gap: 7px; margin-top: 8px; }
+    #creator-finish { flex: 1; }
+
+    body.synapse-wide #viewer-workspace { flex-direction: row; }
+    body.synapse-wide #canvas-wrap { order: 1; }
+    body.synapse-wide #card-creator-panel {
+      order: 2;
+      flex: 0 0 clamp(300px, 34vw, 390px);
+      width: clamp(300px, 34vw, 390px); max-width: 44%; max-height: none;
+      border-bottom: none; border-left: 1px solid var(--border);
+    }
+    body.synapse-wide #creator-sidebar-hint { display: none; }
+
+    /* Compact controls keep most of a narrow sidebar available for the PDF;
+       the complete card form remains reachable inside its own scroll area. */
+    body:not(.synapse-wide) .creator-header { padding: 7px 10px; gap: 7px; }
+    body:not(.synapse-wide) .creator-subtitle { display: none; }
+    body:not(.synapse-wide) .creator-close { width: 25px; height: 25px; }
+    body:not(.synapse-wide) .creator-scroll { padding: 7px 10px 10px; }
+    body:not(.synapse-wide) .creator-field { margin-bottom: 6px; }
+    body:not(.synapse-wide) .creator-field-head { margin-bottom: 3px; }
+    body:not(.synapse-wide) .creator-textarea {
+      min-height: 45px; max-height: 82px; padding: 6px 7px; line-height: 1.35;
+    }
+    body:not(.synapse-wide) #creator-back { min-height: 54px; }
+    body:not(.synapse-wide) .creator-source-row { padding: 5px 7px; margin-bottom: 6px; }
+    body:not(.synapse-wide) .creator-source-hint { display: none; }
+    body:not(.synapse-wide) .creator-divider { margin: 8px 0 7px; }
+    body:not(.synapse-wide) .creator-list-head { margin-bottom: 5px; }
+    body:not(.synapse-wide) .creator-card-item { padding: 6px; margin-bottom: 4px; }
+    body:not(.synapse-wide) .creator-footer { padding: 7px 10px 8px; }
+    body:not(.synapse-wide) #creator-deck-name { height: 30px; }
+    body:not(.synapse-wide) .creator-footer-row { margin-top: 6px; }
+    @media (max-width: 430px) {
+      #creator-launch .creator-launch-text { display: none; }
+      #zoom-label { display: none; }
+      #viewer-toolbar { padding-left: 6px; padding-right: 6px; gap: 4px; }
     }
   </style>
 </head>
@@ -361,7 +562,7 @@
     color: var(--text-gray);
     line-height: 1.5;
   ">
-    <strong style="color:inherit;" data-i18n="notice_title">PDF Viewer only</strong> — <span data-i18n="notice_body">PDFs can be viewed but not edited here. Keep your files at their original paths; moving or deleting them will break the link.</span>
+    <strong style="color:inherit;" data-i18n="notice_title">PDF study viewer</strong> — <span data-i18n="notice_body">Select text in text-based PDFs to copy it or prepare an Anki card. Scanned PDFs require OCR.</span>
   </div>
   <div id="pdf-list-wrap">
     <div id="pdf-list"></div>
@@ -396,25 +597,93 @@
       <span data-i18n="back">Back</span>
     </button>
     <span id="viewer-filename"></span>
+    <button class="vtb-btn" id="creator-launch" onclick="openCardCreator()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/>
+      </svg>
+      <span class="creator-launch-text" data-i18n="card_creator">Card Creator</span>
+      <span id="creator-count-badge"></span>
+    </button>
     <span id="zoom-label">100%</span>
-    <button class="vtb-icon-btn" id="btn-zoom-out" onclick="changeZoom(-0.2)" title="Zoom out">
+    <button class="vtb-icon-btn" id="btn-zoom-out" onclick="changeZoom(-0.2)" title="Zoom out" data-i18n-title="zoom_out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/>
       </svg>
     </button>
-    <button class="vtb-icon-btn" id="btn-zoom-in" onclick="changeZoom(0.2)" title="Zoom in">
+    <button class="vtb-icon-btn" id="btn-zoom-in" onclick="changeZoom(0.2)" title="Zoom in" data-i18n-title="zoom_in">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
       </svg>
     </button>
-    <button class="vtb-icon-btn" id="btn-open-ext" onclick="openCurrentExt()" title="Open in system viewer">
+    <button class="vtb-icon-btn" id="btn-open-ext" onclick="openCurrentExt()" title="Open in system viewer" data-i18n-title="open_sys">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
         <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
       </svg>
     </button>
   </div>
+
+  <div id="viewer-workspace">
+  <aside id="card-creator-panel" aria-label="Card Creator">
+    <div class="creator-header">
+      <div class="creator-title-wrap">
+        <div class="creator-title" data-i18n="card_creator">Card Creator</div>
+        <div class="creator-subtitle" data-i18n="creator_subtitle">Build multiple cards while reading</div>
+        <div id="creator-sidebar-hint" data-i18n="creator_sidebar_hint">Tip: Card Creator works best in fullscreen.</div>
+      </div>
+      <button class="creator-close" onclick="closeCardCreator()" data-i18n-title="close" aria-label="Close">×</button>
+    </div>
+    <div class="creator-scroll">
+      <div class="creator-field">
+        <div class="creator-field-head">
+          <label class="creator-label" for="creator-front" data-i18n="draft_front">Front</label>
+          <span class="creator-page-hint" id="creator-front-pages"></span>
+        </div>
+        <textarea id="creator-front" class="creator-textarea" maxlength="50000"
+                  data-i18n-placeholder="front_placeholder" placeholder="Question or prompt"></textarea>
+      </div>
+      <div class="creator-field">
+        <div class="creator-field-head">
+          <label class="creator-label" for="creator-back" data-i18n="draft_back">Back</label>
+          <span class="creator-page-hint" id="creator-back-pages"></span>
+        </div>
+        <textarea id="creator-back" class="creator-textarea" maxlength="50000"
+                  data-i18n-placeholder="back_placeholder" placeholder="Answer or explanation"></textarea>
+      </div>
+      <label class="creator-source-row" for="creator-include-source">
+        <input id="creator-include-source" type="checkbox">
+        <span class="creator-source-copy">
+          <span class="creator-source-title" data-i18n="include_source">Add PDF source to the back</span>
+          <span class="creator-source-hint" data-i18n="source_hint">Adds the file name and selected page numbers in small text.</span>
+        </span>
+      </label>
+      <div class="creator-form-actions">
+        <button class="creator-btn primary" id="creator-add-card" onclick="commitCreatorCard()" data-i18n="add_card">Add card</button>
+        <button class="creator-btn" id="creator-new-card" onclick="startNewCreatorCard()" data-i18n="new_card">New card</button>
+      </div>
+      <div class="creator-divider"></div>
+      <div class="creator-list-head">
+        <span class="creator-label" data-i18n="cards_label">Cards</span>
+        <span id="creator-ready-label"></span>
+      </div>
+      <div id="creator-card-list"></div>
+      <div id="creator-empty">
+        <strong data-i18n="creator_empty">No cards collected yet.</strong><br>
+        <span data-i18n="creator_empty_sub">Enter text manually or select text in the PDF.</span>
+      </div>
+    </div>
+    <div class="creator-footer">
+      <label class="creator-label" for="creator-deck-name" data-i18n="deck_name">Deck name</label>
+      <input id="creator-deck-name" list="creator-deck-options" maxlength="250"
+             data-i18n-placeholder="deck_placeholder" placeholder="Choose an existing deck or enter a new name" autocomplete="off">
+      <datalist id="creator-deck-options"></datalist>
+      <div class="creator-footer-row">
+        <button class="creator-btn danger" id="creator-discard" onclick="discardCreatorSession()" data-i18n="discard_session">Discard session</button>
+        <button class="creator-btn primary" id="creator-finish" onclick="finishCreatorSession()" data-i18n="finish_session">Create cards</button>
+      </div>
+    </div>
+  </aside>
 
   <div id="canvas-wrap" style="position:relative">
     <div id="viewer-loading">
@@ -431,6 +700,13 @@
       <button class="vtb-btn" onclick="openCurrentExt()" style="margin-top:4px" data-i18n="open_sys">Open in system viewer</button>
     </div>
   </div>
+  </div>
+
+  <div id="selection-toolbar">
+    <button class="selection-action" onclick="usePdfSelection('copy')" data-i18n="copy_selection">Copy</button>
+    <button class="selection-action" onclick="usePdfSelection('front')" data-i18n="card_front">Card front</button>
+    <button class="selection-action" onclick="usePdfSelection('back')" data-i18n="card_back">Card back</button>
+  </div>
 </div>
 
 <div id="status-bar"></div>
@@ -439,9 +715,11 @@
 // ══════════════════════════════════════════════════════════════
 // DATA MODEL
 // ══════════════════════════════════════════════════════════════
-let state = { version: 2, folders: [], pdfs: [] };
+let state = { version: 3, folders: [], pdfs: [], cardCreatorSession: null };
 let selectedFolderId = '__all__';
 let openMoveDropdown = null;
+let creatorBatchPending = false;
+let creatorSaveTimer = null;
 
 // ── Utilities ──────────────────────────────────────────────────
 function uid()  { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
@@ -449,7 +727,11 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                   .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-function escPath(p) { return p.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function jsArg(s) { return esc(JSON.stringify(String(s == null ? '' : s))); }
+function i18n(key, fallback) {
+  const t = window.__SYNAPSE_I18N__ || {};
+  return t[key] !== undefined ? t[key] : fallback;
+}
 function fmtDate(iso) {
   try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
   catch(e) { return iso||''; }
@@ -459,20 +741,38 @@ function basename(p) { return p.replace(/\\/g,'/').split('/').pop()||p; }
 function migrate(raw) {
   try {
     const p = JSON.parse(raw);
-    if (Array.isArray(p)) return { version:2, folders:[], pdfs: p.map(x=>({...x,folderId:null})) };
-    if (p && p.pdfs)       return p;
-    return { version:2, folders:[], pdfs:[] };
-  } catch(e) { return { version:2, folders:[], pdfs:[] }; }
+    if (Array.isArray(p)) return { version:3, folders:[], pdfs: p.map(x=>({...x,folderId:null})), cardCreatorSession:null };
+    if (p && Array.isArray(p.pdfs)) {
+      p.version = 3;
+      if (!p.cardCreatorSession || typeof p.cardCreatorSession !== 'object') p.cardCreatorSession = null;
+      return p;
+    }
+    return { version:3, folders:[], pdfs:[], cardCreatorSession:null };
+  } catch(e) { return { version:3, folders:[], pdfs:[], cardCreatorSession:null }; }
 }
 
 // ── Load / Save ────────────────────────────────────────────────
 window.loadPdfs = function(jsonStr) {
   state = migrate(jsonStr);
+  populateCreatorDeckOptions();
   renderFolderBar();
   renderList();
 };
 function save() { pycmd('notion_mini:pdf:save:' + JSON.stringify(state)); }
+function scheduleCreatorSave() {
+  clearTimeout(creatorSaveTimer);
+  creatorSaveTimer = setTimeout(() => { creatorSaveTimer = null; save(); }, 700);
+}
+window.__synapseSnapshotForUnload = function() {
+  if (creatorBatchPending) return null;
+  clearTimeout(creatorSaveTimer);
+  creatorSaveTimer = null;
+  syncCreatorFormToSession();
+  return JSON.stringify(state);
+};
+window.__synapseSnapshotForVerification = function() { return JSON.stringify(state); };
 window.onPdfSaved = function() { showStatus(window.__SYNAPSE_I18N__?.saved || 'Saved'); };
+window.onPdfSaveFailed = function() { showStatus(window.__SYNAPSE_I18N__?.save_failed || 'Save failed — your changes are still open.'); };
 
 window.onPdfRelinked = function(pdfId, newPath) {
   const p = state.pdfs.find(x => x.id === pdfId);
@@ -502,12 +802,21 @@ function removePdf(id) {
 }
 
 function openPdf(path)  { pycmd('notion_mini:pdf:open:'+path); }
-function viewPdf(path)  { pycmd('notion_mini:pdf:render:'+path); }
+function viewPdf(path)  {
+  if (creatorBatchPending) return;
+  const session = state.cardCreatorSession;
+  if (session && session.pdfPath !== path && creatorSessionHasWork(session)) {
+    if (!confirm(window.__SYNAPSE_I18N__?.discard_session_confirm || 'Discard this unfinished Card Creator session?')) return;
+    state.cardCreatorSession = null;
+    save();
+  }
+  pycmd('notion_mini:pdf:render:'+path);
+}
 function openCurrentExt() { if(currentPdfPath) pycmd('notion_mini:pdf:open:'+currentPdfPath); }
 
 // ── Folder CRUD ────────────────────────────────────────────────
 function createFolder() {
-  const name = prompt('Folder name:');
+  const name = prompt(i18n('folder_name_prompt', 'Folder name:'));
   if (!name||!name.trim()) return;
   state.folders.push({id:uid(),name:name.trim()});
   save(); renderFolderBar(); renderList();
@@ -515,7 +824,7 @@ function createFolder() {
 function renameFolder(id) {
   closeDropdown();
   const f=state.folders.find(x=>x.id===id); if(!f) return;
-  const name=prompt('Rename folder:',f.name);
+  const name=prompt(i18n('rename_folder', 'Rename folder:'),f.name);
   if(!name||!name.trim()||name.trim()===f.name) return;
   f.name=name.trim(); save(); renderFolderBar(); renderList();
 }
@@ -523,7 +832,9 @@ function deleteFolder(id) {
   closeDropdown();
   const f=state.folders.find(x=>x.id===id); if(!f) return;
   const cnt=state.pdfs.filter(p=>p.folderId===id).length;
-  if(!confirm(`Delete "${f.name}"?${cnt>0?' '+cnt+' PDF(s) will become unfiled.':''}`)) return;
+  const confirmText = i18n('delete_folder_named', 'Delete folder "{name}"? {count} PDF file(s) will become unfiled.')
+    .replace('{name}', f.name).replace('{count}', String(cnt));
+  if(!confirm(confirmText)) return;
   state.pdfs.forEach(p=>{ if(p.folderId===id) p.folderId=null; });
   state.folders=state.folders.filter(x=>x.id!==id);
   if(selectedFolderId===id) selectedFolderId='__all__';
@@ -543,7 +854,7 @@ function renderFolderBar() {
   const bar=document.getElementById('folder-bar');
   const allCnt=state.pdfs.length, unCnt=state.pdfs.filter(p=>!p.folderId).length;
   let h=`<span class="folder-pill all-pill${selectedFolderId==='__all__'?' active':''}" onclick="selectFolder('__all__')">
-    All <span style="opacity:.7;font-size:11px">${allCnt}</span></span>`;
+    ${esc(i18n('all', 'All'))} <span style="opacity:.7;font-size:11px">${allCnt}</span></span>`;
 
   state.folders.forEach(f=>{
     const cnt=state.pdfs.filter(p=>p.folderId===f.id).length, act=selectedFolderId===f.id?' active':'';
@@ -566,13 +877,13 @@ function renderFolderBar() {
   if(unCnt>0||state.folders.length>0) {
     h+=`<span class="folder-pill${selectedFolderId==='__unfiled__'?' active':''}"
       onclick="selectFolder('__unfiled__')" style="font-style:italic">
-      Unfiled <span style="opacity:.6;font-size:11px">${unCnt}</span></span>`;
+      ${esc(i18n('unfiled', 'Unfiled'))} <span style="opacity:.6;font-size:11px">${unCnt}</span></span>`;
   }
   h+=`<button id="new-folder-btn" onclick="createFolder()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px">
       <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>New Folder</button>`;
+    </svg>${esc(i18n('new_folder', 'New Folder'))}</button>`;
   bar.innerHTML=h;
 }
 
@@ -590,7 +901,9 @@ function renderList() {
   if(!vis.length) {
     listEl.innerHTML='';
     const f=state.folders.find(x=>x.id===selectedFolderId);
-    document.getElementById('empty-msg').innerHTML=f?`No PDFs in "${esc(f.name)}" yet.`:'No PDFs yet.<br>Add one to get started.';
+    document.getElementById('empty-msg').innerHTML = f
+      ? esc(i18n('empty_in_folder', 'No PDFs in "{folder}" yet.').replace('{folder}', f.name))
+      : esc(i18n('empty_msg', 'No PDFs yet.')) + '<br>' + esc(i18n('empty_sub', 'Add one to get started.'));
     emEl.style.display='flex'; return;
   }
   emEl.style.display='none';
@@ -600,9 +913,9 @@ function cardHTML(p) {
   const folder=p.folderId?state.folders.find(f=>f.id===p.folderId):null, d=fmtDate(p.addedAt);
   const folderTag=folder?`<span class="pdf-folder-tag">📁 ${esc(folder.name)}</span>`:'';
   const missing = p._exists === false;
-  const missingBadge = missing ? `<span class="missing-badge">⚠ File missing</span>` : '';
+  const missingBadge = missing ? `<span class="missing-badge">⚠ ${esc(i18n('file_missing', 'File missing'))}</span>` : '';
   const cardClass = missing ? 'pdf-card missing' : 'pdf-card';
-  return `<div class="${cardClass}" ondblclick="${missing?'':` viewPdf('${escPath(p.path)}')`}">
+  return `<div class="${cardClass}" ondblclick="${missing?'':`viewPdf(${jsArg(p.path)})`}">
     <div class="pdf-thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
       <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
@@ -613,23 +926,23 @@ function cardHTML(p) {
     </div>
     <div class="pdf-actions">
       ${missing ? `
-      <button class="action-btn relink-btn" title="${window.__SYNAPSE_I18N__?.relink_btn || 'Relink file'}" onclick="pycmd('notion_mini:pdf:relink:${esc(p.id)}')">
+      <button class="action-btn relink-btn" title="${window.__SYNAPSE_I18N__?.relink_btn || 'Relink file'}" onclick="pycmd(${jsArg('notion_mini:pdf:relink:' + p.id)})">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
       ` : `
-      <button class="action-btn view-btn" title="${window.__SYNAPSE_I18N__?.view_inline || 'View inline'}" onclick="viewPdf('${escPath(p.path)}')">
+      <button class="action-btn view-btn" title="${window.__SYNAPSE_I18N__?.view_inline || 'View inline'}" onclick="viewPdf(${jsArg(p.path)})">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-      <button class="action-btn move-btn" title="${window.__SYNAPSE_I18N__?.move_to_folder || 'Move to folder'}" onclick="toggleMoveDropdown(event,'${esc(p.id)}')">
+      <button class="action-btn move-btn" title="${window.__SYNAPSE_I18N__?.move_to_folder || 'Move to folder'}" onclick="toggleMoveDropdown(event,${jsArg(p.id)})">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
-      <button class="action-btn open-btn" title="${window.__SYNAPSE_I18N__?.open_externally || 'Open externally'}" onclick="openPdf('${escPath(p.path)}')">
+      <button class="action-btn open-btn" title="${window.__SYNAPSE_I18N__?.open_externally || 'Open externally'}" onclick="openPdf(${jsArg(p.path)})">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
           <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
       `}
-      <button class="action-btn del-btn" title="${window.__SYNAPSE_I18N__?.remove || 'Remove'}" onclick="removePdf('${esc(p.id)}')">
+      <button class="action-btn del-btn" title="${window.__SYNAPSE_I18N__?.remove || 'Remove'}" onclick="removePdf(${jsArg(p.id)})">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"/>
           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -646,13 +959,13 @@ function toggleMoveDropdown(event, pdfId) {
   const menu=document.createElement('div'); menu.className='move-dropdown';
   menu.style.top=(rect.bottom+4)+'px'; menu.style.right=(document.body.clientWidth-rect.right)+'px';
   const fSVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
-  let items=`<div class="move-dropdown-item${!pdf.folderId?' active':''}" onclick="movePdfToFolder('${esc(pdfId)}',null)">
+  let items=`<div class="move-dropdown-item${!pdf.folderId?' active':''}" onclick="movePdfToFolder(${jsArg(pdfId)},null)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px">
-      <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>No folder</div>`;
+      <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>${esc(i18n('no_folder', 'No folder'))}</div>`;
   state.folders.forEach(f=>{
-    items+=`<div class="move-dropdown-item${pdf.folderId===f.id?' active':''}" onclick="movePdfToFolder('${esc(pdfId)}','${esc(f.id)}')">${fSVG}${esc(f.name)}</div>`;
+    items+=`<div class="move-dropdown-item${pdf.folderId===f.id?' active':''}" onclick="movePdfToFolder(${jsArg(pdfId)},${jsArg(f.id)})">${fSVG}${esc(f.name)}</div>`;
   });
-  if(!state.folders.length) items+=`<div style="padding:8px 10px;font-size:12px;color:var(--text-gray)">No folders yet.</div>`;
+  if(!state.folders.length) items+=`<div style="padding:8px 10px;font-size:12px;color:var(--text-gray)">${esc(i18n('no_folders', 'No folders yet.'))}</div>`;
   menu.innerHTML=items; document.body.appendChild(menu); openMoveDropdown=menu;
 }
 function closeDropdown() { if(openMoveDropdown){ openMoveDropdown.remove(); openMoveDropdown=null; } }
@@ -661,36 +974,43 @@ document.addEventListener('click', closeDropdown);
 // ══════════════════════════════════════════════════════════════
 // PDF.js VIEWER
 // ══════════════════════════════════════════════════════════════
-let currentPdfDoc   = null;
-let currentPdfPath  = '';
-let currentScale    = 1.5;
-let renderingPages  = new Set();
-let _zoomTimer      = null;   // debounce handle for zoom
+let currentPdfDoc         = null;
+let currentPdfLoadingTask = null;
+let currentPdfPath        = '';
+let currentPdfName        = '';
+let currentScale          = 1.0;
+let renderGeneration      = 0;
+let renderSerial          = 0;
+let renderingPages        = new Map();
+let activeRenderTasks     = new Map();
+let pageObserver          = null;
+let _zoomTimer            = null;
+let _workerBlobUrl        = null;
+const MAX_RENDER_DPR      = 1.5;
+const PAGE_PREFETCH_PX    = 900;
 
-// Set worker: prefer local blob URL (avoids cross-origin restriction + works offline),
-// fall back to CDN.
+// Use only the pinned worker code bundled with the add-on. A missing release
+// asset disables PDF rendering instead of executing code fetched at runtime.
 if (window.pdfjsLib) {
   if (window.__PDFJS_WORKER_CODE__) {
     try {
       const _blob = new Blob([window.__PDFJS_WORKER_CODE__], {type: 'application/javascript'});
-      pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(_blob);
+      _workerBlobUrl = URL.createObjectURL(_blob);
+      pdfjsLib.GlobalWorkerOptions.workerSrc = _workerBlobUrl;
       window.__PDFJS_WORKER_CODE__ = null; // free memory
-    } catch(_e) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
-  } else {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    } catch(_e) {}
   }
 }
 
 function showList() {
+  if (creatorBatchPending) {
+    showStatus(window.__SYNAPSE_I18N__?.creating_cards || 'Creating cards…');
+    return;
+  }
+  closeCardCreator();
   document.getElementById('viewer-view').style.display = 'none';
   document.getElementById('list-view').style.display   = 'flex';
-  // Free memory
-  currentPdfDoc  = null;
-  currentPdfPath = '';
+  void beginPdfSession();
 }
 
 function showViewer(filename, path) {
@@ -698,6 +1018,8 @@ function showViewer(filename, path) {
   document.getElementById('viewer-view').style.display = 'flex';
   document.getElementById('viewer-filename').textContent = filename;
   currentPdfPath = path;
+  currentPdfName = filename;
+  activateCreatorForPdf(filename, path);
 }
 
 function setLoading(progress, text) {
@@ -705,14 +1027,14 @@ function setLoading(progress, text) {
   if (progress === null) { el.classList.remove('show'); return; }
   el.classList.add('show');
   document.getElementById('viewer-loading-bar').style.width = progress + '%';
-  document.getElementById('viewer-loading-text').textContent = text || 'Loading…';
+  document.getElementById('viewer-loading-text').textContent = text || i18n('loading_short', 'Loading…');
 }
 
 function showViewerError(msg) {
   setLoading(null);
   document.getElementById('viewer-error-msg').textContent = msg;
   document.getElementById('viewer-error').classList.add('show');
-  document.getElementById('canvas-wrap').querySelectorAll('.page-wrapper').forEach(e=>e.remove());
+  clearPageWrappers();
 }
 function hideViewerError() {
   document.getElementById('viewer-error').classList.remove('show');
@@ -723,118 +1045,327 @@ window.renderFromGlobals = function() {
   const b64  = window.__PDF_B64__;
   const name = window.__PDF_NAME__ || 'PDF';
   const path = window.__PDF_PATH__ || '';
+  // Do not retain a second full copy of the PDF in WebView globals.
+  window.__PDF_B64__  = null;
+  window.__PDF_NAME__ = null;
+  window.__PDF_PATH__ = null;
   if (b64) renderPdfB64(b64, name, path);
 };
+
+function cancelRenderWork() {
+  if (pageObserver) {
+    pageObserver.disconnect();
+    pageObserver = null;
+  }
+  activeRenderTasks.forEach(entry => {
+    try { entry.task.cancel(); } catch(_e) {}
+  });
+  activeRenderTasks.clear();
+  renderingPages.clear();
+}
+
+function releaseCanvasMemory(root) {
+  root.querySelectorAll('canvas').forEach(canvas => {
+    canvas.width = 0;
+    canvas.height = 0;
+  });
+}
+
+function clearPageWrappers() {
+  const wrap = document.getElementById('canvas-wrap');
+  wrap.querySelectorAll('.page-wrapper').forEach(wrapper => {
+    releaseCanvasMemory(wrapper);
+    wrapper.remove();
+  });
+}
+
+async function beginPdfSession() {
+  const generation = ++renderGeneration;
+  clearTimeout(_zoomTimer);
+  hideSelectionToolbar();
+  cancelRenderWork();
+
+  const oldLoadingTask = currentPdfLoadingTask;
+  const oldDocument = currentPdfDoc;
+  currentPdfLoadingTask = null;
+  currentPdfDoc = null;
+  currentPdfPath = '';
+  currentPdfName = '';
+  clearPageWrappers();
+
+  try {
+    if (oldLoadingTask && typeof oldLoadingTask.destroy === 'function') {
+      await oldLoadingTask.destroy();
+    } else if (oldDocument && typeof oldDocument.destroy === 'function') {
+      await oldDocument.destroy();
+    }
+  } catch(_e) {
+    // Cleanup is best-effort; the new generation still blocks stale renders.
+  }
+  return generation;
+}
+
+function wrapperDimensions(wrapper, scale) {
+  const baseWidth = Number(wrapper.dataset.baseWidth) || 595;
+  const baseHeight = Number(wrapper.dataset.baseHeight) || 842;
+  return {
+    width: Math.max(1, Math.round(baseWidth * scale)),
+    height: Math.max(1, Math.round(baseHeight * scale)),
+  };
+}
+
+function setPagePlaceholder(wrapper, scale, busy) {
+  releaseCanvasMemory(wrapper);
+  const dims = wrapperDimensions(wrapper, scale);
+  wrapper.style.width = dims.width + 'px';
+  wrapper.style.height = dims.height + 'px';
+  wrapper.dataset.rendered = '0';
+  wrapper.dataset.renderedScale = '';
+
+  const placeholder = document.createElement('div');
+  placeholder.className = 'page-placeholder';
+  placeholder.style.width = dims.width + 'px';
+  placeholder.style.height = dims.height + 'px';
+  const child = document.createElement('div');
+  if (busy) {
+    child.className = 'page-placeholder-spinner';
+  } else {
+    child.className = 'page-placeholder-label';
+    child.textContent = String(wrapper.dataset.page || '');
+  }
+  placeholder.appendChild(child);
+  wrapper.replaceChildren(placeholder);
+}
+
+function createPageWrappers(pageCount, baseViewport) {
+  const wrap = document.getElementById('canvas-wrap');
+  const baseWidth = baseViewport.width / currentScale;
+  const baseHeight = baseViewport.height / currentScale;
+  const fragment = document.createDocumentFragment();
+  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'page-wrapper';
+    wrapper.dataset.page = String(pageNum);
+    wrapper.dataset.baseWidth = String(baseWidth);
+    wrapper.dataset.baseHeight = String(baseHeight);
+    wrapper.dataset.inRenderRange = '0';
+    setPagePlaceholder(wrapper, currentScale, false);
+    fragment.appendChild(wrapper);
+  }
+  wrap.appendChild(fragment);
+}
+
+function renderIsCurrent(pdf, generation, wrapper, renderId) {
+  return currentPdfDoc === pdf &&
+         renderGeneration === generation &&
+         wrapper.isConnected &&
+         wrapper.dataset.renderId === renderId &&
+         wrapper.dataset.inRenderRange === '1';
+}
+
+function isRenderCancellation(error) {
+  return error && (error.name === 'RenderingCancelledException' ||
+    String(error.message || '').toLowerCase().includes('cancel'));
+}
+
+function evictPage(pageNum, generation) {
+  if (generation !== renderGeneration) return;
+  const wrapper = document.querySelector(`.page-wrapper[data-page="${pageNum}"]`);
+  if (!wrapper) return;
+  const taskEntry = activeRenderTasks.get(pageNum);
+  const wasBusy = renderingPages.has(pageNum) || Boolean(taskEntry);
+  const wasRendered = wrapper.dataset.rendered === '1';
+  if (!wasBusy && !wasRendered) return;
+
+  wrapper.dataset.renderId = `evicted:${++renderSerial}`;
+  if (taskEntry) {
+    try { taskEntry.task.cancel(); } catch(_e) {}
+    activeRenderTasks.delete(pageNum);
+  }
+  setPagePlaceholder(wrapper, currentScale, false);
+}
+
+function observePages(pdf, generation) {
+  if (pageObserver) pageObserver.disconnect();
+  const root = document.getElementById('canvas-wrap');
+  const wrappers = Array.from(root.querySelectorAll('.page-wrapper'));
+
+  if (!('IntersectionObserver' in window)) {
+    wrappers.slice(0, 3).forEach(wrapper => {
+      wrapper.dataset.inRenderRange = '1';
+      void renderPage(pdf, Number(wrapper.dataset.page), currentScale, generation);
+    });
+    return;
+  }
+
+  pageObserver = new IntersectionObserver(entries => {
+    if (generation !== renderGeneration || pdf !== currentPdfDoc) return;
+    entries.forEach(entry => {
+      const wrapper = entry.target;
+      const pageNum = Number(wrapper.dataset.page);
+      wrapper.dataset.inRenderRange = entry.isIntersecting ? '1' : '0';
+      if (entry.isIntersecting) {
+        void renderPage(pdf, pageNum, currentScale, generation);
+      } else {
+        evictPage(pageNum, generation);
+      }
+    });
+  }, {
+    root,
+    rootMargin: `${PAGE_PREFETCH_PX}px 0px`,
+    threshold: 0.01,
+  });
+  wrappers.forEach(wrapper => pageObserver.observe(wrapper));
+}
 
 async function renderPdfB64(b64, filename, path) {
   if (!window.pdfjsLib) {
     showViewer(filename, path);
-    showViewerError('PDF.js could not be loaded. Make sure Anki has internet access, then reopen the PDF.');
+    showViewerError('PDF.js is missing from this add-on installation. Please reinstall SynapsePro.');
     return;
   }
 
+  const generation = await beginPdfSession();
+  if (generation !== renderGeneration) return;
   showViewer(filename, path);
   hideViewerError();
   setLoading(5, 'Decoding PDF…');
 
-  // Clear previous pages
-  const wrap = document.getElementById('canvas-wrap');
-  wrap.querySelectorAll('.page-wrapper').forEach(e => e.remove());
-  currentPdfDoc = null;
-  renderingPages.clear();
-
   let pdfData;
   try {
     // Decode base64 in chunks to avoid stack overflow on large PDFs
-    const binary = atob(b64);
+    let binary = atob(b64);
+    b64 = '';
     pdfData = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) pdfData[i] = binary.charCodeAt(i);
+    binary = '';
   } catch(e) {
-    showViewerError('Failed to decode PDF data: ' + e.message);
+    if (generation === renderGeneration) showViewerError('Failed to decode PDF data: ' + e.message);
     return;
   }
 
   setLoading(20, 'Parsing PDF…');
   let pdf;
   try {
-    pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+    const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+    currentPdfLoadingTask = loadingTask;
+    pdf = await loadingTask.promise;
   } catch(e) {
-    showViewerError('Failed to open PDF: ' + e.message);
+    if (generation === renderGeneration) showViewerError('Failed to open PDF: ' + e.message);
+    return;
+  }
+  pdfData = null;
+  if (generation !== renderGeneration) {
+    try { await pdf.destroy(); } catch(_e) {}
     return;
   }
 
   currentPdfDoc = pdf;
-  setLoading(40, `Rendering ${pdf.numPages} page(s)…`);
+  setLoading(40, `Preparing ${pdf.numPages} page(s)…`);
   document.getElementById('zoom-label').textContent = Math.round(currentScale * 100) + '%';
 
-  // Create placeholders for all pages (estimate A4 size at current scale)
-  const phW = Math.round(595 * currentScale);
-  const phH = Math.round(842 * currentScale);
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'page-wrapper';
-    wrapper.dataset.page = i;
-    const ph = document.createElement('div');
-    ph.className = 'page-placeholder';
-    ph.style.width  = phW + 'px';
-    ph.style.height = phH + 'px';
-    ph.innerHTML = '<div class="page-placeholder-spinner"></div>';
-    wrapper.appendChild(ph);
-    wrap.appendChild(wrapper);
+  try {
+    const firstPage = await pdf.getPage(1);
+    if (generation !== renderGeneration) return;
+    const firstViewport = firstPage.getViewport({ scale: currentScale });
+    createPageWrappers(pdf.numPages, firstViewport);
+    const wrap = document.getElementById('canvas-wrap');
+    wrap.scrollTop = 0;
+    const firstWrapper = wrap.querySelector('.page-wrapper[data-page="1"]');
+    if (firstWrapper) firstWrapper.dataset.inRenderRange = '1';
+    observePages(pdf, generation);
+    if (firstWrapper) firstWrapper.dataset.inRenderRange = '1';
+    setLoading(75, 'Rendering first page…');
+    await renderPage(pdf, 1, currentScale, generation);
+    if (generation === renderGeneration) setLoading(null);
+  } catch(e) {
+    if (generation === renderGeneration) showViewerError('Failed to render PDF: ' + e.message);
   }
-
-  // Render pages progressively
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const pct = 40 + Math.round((i / pdf.numPages) * 55);
-    setLoading(pct, `Rendering page ${i} of ${pdf.numPages}…`);
-    await renderPage(pdf, i, currentScale);
-  }
-
-  setLoading(null);
 }
 
-async function renderPage(pdf, pageNum, scale) {
-  if (renderingPages.has(pageNum)) return;
-  renderingPages.add(pageNum);
-
+function renderPage(pdf, pageNum, scale, generation) {
+  if (generation !== renderGeneration || pdf !== currentPdfDoc) return Promise.resolve();
   const wrapper = document.querySelector(`.page-wrapper[data-page="${pageNum}"]`);
-  if (!wrapper) return;
+  if (!wrapper || wrapper.dataset.inRenderRange !== '1') return Promise.resolve();
+  if (wrapper.dataset.rendered === '1' && wrapper.dataset.renderedScale === String(scale)) {
+    return Promise.resolve();
+  }
+  const existing = renderingPages.get(pageNum);
+  if (existing) return existing;
 
+  const promise = renderPageInternal(pdf, pageNum, scale, generation, wrapper);
+  renderingPages.set(pageNum, promise);
+  promise.finally(() => {
+    if (renderingPages.get(pageNum) === promise) renderingPages.delete(pageNum);
+    if (generation === renderGeneration && pdf === currentPdfDoc &&
+        wrapper.isConnected && wrapper.dataset.inRenderRange === '1' &&
+        wrapper.dataset.rendered !== '1') {
+      setTimeout(() => void renderPage(pdf, pageNum, currentScale, generation), 0);
+    }
+  });
+  return promise;
+}
+
+async function renderPageInternal(pdf, pageNum, scale, generation, wrapper) {
+  const renderId = `${generation}:${++renderSerial}`;
+  let canvas = null;
+  wrapper.dataset.renderId = renderId;
   try {
-    const page    = await pdf.getPage(pageNum);
-    const dpr     = window.devicePixelRatio || 1;
+    const page = await pdf.getPage(pageNum);
+    if (!renderIsCurrent(pdf, generation, wrapper, renderId)) return;
+    const dpr = Math.min(MAX_RENDER_DPR, Math.max(1, window.devicePixelRatio || 1));
 
     // CSS-sized viewport — what the user sees
-    const cssVP   = page.getViewport({ scale });
+    const cssVP = page.getViewport({ scale });
     // Pixel-dense viewport — rendered at full device resolution for sharpness
     const pixelVP = page.getViewport({ scale: scale * dpr });
+    wrapper.dataset.baseWidth = String(cssVP.width / scale);
+    wrapper.dataset.baseHeight = String(cssVP.height / scale);
+    setPagePlaceholder(wrapper, scale, true);
+    wrapper.dataset.renderId = renderId;
 
-    const canvas        = document.createElement('canvas');
-    canvas.width        = pixelVP.width;
-    canvas.height       = pixelVP.height;
-    canvas.style.width  = cssVP.width  + 'px';
+    canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(pixelVP.width));
+    canvas.height = Math.max(1, Math.ceil(pixelVP.height));
+    canvas.style.width = cssVP.width + 'px';
     canvas.style.height = cssVP.height + 'px';
     canvas.style.display = 'block';
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) throw new Error('Canvas rendering is unavailable');
 
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport: pixelVP }).promise;
+    const renderTask = page.render({ canvasContext: context, viewport: pixelVP });
+    activeRenderTasks.set(pageNum, { task: renderTask, renderId });
+    await renderTask.promise;
+    const activeEntry = activeRenderTasks.get(pageNum);
+    if (activeEntry && activeEntry.renderId === renderId) activeRenderTasks.delete(pageNum);
+    if (!renderIsCurrent(pdf, generation, wrapper, renderId)) {
+      canvas.width = 0;
+      canvas.height = 0;
+      return;
+    }
 
     // Transparent text layer for text selection
-    const textLayer         = document.createElement('div');
-    textLayer.className     = 'textLayer';
-    textLayer.style.width   = cssVP.width  + 'px';
+    const textLayer = document.createElement('div');
+    textLayer.className = 'textLayer';
+    textLayer.style.width = cssVP.width + 'px';
     textLayer.style.height  = cssVP.height + 'px';
+    textLayer.style.setProperty('--scale-factor', String(cssVP.scale));
 
     // Container holds canvas + text layer stacked
-    const container         = document.createElement('div');
+    const container = document.createElement('div');
     container.style.cssText = `position:relative;width:${cssVP.width}px;height:${cssVP.height}px;flex-shrink:0;`;
     container.appendChild(canvas);
     container.appendChild(textLayer);
 
-    wrapper.innerHTML = '';
-    wrapper.appendChild(container);
+    wrapper.style.width = cssVP.width + 'px';
+    wrapper.style.height = cssVP.height + 'px';
+    wrapper.replaceChildren(container);
+    wrapper.dataset.rendered = '1';
+    wrapper.dataset.renderedScale = String(scale);
 
     // Render text layer asynchronously (best-effort; non-blocking)
     page.getTextContent().then(textContent => {
+      if (!renderIsCurrent(pdf, generation, wrapper, renderId)) return;
       try {
         const task = pdfjsLib.renderTextLayer({
           textContentSource: textContent,
@@ -842,14 +1373,26 @@ async function renderPage(pdf, pageNum, scale) {
           viewport: cssVP,
           textDivs: [],
         });
-        // PDF.js 3.x returns an object with a .promise
+        // PDF.js 3.x returns an object with a .promise.
         return task && task.promise ? task.promise : Promise.resolve();
       } catch(_e) { /* text layer is optional */ }
     }).catch(() => {});
   } catch(e) {
-    wrapper.innerHTML = `<div style="padding:8px;font-size:11px;color:#999">Page ${pageNum}: ${e.message}</div>`;
+    const activeEntry = activeRenderTasks.get(pageNum);
+    if (activeEntry && activeEntry.renderId === renderId) activeRenderTasks.delete(pageNum);
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+    if (isRenderCancellation(e) || !renderIsCurrent(pdf, generation, wrapper, renderId)) return;
+    const error = document.createElement('div');
+    error.style.cssText = 'padding:8px;font-size:11px;color:#999;background:#fff;';
+    error.textContent = i18n('page_error', 'Page {page}: {error}')
+      .replace('{page}', String(pageNum)).replace('{error}', String(e.message || e));
+    wrapper.replaceChildren(error);
+    wrapper.dataset.rendered = '1';
+    wrapper.dataset.renderedScale = String(scale);
   }
-  renderingPages.delete(pageNum);
 }
 
 function changeZoom(delta) {
@@ -859,30 +1402,566 @@ function changeZoom(delta) {
 
   // Debounce: accumulate rapid zoom clicks, then render once after 200 ms idle
   clearTimeout(_zoomTimer);
-  _zoomTimer = setTimeout(() => {
-    const scale = currentScale; // capture at settle time
-    const phW = Math.round(595 * scale);
-    const phH = Math.round(842 * scale);
-    const wrap = document.getElementById('canvas-wrap');
-    wrap.querySelectorAll('.page-wrapper').forEach(w => {
-      const ph = document.createElement('div');
-      ph.className = 'page-placeholder';
-      ph.style.width  = phW + 'px';
-      ph.style.height = phH + 'px';
-      ph.innerHTML = '<div class="page-placeholder-spinner"></div>';
-      w.innerHTML = '';
-      w.appendChild(ph);
-    });
-    renderingPages.clear();
-    setLoading(10, 'Zooming…');
-    (async () => {
-      for (let i = 1; i <= currentPdfDoc.numPages; i++) {
-        await renderPage(currentPdfDoc, i, scale);
-      }
-      setLoading(null);
-    })();
-  }, 200);
+  _zoomTimer = setTimeout(() => void rerenderForZoom(), 200);
 }
+
+function currentAnchorPage() {
+  const wrap = document.getElementById('canvas-wrap');
+  const rootRect = wrap.getBoundingClientRect();
+  let bestPage = 1;
+  let bestDistance = Infinity;
+  wrap.querySelectorAll('.page-wrapper').forEach(wrapper => {
+    const rect = wrapper.getBoundingClientRect();
+    const distance = Math.abs(rect.top - rootRect.top - 8);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestPage = Number(wrapper.dataset.page) || 1;
+    }
+  });
+  return bestPage;
+}
+
+async function rerenderForZoom() {
+  const pdf = currentPdfDoc;
+  if (!pdf) return;
+  const anchorPage = currentAnchorPage();
+  const generation = ++renderGeneration;
+  hideSelectionToolbar();
+  const selection = window.getSelection();
+  if (selection) selection.removeAllRanges();
+  cancelRenderWork();
+
+  const wrap = document.getElementById('canvas-wrap');
+  wrap.querySelectorAll('.page-wrapper').forEach(wrapper => {
+    wrapper.dataset.renderId = `zoom:${++renderSerial}`;
+    wrapper.dataset.inRenderRange = '0';
+    setPagePlaceholder(wrapper, currentScale, false);
+  });
+  const anchorWrapper = wrap.querySelector(`.page-wrapper[data-page="${anchorPage}"]`);
+  if (anchorWrapper) {
+    anchorWrapper.dataset.inRenderRange = '1';
+    anchorWrapper.scrollIntoView({ block: 'start', inline: 'nearest' });
+  }
+  observePages(pdf, generation);
+  if (anchorWrapper) anchorWrapper.dataset.inRenderRange = '1';
+  await renderPage(pdf, anchorPage, currentScale, generation);
+}
+
+// ── PDF text selection and multi-card creator ────────────────
+let lastPdfSelection = null;
+
+function emptyCreatorDraft() {
+  return { front: '', back: '', frontPages: [], backPages: [], includeSource: false };
+}
+
+function creatorSessionHasWork(session) {
+  if (!session || typeof session !== 'object') return false;
+  const draft = session.draft || {};
+  return Boolean((Array.isArray(session.cards) && session.cards.length) || draft.front || draft.back);
+}
+
+function suggestedDeckName(filename) {
+  return String(filename || 'PDF').replace(/\.pdf$/i, '').trim() || 'PDF';
+}
+
+function sanitizePages(values) {
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values.map(Number).filter(value => Number.isInteger(value) && value > 0 && value <= 1000000))]
+    .sort((a, b) => a - b);
+}
+
+function sanitizeCreatorCard(raw) {
+  raw = raw && typeof raw === 'object' ? raw : {};
+  return {
+    id: typeof raw.id === 'string' ? raw.id : uid(),
+    front: typeof raw.front === 'string' ? raw.front.slice(0, 50000) : '',
+    back: typeof raw.back === 'string' ? raw.back.slice(0, 50000) : '',
+    pages: sanitizePages(raw.pages),
+    includeSource: raw.includeSource === true,
+  };
+}
+
+function sanitizeCreatorSession(raw, filename, path) {
+  raw = raw && typeof raw === 'object' ? raw : {};
+  const draftRaw = raw.draft && typeof raw.draft === 'object' ? raw.draft : {};
+  const cards = Array.isArray(raw.cards) ? raw.cards.slice(0, 500).map(sanitizeCreatorCard) : [];
+  let editingIndex = Number.isInteger(raw.editingIndex) ? raw.editingIndex : -1;
+  if (editingIndex < 0 || editingIndex >= cards.length) editingIndex = -1;
+  return {
+    id: typeof raw.id === 'string' ? raw.id : uid(),
+    pdfPath: path,
+    pdfName: filename,
+    deckName: typeof raw.deckName === 'string' ? raw.deckName.slice(0, 250) : suggestedDeckName(filename),
+    cards,
+    editingIndex,
+    draft: {
+      front: typeof draftRaw.front === 'string' ? draftRaw.front.slice(0, 50000) : '',
+      back: typeof draftRaw.back === 'string' ? draftRaw.back.slice(0, 50000) : '',
+      frontPages: sanitizePages(draftRaw.frontPages),
+      backPages: sanitizePages(draftRaw.backPages),
+      includeSource: draftRaw.includeSource === true,
+    },
+  };
+}
+
+function ensureCreatorSession() {
+  const existing = state.cardCreatorSession;
+  if (!existing || existing.pdfPath !== currentPdfPath) {
+    state.cardCreatorSession = sanitizeCreatorSession({}, currentPdfName, currentPdfPath);
+  }
+  return state.cardCreatorSession;
+}
+
+function activateCreatorForPdf(filename, path) {
+  if (state.cardCreatorSession && state.cardCreatorSession.pdfPath === path) {
+    state.cardCreatorSession = sanitizeCreatorSession(state.cardCreatorSession, filename, path);
+  }
+  updateCreatorBadge();
+  if (document.getElementById('card-creator-panel').classList.contains('open')) renderCardCreator();
+}
+
+function populateCreatorDeckOptions() {
+  const list = document.getElementById('creator-deck-options');
+  if (!list) return;
+  const names = Array.isArray(window.__SYNAPSE_DECKS__) ? window.__SYNAPSE_DECKS__ : [];
+  list.replaceChildren(...names.map(name => {
+    const option = document.createElement('option');
+    option.value = String(name);
+    return option;
+  }));
+}
+
+function pagesLabel(pages) {
+  pages = sanitizePages(pages);
+  return pages.length ? `p. ${pages.join(', ')}` : '';
+}
+
+function syncCreatorFormToSession() {
+  const session = state.cardCreatorSession;
+  if (!session || session.pdfPath !== currentPdfPath) return;
+  const front = document.getElementById('creator-front');
+  const back = document.getElementById('creator-back');
+  const source = document.getElementById('creator-include-source');
+  const deck = document.getElementById('creator-deck-name');
+  if (front) session.draft.front = front.value.slice(0, 50000);
+  if (back) session.draft.back = back.value.slice(0, 50000);
+  if (source) session.draft.includeSource = source.checked;
+  if (deck) session.deckName = deck.value.slice(0, 250);
+}
+
+function updateCreatorBadge() {
+  const session = state.cardCreatorSession;
+  const count = session && session.pdfPath === currentPdfPath && Array.isArray(session.cards)
+    ? session.cards.length : 0;
+  const badge = document.getElementById('creator-count-badge');
+  badge.textContent = String(count);
+  badge.classList.toggle('show', count > 0);
+}
+
+function creatorFinishLabel(session) {
+  const i18n = window.__SYNAPSE_I18N__ || {};
+  const draftAddsCard = session.editingIndex < 0 && Boolean(session.draft.front.trim());
+  const count = session.cards.length + (draftAddsCard ? 1 : 0);
+  return (i18n.finish_cards || 'Finish · Create {count} cards').replace('{count}', count);
+}
+
+function renderCardCreator() {
+  const session = ensureCreatorSession();
+  const draft = session.draft;
+  const i18n = window.__SYNAPSE_I18N__ || {};
+  document.getElementById('creator-front').value = draft.front;
+  document.getElementById('creator-back').value = draft.back;
+  document.getElementById('creator-include-source').checked = draft.includeSource;
+  document.getElementById('creator-deck-name').value = session.deckName;
+  document.getElementById('creator-front-pages').textContent = pagesLabel(draft.frontPages);
+  document.getElementById('creator-back-pages').textContent = pagesLabel(draft.backPages);
+
+  const editing = session.editingIndex >= 0;
+  document.getElementById('creator-add-card').textContent = editing
+    ? (i18n.update_card || 'Update card') : (i18n.add_card || 'Add card');
+  document.getElementById('creator-new-card').classList.toggle('show', editing || Boolean(draft.front || draft.back));
+
+  const countTemplate = i18n.cards_ready || '{count} cards ready';
+  document.getElementById('creator-ready-label').textContent = countTemplate.replace('{count}', session.cards.length);
+  const list = document.getElementById('creator-card-list');
+  list.innerHTML = session.cards.map((card, index) => {
+    const meta = [];
+    if (card.pages.length) meta.push(pagesLabel(card.pages));
+    if (card.includeSource) meta.push(i18n.source_short || 'Source');
+    return `<div class="creator-card-item">
+      <span class="creator-card-number">${index + 1}</span>
+      <div class="creator-card-copy">
+        <div class="creator-card-front">${esc(card.front)}</div>
+        <div class="creator-card-back">${esc(card.back || '—')}</div>
+        ${meta.length ? `<div class="creator-card-meta">${esc(meta.join(' · '))}</div>` : ''}
+      </div>
+      <button class="creator-item-btn" onclick="editCreatorCard(${index})" title="${esc(i18n.edit || 'Edit')}">✎</button>
+      <button class="creator-item-btn delete" onclick="removeCreatorCard(${index})" title="${esc(i18n.remove_card || 'Remove card')}">×</button>
+    </div>`;
+  }).join('');
+  document.getElementById('creator-empty').style.display = session.cards.length ? 'none' : 'block';
+  const canFinish = session.cards.length > 0 || Boolean(draft.front.trim());
+  const finish = document.getElementById('creator-finish');
+  finish.disabled = creatorBatchPending || !canFinish;
+  finish.textContent = creatorBatchPending
+    ? (i18n.creating_cards || 'Creating cards…')
+    : creatorFinishLabel(session);
+  document.getElementById('creator-add-card').disabled = creatorBatchPending;
+  document.getElementById('creator-new-card').disabled = creatorBatchPending;
+  document.getElementById('creator-discard').disabled = creatorBatchPending;
+  document.getElementById('creator-front').disabled = creatorBatchPending;
+  document.getElementById('creator-back').disabled = creatorBatchPending;
+  document.getElementById('creator-include-source').disabled = creatorBatchPending;
+  document.getElementById('creator-deck-name').disabled = creatorBatchPending;
+  updateCreatorBadge();
+}
+
+function creatorFormChanged() {
+  const session = state.cardCreatorSession;
+  if (!session) return;
+  syncCreatorFormToSession();
+  const hasDraft = Boolean(session.draft.front || session.draft.back);
+  document.getElementById('creator-new-card').classList.toggle(
+    'show', session.editingIndex >= 0 || hasDraft
+  );
+  document.getElementById('creator-finish').disabled = creatorBatchPending ||
+    !(session.cards.length || session.draft.front.trim());
+  document.getElementById('creator-finish').textContent = creatorBatchPending
+    ? (window.__SYNAPSE_I18N__?.creating_cards || 'Creating cards…')
+    : creatorFinishLabel(session);
+  scheduleCreatorSave();
+}
+
+function openCardCreator(focusSide) {
+  if (!currentPdfPath) return;
+  ensureCreatorSession();
+  populateCreatorDeckOptions();
+  document.getElementById('card-creator-panel').classList.add('open');
+  renderCardCreator();
+  const focusId = focusSide === 'back' ? 'creator-back' : 'creator-front';
+  setTimeout(() => document.getElementById(focusId).focus(), 0);
+}
+
+function closeCardCreator() {
+  if (creatorBatchPending) return;
+  syncCreatorFormToSession();
+  document.getElementById('card-creator-panel').classList.remove('open');
+  if (state.cardCreatorSession) scheduleCreatorSave();
+}
+
+function clearCreatorDraft(session) {
+  session.draft = emptyCreatorDraft();
+  session.editingIndex = -1;
+}
+
+function commitCreatorCard(silent) {
+  if (creatorBatchPending) return false;
+  const session = ensureCreatorSession();
+  syncCreatorFormToSession();
+  const draft = session.draft;
+  const front = draft.front.trim();
+  const back = draft.back.trim();
+  const i18n = window.__SYNAPSE_I18N__ || {};
+  if (!front) {
+    if (!silent) showStatus(i18n.front_required || 'Enter a front side first.');
+    document.getElementById('creator-front').focus();
+    return false;
+  }
+  if (front.length + back.length > 50000) {
+    showStatus(i18n.card_too_long || 'This card contains too much text.');
+    return false;
+  }
+  const duplicate = session.cards.some((card, index) =>
+    index !== session.editingIndex && card.front.trim() === front && card.back.trim() === back);
+  if (duplicate) {
+    showStatus(i18n.duplicate_card || 'This card is already in the session.');
+    return false;
+  }
+  const card = sanitizeCreatorCard({
+    id: session.editingIndex >= 0 ? session.cards[session.editingIndex].id : uid(),
+    front, back,
+    pages: [...draft.frontPages, ...draft.backPages],
+    includeSource: draft.includeSource,
+  });
+  if (session.editingIndex >= 0) session.cards[session.editingIndex] = card;
+  else {
+    if (session.cards.length >= 500) {
+      showStatus(i18n.too_many_cards || 'This session already contains 500 cards.');
+      return false;
+    }
+    session.cards.push(card);
+  }
+  clearCreatorDraft(session);
+  clearTimeout(creatorSaveTimer);
+  creatorSaveTimer = null;
+  save();
+  renderCardCreator();
+  if (!silent) setTimeout(() => document.getElementById('creator-front').focus(), 0);
+  return true;
+}
+
+function startNewCreatorCard() {
+  if (creatorBatchPending) return;
+  const session = ensureCreatorSession();
+  syncCreatorFormToSession();
+  if ((session.draft.front || session.draft.back) && session.editingIndex < 0 &&
+      !confirm(window.__SYNAPSE_I18N__?.discard_draft || 'Discard the unfinished card draft?')) return;
+  clearCreatorDraft(session);
+  renderCardCreator();
+  scheduleCreatorSave();
+  document.getElementById('creator-front').focus();
+}
+
+function editCreatorCard(index) {
+  if (creatorBatchPending) return;
+  const session = ensureCreatorSession();
+  syncCreatorFormToSession();
+  if (session.editingIndex !== index && (session.draft.front || session.draft.back) &&
+      !confirm(window.__SYNAPSE_I18N__?.discard_draft || 'Discard the unfinished card draft?')) return;
+  const card = session.cards[index];
+  if (!card) return;
+  session.editingIndex = index;
+  session.draft = {
+    front: card.front, back: card.back,
+    frontPages: card.pages.slice(), backPages: [],
+    includeSource: card.includeSource,
+  };
+  renderCardCreator();
+  document.getElementById('creator-front').focus();
+}
+
+function removeCreatorCard(index) {
+  if (creatorBatchPending) return;
+  const session = ensureCreatorSession();
+  if (!session.cards[index]) return;
+  session.cards.splice(index, 1);
+  if (session.editingIndex === index) clearCreatorDraft(session);
+  else if (session.editingIndex > index) session.editingIndex -= 1;
+  save();
+  renderCardCreator();
+}
+
+function discardCreatorSession() {
+  if (creatorBatchPending) return;
+  const session = state.cardCreatorSession;
+  if (creatorSessionHasWork(session) && !confirm(
+      window.__SYNAPSE_I18N__?.discard_session_confirm || 'Discard this unfinished Card Creator session?')) return;
+  state.cardCreatorSession = null;
+  clearTimeout(creatorSaveTimer);
+  creatorSaveTimer = null;
+  save();
+  closeCardCreator();
+  updateCreatorBadge();
+}
+
+function finishCreatorSession() {
+  if (creatorBatchPending) return;
+  let session = ensureCreatorSession();
+  syncCreatorFormToSession();
+  if (session.draft.front.trim()) {
+    if (!commitCreatorCard(true)) return;
+    // commitCreatorCard() may normalize the stored session; always continue
+    // with the authoritative object that will also be persisted.
+    session = state.cardCreatorSession;
+  } else if (session.draft.back.trim()) {
+    showStatus(window.__SYNAPSE_I18N__?.front_required || 'Enter a front side first.');
+    document.getElementById('creator-front').focus();
+    return;
+  }
+  const deckName = session.deckName.trim();
+  if (!deckName) {
+    showStatus(window.__SYNAPSE_I18N__?.deck_required || 'Choose or enter a deck name.');
+    document.getElementById('creator-deck-name').focus();
+    return;
+  }
+  if (!session.cards.length) return;
+  session.deckName = deckName;
+  creatorBatchPending = true;
+  renderCardCreator();
+  pycmd('notion_mini:pdf:create-batch:' + JSON.stringify({
+    deckName,
+    cards: session.cards.map(card => ({
+      front: card.front, back: card.back,
+      pages: card.pages, includeSource: card.includeSource,
+    })),
+  }));
+}
+
+function normalizePdfSelection(text) {
+  return String(text || '')
+    .replace(/\u00ad/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function elementForSelectionNode(node) {
+  if (!node) return null;
+  return node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+}
+
+function pagesForSelection(range) {
+  const pages = [];
+  [range.startContainer, range.endContainer].forEach(node => {
+    const element = elementForSelectionNode(node);
+    const wrapper = element && element.closest('.page-wrapper');
+    const page = wrapper ? Number(wrapper.dataset.page) : 0;
+    if (page > 0 && !pages.includes(page)) pages.push(page);
+  });
+  return pages.sort((a, b) => a - b);
+}
+
+function updateSelectionToolbar() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    hideSelectionToolbar();
+    return;
+  }
+  const range = selection.getRangeAt(0);
+  const startElement = elementForSelectionNode(range.startContainer);
+  if (!startElement || !startElement.closest('.textLayer')) {
+    hideSelectionToolbar();
+    return;
+  }
+  const text = normalizePdfSelection(selection.toString());
+  if (!text) {
+    hideSelectionToolbar();
+    return;
+  }
+
+  const rect = range.getBoundingClientRect();
+  if (!rect || (!rect.width && !rect.height)) {
+    hideSelectionToolbar();
+    return;
+  }
+  lastPdfSelection = { text, pages: pagesForSelection(range) };
+
+  const toolbar = document.getElementById('selection-toolbar');
+  toolbar.classList.add('show');
+  const toolbarRect = toolbar.getBoundingClientRect();
+  const maxLeft = Math.max(8, window.innerWidth - toolbarRect.width - 8);
+  const left = Math.min(maxLeft, Math.max(8, rect.left + rect.width / 2 - toolbarRect.width / 2));
+  let top = rect.top - toolbarRect.height - 7;
+  if (top < 8) top = rect.bottom + 7;
+  top = Math.min(Math.max(8, top), Math.max(8, window.innerHeight - toolbarRect.height - 8));
+  toolbar.style.left = left + 'px';
+  toolbar.style.top = top + 'px';
+}
+
+function hideSelectionToolbar() {
+  const toolbar = document.getElementById('selection-toolbar');
+  if (toolbar) toolbar.classList.remove('show');
+}
+
+function clearBrowserSelection() {
+  const selection = window.getSelection();
+  if (selection) selection.removeAllRanges();
+  hideSelectionToolbar();
+}
+
+function storePdfSelection(side) {
+  if (creatorBatchPending) return false;
+  if (!lastPdfSelection || !lastPdfSelection.text) {
+    showStatus(window.__SYNAPSE_I18N__?.select_text_first || 'Select some PDF text first.');
+    return false;
+  }
+  const session = ensureCreatorSession();
+  const target = side === 'front' ? 'front' : 'back';
+  const pagesTarget = side === 'front' ? 'frontPages' : 'backPages';
+  const previous = session.draft[target].trim();
+  session.draft[target] = previous ? `${previous}\n${lastPdfSelection.text}` : lastPdfSelection.text;
+  session.draft[pagesTarget] = sanitizePages([...session.draft[pagesTarget], ...lastPdfSelection.pages]);
+  if (side === 'front') {
+    showStatus(window.__SYNAPSE_I18N__?.front_saved || 'Front saved');
+  } else {
+    showStatus(window.__SYNAPSE_I18N__?.back_saved || 'Back saved');
+  }
+  openCardCreator(side);
+  scheduleCreatorSave();
+  clearBrowserSelection();
+  return true;
+}
+
+function usePdfSelection(action) {
+  if (!lastPdfSelection || !lastPdfSelection.text) {
+    showStatus(window.__SYNAPSE_I18N__?.select_text_first || 'Select some PDF text first.');
+    return;
+  }
+  if (action === 'copy') {
+    pycmd('notion_mini:pdf:copy-selection:' + JSON.stringify({ text: lastPdfSelection.text }));
+    clearBrowserSelection();
+    return;
+  }
+  if (action === 'front' || action === 'back') {
+    storePdfSelection(action);
+    return;
+  }
+}
+
+window.onPdfSelectionCopied = function(success, message) {
+  showStatus(message || (success ? i18n('selected_text_copied', 'Selected text copied') : i18n('copy_text_failed', 'Could not copy text')));
+};
+
+window.onPdfCardBatchCreated = function(success, message) {
+  creatorBatchPending = false;
+  showStatus(message || (success ? i18n('cards_created', 'Cards created') : i18n('cards_create_failed', 'Could not create cards')));
+  if (success) {
+    const deckName = state.cardCreatorSession ? state.cardCreatorSession.deckName : '';
+    if (deckName && Array.isArray(window.__SYNAPSE_DECKS__) && !window.__SYNAPSE_DECKS__.includes(deckName)) {
+      window.__SYNAPSE_DECKS__.push(deckName);
+      window.__SYNAPSE_DECKS__.sort((a, b) => a.localeCompare(b));
+    }
+    state.cardCreatorSession = null;
+    save();
+    closeCardCreator();
+    updateCreatorBadge();
+  } else {
+    renderCardCreator();
+  }
+};
+
+const canvasWrap = document.getElementById('canvas-wrap');
+const selectionToolbar = document.getElementById('selection-toolbar');
+selectionToolbar.addEventListener('pointerdown', event => event.preventDefault());
+canvasWrap.addEventListener('mouseup', () => setTimeout(updateSelectionToolbar, 0));
+canvasWrap.addEventListener('keyup', () => setTimeout(updateSelectionToolbar, 0));
+canvasWrap.addEventListener('scroll', hideSelectionToolbar, { passive: true });
+document.addEventListener('pointerdown', event => {
+  if (!selectionToolbar.contains(event.target)) hideSelectionToolbar();
+});
+
+['creator-front', 'creator-back', 'creator-deck-name'].forEach(id => {
+  document.getElementById(id).addEventListener('input', creatorFormChanged);
+});
+document.getElementById('creator-include-source').addEventListener('change', creatorFormChanged);
+['creator-front', 'creator-back'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      commitCreatorCard();
+    }
+  });
+});
+
+window.addEventListener('beforeunload', () => {
+  ++renderGeneration;
+  cancelRenderWork();
+  try {
+    if (currentPdfLoadingTask && typeof currentPdfLoadingTask.destroy === 'function') {
+      void currentPdfLoadingTask.destroy();
+    } else if (currentPdfDoc && typeof currentPdfDoc.destroy === 'function') {
+      void currentPdfDoc.destroy();
+    }
+  } catch(_e) {}
+  currentPdfLoadingTask = null;
+  currentPdfDoc = null;
+  window.__PDF_B64__ = null;
+  if (_workerBlobUrl) {
+    URL.revokeObjectURL(_workerBlobUrl);
+    _workerBlobUrl = null;
+  }
+});
 
 // Note: drag-and-drop file import is not supported in Anki's embedded WebView
 // because the File API doesn't expose file system paths in this context.
@@ -900,8 +1979,10 @@ function showStatus(msg) {
 // ══════════════════════════════════════════════════════════════
 // DARK MODE + INIT
 // ══════════════════════════════════════════════════════════════
-if(document.documentElement.classList.contains('nightMode')||
-   window.matchMedia('(prefers-color-scheme:dark)').matches) {
+// Anki's theme is authoritative (flag/class injected by notebook_sidebar.py);
+// prefers-color-scheme is NOT consulted — it follows the OS, not Anki.
+if(window.__SYNAPSE_NIGHT__ === true ||
+   document.documentElement.classList.contains('nightMode')) {
   document.body.classList.add('nightMode');
 }
 renderFolderBar();
@@ -917,6 +1998,7 @@ if (window.__SYNAPSE_PDF_PRELOAD__ !== undefined) {
 (function applyI18n() {
     const t = window.__SYNAPSE_I18N__;
     if (!t) return;
+    document.title = t.title || 'PDF';
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (t[key] !== undefined) el.textContent = t[key];
@@ -925,7 +2007,100 @@ if (window.__SYNAPSE_PDF_PRELOAD__ !== undefined) {
         const key = el.getAttribute('data-i18n-placeholder');
         if (t[key] !== undefined) el.setAttribute('placeholder', t[key]);
     });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (t[key] !== undefined) {
+            el.setAttribute('title', t[key]);
+            if (el.tagName === 'BUTTON') el.setAttribute('aria-label', t[key]);
+        }
+    });
 })();
 </script>
+
+    <script>
+    /* ── SynapsePro global error reporter ─────────────────────────────────
+       Self-contained (inline styles, no page-CSS dependencies): invisible
+       until a JS error occurs, then shows a dismissible banner with the
+       real traceback so users can report actionable bugs instead of
+       "buttons are not working". Never throws itself. */
+    (function() {
+        if (window.__spReportError) return;
+        function isDark() {
+            try {
+                if (typeof window.__SYNAPSE_NIGHT__ === 'boolean') return window.__SYNAPSE_NIGHT__;
+                if (document.documentElement.classList.contains('nightMode') || document.body.classList.contains('nightMode')) return true;
+                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } catch (e) { return false; }
+        }
+        function ensureBanner() {
+            var b = document.getElementById('sp-error-banner');
+            if (b) return b;
+            if (!document.body) return null;
+            var dark = isDark();
+            b = document.createElement('div');
+            b.id = 'sp-error-banner';
+            b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483000;display:none;'
+                + 'font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:left;'
+                + 'padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,0.25);border-top:2px solid #dc3545;'
+                + (dark ? 'background:#2c2c2c;color:#e0e0e0;' : 'background:#ffffff;color:#333333;');
+            var btnCss = 'margin-right:8px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;border-radius:7px;'
+                + (dark ? 'background:#303030;color:#e0e0e0;border:1px solid #555;' : 'background:#fff;color:#333;border:1px solid #ccc;');
+            var preCss = 'display:none;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+                + 'font-size:11px;border-radius:6px;padding:8px;margin:0 0 8px 0;'
+                + (dark ? 'background:#404040;border:1px solid #555;' : 'background:#f5f5f5;border:1px solid #ccc;');
+            var t = window.__SYNAPSE_I18N__ || {};
+            b.innerHTML = '<div style="font-weight:700;color:#dc3545;margin-bottom:4px;">' + (t.error_title || 'SynapsePro error') + '</div>'
+                + '<div class="sp-eb-msg" style="margin-bottom:6px;word-break:break-word;"></div>'
+                + '<pre class="sp-eb-pre" style="' + preCss + '"></pre>'
+                + '<div><button type="button" data-spact="details" style="' + btnCss + '">' + (t.error_show || 'Show details') + '</button>'
+                + '<button type="button" data-spact="copy" style="' + btnCss + '">' + (t.error_copy || 'Copy error') + '</button>'
+                + '<button type="button" data-spact="dismiss" style="' + btnCss + '">' + (t.error_dismiss || 'Dismiss') + '</button></div>';
+            document.body.appendChild(b);
+            b.addEventListener('click', function(e) {
+                var act = e.target && e.target.getAttribute && e.target.getAttribute('data-spact');
+                if (act === 'dismiss') b.style.display = 'none';
+                if (act === 'details') {
+                    var pre = b.querySelector('.sp-eb-pre');
+                    var open = pre.style.display === 'block';
+                    pre.style.display = open ? 'none' : 'block';
+                    var t = window.__SYNAPSE_I18N__ || {};
+                    e.target.textContent = open ? (t.error_show || 'Show details') : (t.error_hide || 'Hide details');
+                }
+                if (act === 'copy') {
+                    var text = b.querySelector('.sp-eb-msg').textContent + '\n\n' + b.querySelector('.sp-eb-pre').textContent;
+                    try { navigator.clipboard.writeText(text); e.target.textContent = (window.__SYNAPSE_I18N__ || {}).error_copied || 'Copied!'; setTimeout(function() { e.target.textContent = (window.__SYNAPSE_I18N__ || {}).error_copy || 'Copy error'; }, 2000); } catch (err) {}
+                }
+            });
+            return b;
+        }
+        window.__spReportError = function(err, context) {
+            try {
+                var msg = (err && err.message) ? err.message : String(err);
+                var t = window.__SYNAPSE_I18N__ || {};
+                var stack = (err && err.stack) ? String(err.stack) : (t.error_no_stack || '(no stack trace available)');
+                console.error('[SynapsePro]' + (context ? ' [' + context + ']' : ''), err);
+                var show = function() {
+                    var b = ensureBanner();
+                    if (!b) return;
+                    b.querySelector('.sp-eb-msg').textContent = (context ? context + ': ' : '') + msg
+                        + ' — ' + (t.error_safe || 'Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('.sp-eb-pre').textContent = stack;
+                    b.style.display = 'block';
+                };
+                if (document.body) show();
+                else document.addEventListener('DOMContentLoaded', show);
+            } catch (e) { try { console.error('[SynapsePro] error while reporting error', e, err); } catch (e2) {} }
+        };
+        window.addEventListener('error', function(e) {
+            if (e.error && (e.error.message || e.error.stack)) window.__spReportError(e.error, (window.__SYNAPSE_I18N__ || {}).error_unexpected || 'Unexpected error');
+            else console.warn('[SynapsePro] Background browser error:', e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            if (e.reason && e.reason.synapseCritical === true) window.__spReportError(e.reason, (window.__SYNAPSE_I18N__ || {}).error_unexpected_async || 'Unexpected error (async)');
+            else console.warn('[SynapsePro] Background task rejected:', e.reason);
+            e.preventDefault();
+        });
+    })();
+    </script>
 </body>
 </html>

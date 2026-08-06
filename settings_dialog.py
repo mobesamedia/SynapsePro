@@ -9,8 +9,13 @@ try:
 except ImportError:
     print("SettingsDialog CRITICAL: Failed to import constants.")
     class MockConstants:
-        addon_package_name = "SynapsePro1"; qt_version = 0; icons_folder = "."; INFO_IMAGE_FILENAME = "info.png"; INFO_IMAGE_WIDTH = 200; ADDON_VERSION = "Unknown"
+        addon_package_name = "SynapsePro1"; icons_folder = "."; INFO_IMAGE_FILENAME = "news-banner.png"; INFO_IMAGE_WIDTH = 200; ADDON_VERSION = "Unknown"
     constants = MockConstants()
+
+try:
+    from . import sidebar_shortcuts
+except Exception:
+    sidebar_shortcuts = None  # type: ignore
 
 # --- Translation Function ---
 try:
@@ -19,27 +24,18 @@ except ImportError:
     def _(text): return text  # safety fallback
 
 # --- Anki and PyQt Imports ---
+QKeySequenceEdit = QKeySequence = QMessageBox = object
 try:
     from aqt import mw
-    if constants.qt_version == 6:
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QDialogButtonBox,
-                                     QCheckBox, QWidget, QGridLayout, QFrame, QComboBox,
-                                     QGroupBox, QScrollArea, QPushButton, QHBoxLayout,
-                                     QSizePolicy, QApplication)
-        from PyQt6.QtGui import QPixmap, QDesktopServices
-        from PyQt6.QtCore import Qt, QUrl, QTimer
-    elif constants.qt_version == 5:
-        from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, QDialogButtonBox,
-                                     QCheckBox, QWidget, QGridLayout, QFrame, QComboBox,
-                                     QGroupBox, QScrollArea, QPushButton, QHBoxLayout,
-                                     QSizePolicy, QApplication)
-        from PyQt5.QtGui import QPixmap, QDesktopServices
-        from PyQt5.QtCore import Qt, QUrl, QTimer
-    else:
-        raise ImportError("No valid Qt version found for SettingsDialog")
+    from aqt.qt import (QDialog, QVBoxLayout, QLabel, QDialogButtonBox,
+                        QCheckBox, QWidget, QGridLayout, QFrame, QComboBox,
+                        QGroupBox, QScrollArea, QPushButton, QHBoxLayout,
+                        QSizePolicy, QApplication, QListWidget, QListWidgetItem,
+                        QStackedWidget, QPixmap, QDesktopServices, Qt, QUrl, QTimer,
+                        QKeySequenceEdit, QKeySequence, QMessageBox)
 except ImportError as e:
     print(f"SettingsDialog Error: Failed to import required modules: {e}")
-    QDialog, QVBoxLayout, QLabel, QDialogButtonBox, QCheckBox, QWidget, QGridLayout, QFrame, Qt, QPixmap, QComboBox, QGroupBox, QScrollArea, QPushButton, QHBoxLayout, QDesktopServices, QUrl, QSizePolicy, QApplication, QTimer = (object,) * 20
+    QDialog, QVBoxLayout, QLabel, QDialogButtonBox, QCheckBox, QWidget, QGridLayout, QFrame, Qt, QPixmap, QComboBox, QGroupBox, QScrollArea, QPushButton, QHBoxLayout, QDesktopServices, QUrl, QSizePolicy, QApplication, QTimer, QListWidget, QListWidgetItem, QStackedWidget = (object,) * 23
 
 # --- Night Mode Detection ---
 is_night_mode = False
@@ -68,8 +64,12 @@ _COMMON_STYLE = f"""
     }}
     QFrame#CardFrame {{ border-radius: 12px; }}
     QLabel#SubHeaderLabel {{ font-size: 14px; font-weight: 700; margin-bottom: 5px; }}
+    QLabel#SectionTitle {{ font-size: 17px; font-weight: 700; }}
+    QLabel#SectionDesc {{ font-size: 12px; }}
+    QLabel#SettingDesc {{ font-size: 11px; }}
+    QLabel#FieldLabel {{ font-size: 13px; font-weight: 600; }}
     QLabel#HintText {{ font-size: 11px; }}
-    QCheckBox {{ spacing: 10px; padding: 6px 0px; }}
+    QCheckBox {{ spacing: 10px; padding: 5px 0px; font-size: 13px; }}
     QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 5px; }}
     QPushButton {{ border-radius: 8px; padding: 6px 16px; font-weight: 600; min-width: 80px; }}
     QComboBox {{ border-radius: 8px; padding: 4px 8px; min-width: 120px; }}
@@ -85,7 +85,11 @@ def _build_settings_style(night: bool) -> str:
     QFrame#CardFrame {{ background-color: {c['surface']}; border: 1px solid {c['grey_light']}; }}
     QLabel {{ color: {c['text']}; }}
     QLabel#HintText {{ color: {c['text_muted']}; }}
+    QLabel#SectionDesc {{ color: {c['text_muted']}; }}
+    QLabel#SettingDesc {{ color: {c['text_muted']}; }}
     QComboBox {{ background-color: {c['surface']}; color: {c['text']}; border: 1px solid {c['grey_mid']}; }}
+    QKeySequenceEdit {{ background-color: {c['surface']}; color: {c['text']}; border: 1px solid {c['grey_mid']}; border-radius: 8px; padding: 4px 8px; min-width: 125px; }}
+    QKeySequenceEdit:focus {{ border: 1px solid {c['blue']}; }}
     QComboBox QAbstractItemView {{ background-color: {c['surface']}; color: {c['text']}; }}
     QCheckBox {{ color: {c['text']}; }}
     QCheckBox::indicator {{ border: 1px solid {c['grey_mid']}; background-color: {c['surface']}; }}
@@ -94,6 +98,26 @@ def _build_settings_style(night: bool) -> str:
     QPushButton:hover {{ background-color: {c['blue_hover']}; }}
     QPushButton#CancelButton {{ background-color: {c['grey_light']}; color: {c['text']}; border: {'1px solid ' + c['grey_light'] if night else 'none'}; }}
     QPushButton#CancelButton:hover {{ background-color: {c['grey_mid']}; }}
+
+    /* Apple-style left category navigation */
+    QListWidget#SettingsNav {{
+        background-color: {c['surface']};
+        border: none;
+        border-right: 1px solid {c['grey_light']};
+        outline: 0;
+        padding: 10px 6px;
+        font-size: 13px;
+    }}
+    QListWidget#SettingsNav::item {{
+        color: {c['text']};
+        padding: 9px 12px;
+        margin: 2px 4px;
+        border-radius: 8px;
+    }}
+    QListWidget#SettingsNav::item:hover {{ background-color: {c['grey_light']}; }}
+    QListWidget#SettingsNav::item:selected {{ background-color: {c['blue']}; color: white; }}
+
+    QFrame#FooterSep {{ background-color: {c['grey_light']}; border: none; }}
 """
 
 # Styles computed per-instance at dialog creation time (not cached here).
@@ -111,156 +135,106 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.current_config = current_config
         self.checkboxes = {}
+        self.shortcut_edits = {}
         self._info_image_label = None
         self._info_pixmap_original = None
-        self._compact_mode = False
-        self._cards = []  # list of (card_widget, role) tuples for re-layout
-        self._grid = None
 
         self.setWindowTitle(f"{getattr(constants, 'ADDON_DISPLAY_NAME', constants.addon_package_name)} - {_('Settings')}")
         self.setStyleSheet(_build_settings_style(is_night_mode))
 
-        # Allow the dialog itself to be shrunk freely by the user / OS.
-        # The minimum is small enough to fit on very low-resolution screens
-        # (e.g. 800x600 or netbooks). The scroll area makes up for the
-        # limited vertical space.
-        self.setMinimumSize(380, 300)
+        self.setMinimumSize(540, 380)
         self.setSizeGripEnabled(True)
 
-        # --- Main layout: scroll area on top, button row pinned at bottom ---
+        # --- Master-detail layout: category nav (left) | pages (right) ---
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(12, 12, 12, 12)
-        self.main_layout.setSpacing(10)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
-        # Scrollable content container (everything except the action buttons).
-        self._scroll_area = QScrollArea(self)
-        self._scroll_area.setObjectName("ContentScrollArea")
-        self._scroll_area.setWidgetResizable(True)
-        self._scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        content_row = QHBoxLayout()
+        content_row.setContentsMargins(0, 0, 0, 0)
+        content_row.setSpacing(0)
 
-        self._content_widget = QWidget()
-        self._content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self._content_layout = QVBoxLayout(self._content_widget)
-        self._content_layout.setContentsMargins(0, 0, 0, 0)
-        self._content_layout.setSpacing(12)
+        # Left: category list
+        self._nav = QListWidget()
+        self._nav.setObjectName("SettingsNav")
+        self._nav.setFixedWidth(190)
+        self._nav.setFrameShape(QFrame.Shape.NoFrame)
+        self._nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._nav.setCursor(Qt.CursorShape.PointingHandCursor)
 
+        # Right: stacked pages (one per category)
+        self._stack = QStackedWidget()
+
+        content_row.addWidget(self._nav)
+        content_row.addWidget(self._stack, 1)
+        self.main_layout.addLayout(content_row, 1)
+
+        # Build the cards and wire them into nav + stack.
         self.setup_ui()
 
-        self._scroll_area.setWidget(self._content_widget)
-        self.main_layout.addWidget(self._scroll_area, 1)
+        self._nav.currentRowChanged.connect(self._stack.setCurrentIndex)
+        self._nav.setCurrentRow(0)
 
-        # Button row OUTSIDE the scroll area - always visible, always clickable
+        # Button row pinned at the bottom — always visible.
         self.add_button_row()
 
-        # Pick a sensible initial size that never exceeds the available screen.
         self._apply_initial_size()
-
-        # Do a first responsive pass after the dialog is shown so widgets
-        # have proper geometry.
-        QTimer.singleShot(0, self._apply_responsive_layout)
+        QTimer.singleShot(0, self._rescale_info_image)
 
     # ------------------------------------------------------------------ #
     # Layout construction
     # ------------------------------------------------------------------ #
     def setup_ui(self):
-        """Build the cards once; place them via _apply_responsive_layout()."""
-        info_card = self.create_info_card()
-        general_card = self.create_general_settings_card()
-        support_card = self.create_support_card()
-        themes_card = self.create_themes_card()
+        """Build each settings card and place it on its own category page."""
+        info_card      = self.create_info_card()
+        support_card   = self.create_support_card()
+        general_card   = self.create_general_settings_card()
+        themes_card    = self.create_themes_card()
         dashboard_card = self.create_dashboard_card()
-        deck_card = self.create_deck_overview_card()
-        sidebar_card = self.create_sidebar_card()
+        deck_card      = self.create_deck_overview_card()
+        sidebar_card   = self.create_sidebar_card()
 
-        # Store with a "role" hint so we can rearrange depending on width.
-        self._cards = [
-            ("info", info_card),
-            ("general", general_card),
-            ("support", support_card),
-            ("themes", themes_card),
-            ("dashboard", dashboard_card),
-            ("deck", deck_card),
-            ("sidebar", sidebar_card),
+        # Home: the landing page — logo/version, Reddit & Changelog buttons,
+        # plus the "Rate on AnkiWeb" call-to-action.
+        home = QWidget()
+        home_layout = QVBoxLayout(home)
+        home_layout.setContentsMargins(0, 0, 0, 0)
+        home_layout.setSpacing(12)
+        home_layout.addWidget(info_card)
+        home_layout.addWidget(support_card)
+
+        # (nav label, page content) — one entry per left-hand category.
+        self._pages = [
+            (_("Home"),          home),
+            (_("General"),       general_card),
+            (_("Appearance"),    themes_card),
+            (_("Dashboard"),     dashboard_card),
+            (_("Deck Overview"), deck_card),
+            (_("Sidebar"),       sidebar_card),
         ]
+        for title, widget in self._pages:
+            self._add_page(title, widget)
 
-        # Container that gets swapped between grid (wide) and vbox (narrow).
-        self._cards_container = QWidget()
-        self._cards_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self._content_layout.addWidget(self._cards_container)
-        self._content_layout.addStretch(1)
+    def _add_page(self, title: str, widget) -> None:
+        """Add a category to the nav and its (scrollable) content to the stack."""
+        self._nav.addItem(QListWidgetItem(title))
 
-    def _install_grid_layout(self):
-        """Two-column grid layout for wide dialogs."""
-        grid = QGridLayout()
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(12)
+        page = QScrollArea()
+        page.setObjectName("ContentScrollArea")
+        page.setWidgetResizable(True)
+        page.setFrameShape(QFrame.Shape.NoFrame)
+        page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        page.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-        cards = dict(self._cards)
-        grid.addWidget(cards["info"], 0, 0)
-        grid.addWidget(cards["general"], 0, 1)
-        grid.addWidget(cards["support"], 1, 0, 1, 2)
+        inner = QWidget()
+        inner_layout = QVBoxLayout(inner)
+        inner_layout.setContentsMargins(18, 18, 18, 18)
+        inner_layout.setSpacing(12)
+        inner_layout.addWidget(widget)
+        inner_layout.addStretch(1)
 
-        left_container = QWidget()
-        left_layout = QVBoxLayout(left_container)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(12)
-        left_layout.addWidget(cards["dashboard"])
-        left_layout.addWidget(cards["deck"])
-        left_layout.addStretch()
-        grid.addWidget(left_container, 2, 0)
-        grid.addWidget(cards["sidebar"], 2, 1)
-
-        # Themes card spans full width at the very bottom
-        grid.addWidget(cards["themes"], 3, 0, 1, 2)
-
-        # Column stretch: both columns share space equally
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
-
-        self._cards_container.setLayout(grid)
-
-    def _install_stack_layout(self):
-        """Single-column stack for narrow dialogs - everything remains reachable."""
-        vbox = QVBoxLayout()
-        vbox.setContentsMargins(0, 0, 0, 0)
-        vbox.setSpacing(12)
-        # NOTE: using ``_role`` (not ``_``) because ``_`` is the translation
-        # function imported from ``locales`` and would be shadowed otherwise.
-        for _role, card in self._cards:
-            vbox.addWidget(card)
-        vbox.addStretch(1)
-        self._cards_container.setLayout(vbox)
-
-    def _replace_container_layout(self, installer):
-        """Swap the container's layout safely (needed to switch between grid/stack)."""
-        old_layout = self._cards_container.layout()
-        if old_layout is not None:
-            # Remove every stored card from the old layout *before* deleting it,
-            # otherwise the cards would be destroyed along with their parent layout.
-            # NOTE: using ``_role`` to avoid shadowing the translation ``_`` function.
-            for _role, card in self._cards:
-                old_layout.removeWidget(card)
-                card.setParent(self._cards_container)  # re-parent so it survives
-            # Drop any remaining items (stretches, sub-layouts, helper widgets).
-            while old_layout.count():
-                item = old_layout.takeAt(0)
-                sub = item.layout()
-                if sub is not None:
-                    while sub.count():
-                        inner = sub.takeAt(0)
-                        w = inner.widget()
-                        if w is not None:
-                            w.setParent(self._cards_container)
-            # Detach the old layout from the container so the new one can be set.
-            # We create a throw-away QWidget to steal ownership of the old layout.
-            trash = QWidget()
-            trash.setLayout(old_layout)
-            trash.deleteLater()
-
-        installer()
+        page.setWidget(inner)
+        self._stack.addWidget(page)
 
     # ------------------------------------------------------------------ #
     # Cards
@@ -277,24 +251,15 @@ class SettingsDialog(QDialog):
         image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         try:
-            from .theme import get_active_theme as _get_theme
-            _INFO_MAP = {
-                "ocean":   "info.png",
-                "orchid":  "info_pink.png",
-                "forest":  "info_forest.png",
-                "horizon": "info_horizon.png",
-                "deluge":  "info_deluge.png",
-                "dusty":   "info_dusty.png",
-            }
-            _info_file = _INFO_MAP.get(_get_theme(), "info.png")
-            image_path = os.path.join(constants.icons_folder, _info_file)
-            if not os.path.exists(image_path):
-                image_path = os.path.join(constants.icons_folder, "info.png")
+            image_path = os.path.join(
+                constants.icons_folder,
+                getattr(constants, "INFO_IMAGE_FILENAME", "news-banner.png"),
+            )
             if os.path.exists(image_path):
                 pixmap = QPixmap(image_path)
                 if not pixmap.isNull():
                     self._info_pixmap_original = pixmap
-                    # initial scaling; will be adjusted in _apply_responsive_layout
+                    # initial scaling; refined by _rescale_info_image() on show/resize
                     scaled = pixmap.scaledToWidth(380, Qt.TransformationMode.SmoothTransformation)
                     image_label.setPixmap(scaled)
                     layout.addWidget(image_label)
@@ -361,34 +326,44 @@ class SettingsDialog(QDialog):
         card.setObjectName("CardFrame")
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setContentsMargins(20, 18, 20, 18)
 
-        header = QLabel(_("General Settings"))
-        header.setObjectName("SubHeaderLabel")
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
+        self._add_section_header(
+            layout, _("General"),
+            _("Language, daily facts, the statistics range and when the sidebar is shown."),
+        )
 
         grid = QGridLayout()
-        grid.setSpacing(10)
-        grid.setColumnStretch(0, 0)
-        grid.setColumnStretch(1, 1)
-
-        def _lbl(text):
-            l = QLabel(text)
-            l.setWordWrap(True)
-            l.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-            return l
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(16)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 0)
+        self._gen_grid_row = 0
 
         def _combo():
             c = QComboBox()
-            c.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            c.setMinimumWidth(180)
+            c.setMinimumHeight(30)
+            c.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
             return c
+
+        def _row(title, desc, combo):
+            cell = QWidget()
+            cl = QVBoxLayout(cell)
+            cl.setContentsMargins(0, 0, 0, 0)
+            cl.setSpacing(2)
+            tl = QLabel(title); tl.setObjectName("FieldLabel"); tl.setWordWrap(True)
+            dl = QLabel(desc); dl.setObjectName("SettingDesc"); dl.setWordWrap(True)
+            cl.addWidget(tl); cl.addWidget(dl)
+            r = self._gen_grid_row
+            grid.addWidget(cell, r, 0)
+            grid.addWidget(combo, r, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self._gen_grid_row += 1
 
         # --- Language --------------------------------------------------
         # The config value stored is always one of "auto"/"en"/"de"/"es";
         # the visible labels are translated (for "Auto") or shown as
         # endonyms (English / Deutsch / Español).
-        grid.addWidget(_lbl(_("Language:")), 0, 0)
         self.language_combo = _combo()
         self.language_combo.addItem(_("Auto"), "auto")
         self.language_combo.addItem("English", "en")
@@ -403,12 +378,13 @@ class SettingsDialog(QDialog):
         lang_val = self.current_config.get("language", "auto")
         idx = self.language_combo.findData(lang_val)
         self.language_combo.setCurrentIndex(idx if idx != -1 else 0)
-        grid.addWidget(self.language_combo, 0, 1)
+        _row(_("Language"),
+             _("Interface language. \"Auto\" follows your Anki language."),
+             self.language_combo)
 
         # --- Daily fact topic -----------------------------------------
         # IMPORTANT: the underlying config value must stay in English
         # ("Medical", "Law", ...) – only the display label is translated.
-        grid.addWidget(_lbl(_("Daily Fact Topic:")), 1, 0)
         self.fact_theme_combo = _combo()
         self.fact_theme_combo.addItem(_("Medical"), "Medical")
         self.fact_theme_combo.addItem(_("Law"), "Law")
@@ -417,10 +393,11 @@ class SettingsDialog(QDialog):
         idx = self.fact_theme_combo.findData(self.current_config.get("fact_theme", "Medical"))
         if idx != -1:
             self.fact_theme_combo.setCurrentIndex(idx)
-        grid.addWidget(self.fact_theme_combo, 1, 1)
+        _row(_("Daily Fact Topic"),
+             _("Subject the daily fact on the home screen is drawn from."),
+             self.fact_theme_combo)
 
         # --- Statistics time range ------------------------------------
-        grid.addWidget(_lbl(_("Statistics Time Range:")), 2, 0)
         self.stats_range_combo = _combo()
         self.stats_range_combo.addItem(_("Last 24 Hours"), 1)
         self.stats_range_combo.addItem(_("Last 7 Days (Week)"), 7)
@@ -428,17 +405,20 @@ class SettingsDialog(QDialog):
         raw_val = self.current_config.get("stats_time_range", 7)
         idx = self.stats_range_combo.findData(int(raw_val))
         self.stats_range_combo.setCurrentIndex(idx if idx != -1 else 1)
-        grid.addWidget(self.stats_range_combo, 2, 1)
+        _row(_("Statistics Time Range"),
+             _("Period covered by the statistics widget."),
+             self.stats_range_combo)
 
         # --- Sidebar visibility ---------------------------------------
-        grid.addWidget(_lbl(_("Sidebar Visibility:")), 3, 0)
         self.sidebar_vis_combo = _combo()
         self.sidebar_vis_combo.addItem(_("Always Show"), "always_show")
         self.sidebar_vis_combo.addItem(_("Hide while Reviewing"), "hide_review")
         vis_val = self.current_config.get("sidebar_visibility_mode", "always_show")
         idx = self.sidebar_vis_combo.findData(vis_val)
         self.sidebar_vis_combo.setCurrentIndex(idx if idx != -1 else 0)
-        grid.addWidget(self.sidebar_vis_combo, 3, 1)
+        _row(_("Sidebar Visibility"),
+             _("Show the launcher always, or hide it while you review."),
+             self.sidebar_vis_combo)
 
         layout.addLayout(grid)
         layout.addStretch()
@@ -468,148 +448,131 @@ class SettingsDialog(QDialog):
         layout.addWidget(rate_btn, 0)
         return card
 
+    def _theme_btn_style(self, bg: str, pressed: str, checked: bool) -> str:
+        border = "rgba(255,255,255,0.9)" if checked else "transparent"
+        return f"""
+            QPushButton {{
+                background-color: {bg};
+                color: white;
+                border-radius: 8px;
+                border: 2px solid {border};
+                font-weight: 600;
+                font-size: 13px;
+                padding: 7px 10px;
+            }}
+            QPushButton:hover {{ background-color: {pressed}; }}
+            QPushButton:checked {{ background-color: {pressed}; border: 2px solid rgba(255,255,255,0.9); }}
+        """
+
     def create_themes_card(self) -> QFrame:
-        """Compact Themes card — colour presets, editor button, background combo."""
+        """Appearance card — accent-colour presets, theme editor, background style."""
         card = QFrame()
         card.setObjectName("CardFrame")
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(6)
 
-        header = QLabel(_("Themes"))
-        header.setObjectName("SubHeaderLabel")
-        header.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(header)
+        self._add_section_header(
+            layout, _("Appearance"),
+            _("Choose the accent colour used across SynapsePro and the background style."),
+        )
 
-        # ── Colour-theme row ─────────────────────────────────────────────────
         self._color_theme_value   = self.current_config.get("active_color_theme", "ocean")
         self._custom_theme_colors = dict(self.current_config.get("custom_theme_colors", {}))
         self._color_theme_buttons: dict = {}
 
-        color_row = QHBoxLayout()
-        color_row.setSpacing(6)
-
-        color_lbl = QLabel(_("Color Theme:"))
-        color_lbl.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        color_row.addWidget(color_lbl)
+        # ── Accent colour ────────────────────────────────────────────────────
+        color_lbl = QLabel(_("Color Theme"))
+        color_lbl.setObjectName("FieldLabel")
+        layout.addWidget(color_lbl)
+        color_desc = QLabel(_("Accent colour for buttons, highlights and widgets."))
+        color_desc.setObjectName("SettingDesc"); color_desc.setWordWrap(True)
+        layout.addWidget(color_desc)
+        layout.addSpacing(6)
 
         _preset_defs = [
-            ("ocean",   "Ocean",   "#0071D3", "#004990"),
-            ("orchid",  "Orchid",  "#E95ACC", "#CB51B3"),
-            ("forest",  "Forest",  "#619971", "#477154"),
-            ("deluge",  "Deluge",  "#7961A9", "#65508D"),
-            ("horizon", "Horizon", "#6183A9", "#4B6683"),
-            ("dusty",   "Dusty",   "#5A9491", "#4E8280"),
+            ("ocean",   _("Ocean"),   "#0071D3", "#004990"),
+            ("orchid",  _("Orchid"),  "#E95ACC", "#CB51B3"),
+            ("forest",  _("Forest"),  "#619971", "#477154"),
+            ("deluge",  _("Deluge"),  "#7961A9", "#65508D"),
+            ("horizon", _("Horizon"), "#6183A9", "#4B6683"),
+            ("dusty",   _("Dusty"),   "#5A9491", "#4E8280"),
         ]
-        preset_row = QHBoxLayout()
-        preset_row.setSpacing(5)
+        self._theme_presets = {k: (bg, pr) for k, _name, bg, pr in _preset_defs}
+
+        preset_grid = QGridLayout()
+        preset_grid.setSpacing(8)
+        for col in range(3):
+            preset_grid.setColumnStretch(col, 1)
         for idx, (key, label, bg, pressed) in enumerate(_preset_defs):
-            is_checked = (key == self._color_theme_value)
+            checked = (key == self._color_theme_value)
             btn = QPushButton(label)
             btn.setCheckable(True)
-            btn.setChecked(is_checked)
+            btn.setChecked(checked)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFixedHeight(24)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {bg};
-                    color: white;
-                    border-radius: 6px;
-                    border: 2px solid {("rgba(255,255,255,0.85)" if is_checked else "transparent")};
-                    font-weight: 600;
-                    font-size: 11px;
-                    padding: 1px 8px;
-                    min-width: 52px;
-                }}
-                QPushButton:hover {{ background-color: {pressed}; }}
-                QPushButton:checked {{
-                    background-color: {pressed};
-                    border: 2px solid rgba(255,255,255,0.85);
-                }}
-            """)
+            btn.setFixedHeight(36)
+            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            btn.setStyleSheet(self._theme_btn_style(bg, pressed, checked))
             btn.clicked.connect(lambda _, k=key: self._select_color_theme(k))
             self._color_theme_buttons[key] = btn
-            preset_row.addWidget(btn)
-        color_row.addLayout(preset_row)
-        color_row.addStretch()
+            preset_grid.addWidget(btn, idx // 3, idx % 3)
+        layout.addLayout(preset_grid)
 
-        # "Edit Theme" button — opens the custom editor popup
+        # "Edit Theme" — opens the custom colour editor
         c = _palette(is_night_mode)
+        edit_row = QHBoxLayout()
+        edit_row.addStretch(1)
         edit_btn = QPushButton(_("Edit Theme") + " ✎")
         edit_btn.setObjectName("EditThemeBtn")
         edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        edit_btn.setFixedHeight(26)
+        edit_btn.setFixedHeight(30)
         edit_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         edit_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {c.get("grey_light","#E5E5EA")};
                 color: {c.get("text","#1D1D1F")};
-                border-radius: 6px;
-                border: none;
-                font-size: 12px;
-                padding: 1px 10px;
+                border-radius: 8px; border: none; font-size: 12px; padding: 4px 14px;
             }}
             QPushButton:hover {{ background-color: {c.get("grey_mid","#D1D1D6")}; }}
         """)
         edit_btn.clicked.connect(self._open_theme_editor)
-        color_row.addWidget(edit_btn)
+        edit_row.addWidget(edit_btn)
+        layout.addSpacing(4)
+        layout.addLayout(edit_row)
 
-        layout.addLayout(color_row)
-
-        # ── Separator ─────────────────────────────────────────────────────────
+        # ── Separator ────────────────────────────────────────────────────────
         sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        sep.setObjectName("FooterSep")
+        sep.setFixedHeight(1)
+        layout.addSpacing(8)
         layout.addWidget(sep)
+        layout.addSpacing(8)
 
-        # ── Background Color ─────────────────────────────────────────────────
-        bg_row = QHBoxLayout()
-        bg_row.setSpacing(8)
-        bg_lbl = QLabel(_("Background Color:"))
-        bg_lbl.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        bg_row.addWidget(bg_lbl)
+        # ── Background style ─────────────────────────────────────────────────
+        bg_lbl = QLabel(_("Background Style"))
+        bg_lbl.setObjectName("FieldLabel")
+        layout.addWidget(bg_lbl)
+        bg_desc = QLabel(_("Overall background of the add-on screens."))
+        bg_desc.setObjectName("SettingDesc"); bg_desc.setWordWrap(True)
+        layout.addWidget(bg_desc)
+        layout.addSpacing(6)
         self.visual_theme_combo = QComboBox()
+        self.visual_theme_combo.setMinimumHeight(30)
         self.visual_theme_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.populate_themes()
-        bg_row.addWidget(self.visual_theme_combo, 1)
-        layout.addLayout(bg_row)
+        layout.addWidget(self.visual_theme_combo)
 
         return card
 
     def _select_color_theme(self, key: str) -> None:
         """Update the active preset and refresh all button checked-states."""
         self._color_theme_value = key
-        _colors  = {
-            "ocean": "#0071D3", "orchid": "#E95ACC", "forest": "#619971",
-            "deluge": "#7961A9", "horizon": "#6183A9", "dusty": "#5A9491",
-        }
-        _pressed = {
-            "ocean": "#004990", "orchid": "#CB51B3", "forest": "#477154",
-            "deluge": "#65508D", "horizon": "#4B6683", "dusty": "#4E8280",
-        }
         for k, btn in self._color_theme_buttons.items():
             checked = (k == key)
             btn.setChecked(checked)
-            bg = _colors.get(k, "#0071D3")
-            pr = _pressed.get(k, "#004990")
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {bg};
-                    color: white;
-                    border-radius: 6px;
-                    border: 2px solid {("rgba(255,255,255,0.85)" if checked else "transparent")};
-                    font-weight: 600;
-                    font-size: 11px;
-                    padding: 1px 8px;
-                    min-width: 52px;
-                }}
-                QPushButton:hover {{ background-color: {pr}; }}
-                QPushButton:checked {{
-                    background-color: {pr};
-                    border: 2px solid rgba(255,255,255,0.85);
-                }}
-            """)
+            bg, pr = self._theme_presets.get(k, ("#0071D3", "#004990"))
+            btn.setStyleSheet(self._theme_btn_style(bg, pr, checked))
 
     def _open_theme_editor(self) -> None:
         """Open the custom ThemeEditorDialog; apply result as the 'custom' theme."""
@@ -639,22 +602,42 @@ class SettingsDialog(QDialog):
         card.setObjectName("CardFrame")
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(2)
 
-        header = QLabel(_("Home Screen Dashboard"))
-        header.setObjectName("SubHeaderLabel")
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
+        self._add_section_header(
+            layout, _("Dashboard"),
+            _("Widgets shown on the Anki home screen (the deck list)."),
+        )
+
+        self.add_checkbox(
+            "minimal_dashboard_enabled", _("Minimalist Dashboard"), layout,
+            _("Shows level, streak, challenge, study plan, deadline and key statistics in one compact panel."),
+        )
+        layout.addSpacing(8)
 
         features = [
-            ("gamification_widgets_enabled", _("Gamification Widgets (Level, XP, Streak)")),
-            ("daily_widgets_enabled", _("Daily Widgets (Study Plan & Facts)")),
-            ("deadline_bar_enabled", _("Deadline Bar")),
-            ("statistics_widget_enabled", _("Advanced Statistics")),
+            ("gamification_widgets_enabled", _("Gamification Widgets"),
+             _("Your level, XP and daily streak.")),
+            ("daily_widgets_enabled", _("Daily Widgets"),
+             _("Your study plan and the daily fact.")),
+            ("deadline_bar_enabled", _("Deadline Bar"),
+             _("A countdown bar towards your exam or deadline.")),
+            ("statistics_widget_enabled", _("Advanced Statistics"),
+             _("An extra panel with detailed review statistics.")),
         ]
-        for key, text in features:
-            self.add_checkbox(key, text, layout)
+        for key, text, desc in features:
+            self.add_checkbox(key, text, layout, desc)
+
+        minimal_cb = self.checkboxes["minimal_dashboard_enabled"]
+        widget_keys = [key for key, _text, _desc in features]
+
+        def sync_minimal_widgets(enabled):
+            for key in widget_keys:
+                self.checkboxes[key].setEnabled(not bool(enabled))
+
+        minimal_cb.toggled.connect(sync_minimal_widgets)
+        sync_minimal_widgets(minimal_cb.isChecked())
 
         return card
 
@@ -663,22 +646,19 @@ class SettingsDialog(QDialog):
         card.setObjectName("CardFrame")
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(2)
 
-        header = QLabel(_("Deck Overview"))
-        header.setObjectName("SubHeaderLabel")
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
-
-        self.add_checkbox("deck_overview_enabled", _("Enable Custom Deck Dashboard"), layout)
-
-        hint = QLabel(
-            _("Replaces the standard Deck Overview screen with a modern dashboard displaying Retention, Hard Cards, and more.")
+        self._add_section_header(
+            layout, _("Deck Overview"),
+            _("The screen shown after you click a deck, before studying."),
         )
-        hint.setObjectName("HintText")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+
+        self.add_checkbox(
+            "deck_overview_enabled", _("Enable Custom Deck Dashboard"), layout,
+            _("Replaces the standard overview with a modern dashboard showing "
+              "retention, hard cards and more."),
+        )
 
         return card
 
@@ -687,35 +667,106 @@ class SettingsDialog(QDialog):
         card.setObjectName("CardFrame")
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(2)
 
-        header = QLabel(_("Sidebar"))
-        header.setObjectName("SubHeaderLabel")
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
+        self._add_section_header(
+            layout, _("Sidebar"),
+            _("Tools available in the launcher bar on the side of Anki."),
+        )
 
         features = [
-            ("mindmap_enabled", _("Mind Map")),
-            ("gamification_sidebar_enabled", _("Gamification Sidebar")),
-            ("music_player_enabled", _("Music Player")),
-            ("pomodoro_enabled", _("Pomodoro Timer")),
-            ("ai_assistant_enabled", _("AI Assistant")),
-            ("website_viewer_enabled", _("Website Viewer")),
-            ("notebook_enabled", _("Notebook")),
+            ("mindmap_enabled", _("Mind Map"),
+             _("A visual mind-mapping panel.")),
+            ("gamification_sidebar_enabled", _("Gamification Sidebar"),
+             _("Progress, rewards and motivation panel.")),
+            ("music_player_enabled", _("Music Player"),
+             _("Background music while you study.")),
+            ("pomodoro_enabled", _("Pomodoro Timer"),
+             _("A focus timer with work and break intervals.")),
+            ("ai_assistant_enabled", _("AI Assistant"),
+             _("Chat assistant that can explain your cards.")),
+            ("website_viewer_enabled", _("Website Viewer"),
+             _("Open websites in a panel without leaving Anki.")),
+            ("notebook_enabled", _("Notebook"),
+             _("Notes, to-dos and PDFs alongside your cards.")),
         ]
-        for key, text in features:
-            self.add_checkbox(key, text, layout)
+        for key, text, desc in features:
+            self.add_sidebar_setting(key, text, layout, desc)
 
         layout.addSpacing(8)
-        hint = QLabel(_("You need to restart Anki to see the changes of the Sidebar Settings."))
+        hint = QLabel(_("Shortcuts apply immediately after saving. Restart Anki after enabling or disabling sidebar tools."))
         hint.setObjectName("HintText")
         hint.setWordWrap(True)
         layout.addWidget(hint)
         layout.addStretch()
         return card
 
-    def add_checkbox(self, key, text, layout):
+    def add_sidebar_setting(self, key, text, layout, desc=""):
+        """Add one sidebar toggle and its native Qt shortcut recorder."""
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 3, 0, 5)
+        row_layout.setSpacing(12)
+
+        labels = QWidget()
+        labels_layout = QVBoxLayout(labels)
+        labels_layout.setContentsMargins(0, 0, 0, 0)
+        labels_layout.setSpacing(2)
+        title = QLabel(text)
+        title.setObjectName("FieldLabel")
+        title.setWordWrap(True)
+        labels_layout.addWidget(title)
+        if desc:
+            description = QLabel(desc)
+            description.setObjectName("SettingDesc")
+            description.setWordWrap(True)
+            labels_layout.addWidget(description)
+        row_layout.addWidget(labels, 1)
+
+        cb = QCheckBox()
+        cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        cb.setChecked(bool(self.current_config.get(key, True)))
+        cb.setToolTip(_("Enable or disable this sidebar tool."))
+        self.checkboxes[key] = cb
+        row_layout.addWidget(cb, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        edit = QKeySequenceEdit()
+        edit.setToolTip(_("Click and press a keyboard shortcut."))
+        edit.setFixedWidth(145)
+        try:
+            edit.setMaximumSequenceLength(1)
+            edit.setClearButtonEnabled(True)
+        except (AttributeError, TypeError):
+            pass
+        current = {}
+        if sidebar_shortcuts:
+            current = sidebar_shortcuts.normalise_shortcut_map(
+                self.current_config.get("sidebar_shortcuts", {})
+            )
+        portable = current.get(key, "")
+        if portable:
+            edit.setKeySequence(QKeySequence.fromString(
+                portable, QKeySequence.SequenceFormat.PortableText
+            ))
+        self.shortcut_edits[key] = edit
+        row_layout.addWidget(edit, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(row)
+
+    def _add_section_header(self, layout, title, subtitle=""):
+        """Left-aligned section title + optional muted description line."""
+        t = QLabel(title)
+        t.setObjectName("SectionTitle")
+        t.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(t)
+        if subtitle:
+            d = QLabel(subtitle)
+            d.setObjectName("SectionDesc")
+            d.setWordWrap(True)
+            layout.addWidget(d)
+        layout.addSpacing(8)
+
+    def add_checkbox(self, key, text, layout, desc=""):
         cb = QCheckBox(text)
         cb.setCursor(Qt.CursorShape.PointingHandCursor)
         cb.setChecked(bool(self.current_config.get(key, True)))
@@ -726,12 +777,23 @@ class SettingsDialog(QDialog):
             pass
         self.checkboxes[key] = cb
         layout.addWidget(cb)
+        if desc:
+            d = QLabel(desc)
+            d.setObjectName("SettingDesc")
+            d.setWordWrap(True)
+            d.setContentsMargins(28, 0, 0, 6)  # indent under the checkbox label
+            layout.addWidget(d)
 
     def add_button_row(self):
         """Save / Cancel row. Lives OUTSIDE the scroll area so it is always
         visible and clickable – no matter how small the screen is."""
+        sep = QFrame()
+        sep.setObjectName("FooterSep")
+        sep.setFixedHeight(1)
+        self.main_layout.addWidget(sep)
+
         hbox = QHBoxLayout()
-        hbox.setContentsMargins(0, 6, 0, 0)
+        hbox.setContentsMargins(16, 10, 16, 12)
         hbox.setSpacing(8)
 
         cancel_btn = QPushButton(_("Cancel"))
@@ -742,7 +804,7 @@ class SettingsDialog(QDialog):
         cancel_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         save_btn = QPushButton(_("Save Settings"))
-        save_btn.clicked.connect(self.accept)
+        save_btn.clicked.connect(self._accept_if_valid)
         save_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         save_btn.setDefault(True)
 
@@ -750,6 +812,45 @@ class SettingsDialog(QDialog):
         hbox.addWidget(cancel_btn)
         hbox.addWidget(save_btn)
         self.main_layout.addLayout(hbox)
+
+    def _accept_if_valid(self):
+        """Keep unsafe, duplicate or known-conflicting shortcuts out of config."""
+        if sidebar_shortcuts:
+            used = {}
+            for key, edit in self.shortcut_edits.items():
+                raw = edit.keySequence().toString(
+                    QKeySequence.SequenceFormat.PortableText
+                )
+                if not raw:
+                    continue
+                feature = _(sidebar_shortcuts.FEATURE_LABELS.get(key, "Sidebar"))
+                portable = sidebar_shortcuts.normalise_sequence(raw)
+                if not sidebar_shortcuts.is_safe_sequence(raw):
+                    QMessageBox.warning(
+                        self, _("Keyboard Shortcut"),
+                        _("Use Ctrl, Alt, Command or a function key.")
+                    )
+                    return
+                if portable in used:
+                    other = _(sidebar_shortcuts.FEATURE_LABELS.get(used[portable], "Sidebar"))
+                    QMessageBox.warning(
+                        self, _("Keyboard Shortcut"),
+                        _("This shortcut is already assigned to {feature}.").format(
+                            feature=other
+                        )
+                    )
+                    return
+                conflict = sidebar_shortcuts.find_existing_conflict(portable, mw)
+                if conflict:
+                    QMessageBox.warning(
+                        self, _("Keyboard Shortcut"),
+                        _("This shortcut is already used by Anki: {action}.").format(
+                            action=conflict
+                        )
+                    )
+                    return
+                used[portable] = key
+        self.accept()
 
     # ------------------------------------------------------------------ #
     # Responsive behaviour
@@ -779,59 +880,23 @@ class SettingsDialog(QDialog):
         # Also clamp maximum size so the dialog can't overshoot the screen.
         self.setMaximumSize(avail_w, avail_h)
 
-    def _apply_responsive_layout(self):
-        """Choose 1- or 2-column layout depending on the dialog's current width
-        and rescale the info image accordingly."""
+    def _rescale_info_image(self):
+        """Keep the header image sized to the current page width."""
+        if self._info_image_label is None or self._info_pixmap_original is None:
+            return
         try:
-            inner_w = self._scroll_area.viewport().width() if self._scroll_area else self.width()
+            avail = self._stack.width() if getattr(self, "_stack", None) else self.width()
+            target_w = max(160, min(440, avail - 80))
+            scaled = self._info_pixmap_original.scaledToWidth(
+                target_w, Qt.TransformationMode.SmoothTransformation
+            )
+            self._info_image_label.setPixmap(scaled)
         except Exception:
-            inner_w = self.width()
-
-        compact = inner_w < COMPACT_BREAKPOINT
-        tiny = inner_w < TINY_BREAKPOINT
-
-        # Re-build the card container if the mode changed.
-        if compact != self._compact_mode or self._cards_container.layout() is None:
-            self._compact_mode = compact
-            if compact:
-                self._replace_container_layout(self._install_stack_layout)
-            else:
-                self._replace_container_layout(self._install_grid_layout)
-
-        # Dynamically rescale the info image to available width.
-        if self._info_image_label is not None and self._info_pixmap_original is not None:
-            # In compact mode the image spans the full card width; in wide mode
-            # it lives in one grid cell that is ~half the content width.
-            if compact:
-                target_img_w = max(180, min(520, inner_w - 60))
-            else:
-                target_img_w = max(180, min(420, int(inner_w / 2) - 60))
-            if tiny:
-                target_img_w = max(140, min(260, inner_w - 40))
-            try:
-                scaled = self._info_pixmap_original.scaledToWidth(
-                    target_img_w, Qt.TransformationMode.SmoothTransformation
-                )
-                self._info_image_label.setPixmap(scaled)
-            except Exception:
-                pass
-
-        # Shrink outer margins a bit on very small screens.
-        if tiny:
-            self.main_layout.setContentsMargins(6, 6, 6, 6)
-            self._content_layout.setSpacing(8)
-        elif compact:
-            self.main_layout.setContentsMargins(10, 10, 10, 10)
-            self._content_layout.setSpacing(10)
-        else:
-            self.main_layout.setContentsMargins(14, 14, 14, 14)
-            self._content_layout.setSpacing(12)
+            pass
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # Re-run responsive pass on every resize so the layout, image, and
-        # margins stay in sync with the current dialog size.
-        self._apply_responsive_layout()
+        self._rescale_info_image()
 
     # ------------------------------------------------------------------ #
     # Helpers (unchanged behaviour)
@@ -862,7 +927,7 @@ class SettingsDialog(QDialog):
         self.visual_theme_combo.setCurrentIndex(idx if idx != -1 else 0)
 
     def open_ankiweb_link(self):
-        QDesktopServices.openUrl(QUrl("https://ankiweb.net/shared/info/236979321"))
+        QDesktopServices.openUrl(QUrl("https://ankiweb.net/shared/review/236979321"))
 
     def open_changelog(self):
         QDesktopServices.openUrl(QUrl("https://www.synapse-pro.de/changelog"))
@@ -884,4 +949,13 @@ class SettingsDialog(QDialog):
         }
         for key, cb in self.checkboxes.items():
             settings[key] = cb.isChecked()
+        if sidebar_shortcuts:
+            settings["sidebar_shortcuts"] = sidebar_shortcuts.normalise_shortcut_map({
+                key: edit.keySequence().toString(
+                    QKeySequence.SequenceFormat.PortableText
+                )
+                for key, edit in self.shortcut_edits.items()
+            })
+        else:
+            settings["sidebar_shortcuts"] = {}
         return settings

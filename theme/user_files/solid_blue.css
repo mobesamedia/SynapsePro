@@ -1,0 +1,219 @@
+/* --- solid_blue.css — solid background variant (auto-generated from blue.css) --- */
+/* Medical Theme Anki - v35 (Standard + Custom Dashboard Support) */
+
+/* === Farbvariablen === */
+:root {
+    --primary-cyan: #08a1c6;
+    --primary-cyan-dark: #0680a0;
+    --secondary-teal: #7bcac5;
+    --secondary-teal-dark: #63a3a0;
+    --button-specific-blue: #0071D3; /* Nur noch für Zähler relevant */
+    --counter-new-color: var(--button-specific-blue);
+    --counter-review-color: #46a80b;
+    --medical-text-dark: #2d3748;
+    --medical-text-light: #ffffff;
+    --medical-bg-paper: #ffffff;
+    --medical-bg-accent: #eef3f7;
+    --medical-border-color: #d1dce5;
+    --border-radius: 6px;
+    --deck-border-radius: 12px;
+    --box-shadow-light: 0 2px 5px rgba(0, 113, 211, 0.1);
+    --box-shadow-hover: 0 4px 8px rgba(0, 113, 211, 0.15);
+}
+
+/* === Nachtmodus Farbvariablen === */
+body.nightMode {
+    --primary-cyan: #10b9e6;
+    --primary-cyan-dark: #0ca8d1;
+    --secondary-teal: #88d4d0;
+    --secondary-teal-dark: #7bcac5;
+    --button-specific-blue: #0071D3;
+    --medical-text-dark: #c9d1d9;
+    --medical-text-light: #ffffff;
+    --medical-bg-paper: #303030;
+    --medical-bg-subtle: #22272e;
+    --medical-bg-accent: #2a313a;
+    --medical-border-color: #444c56;
+    --box-shadow-light: 0 2px 5px rgba(0, 0, 0, 0.2);
+    --box-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* === Globale Stile === */
+body {
+    color: var(--medical-text-dark);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/* === Hintergrundgradienten === */
+/* Hier wurde 'body:has(#custom-dashboard)' hinzugefügt, damit dein Deck Overview den Gradienten bekommt */
+/* html painted too: prevents a dark seam line between the main view and
+   the bottom button bar at fractional display scaling. */
+html:has(body.deckbrowser),
+html:has(body.overview),
+html:has(body.review),
+html:has(#custom-dashboard),
+body.deckbrowser,
+body.overview,
+body.review,
+body:has(#custom-dashboard) {
+    background: #dde8f5 !important;
+    background-attachment: fixed !important;
+}
+
+html:has(body.nightMode.deckbrowser),
+html:has(body.nightMode.overview),
+html:has(body.nightMode.review),
+html:has(body.nightMode):has(#custom-dashboard),
+body.nightMode.deckbrowser,
+body.nightMode.overview,
+body.nightMode.review,
+body.nightMode:has(#custom-dashboard) {
+    background: #1c2431 !important;
+    background-attachment: fixed !important;
+}
+
+/* === Deck Browser - Container === */
+.deckbrowser .decks-container,
+.deckbrowser > center > table {
+    background: var(--medical-bg-paper) !important;
+    border-radius: var(--deck-border-radius) !important;
+    box-shadow: none !important; border: 1px solid var(--medical-border-color) !important;
+    overflow: hidden; box-sizing: border-box; position: relative; z-index: 1; margin-top: 15px; margin-bottom: 15px;
+    margin-left: auto !important; margin-right: auto !important;
+}
+body.nightMode .deckbrowser .decks-container,
+body.nightMode .deckbrowser > center > table {
+    background: var(--medical-bg-paper) !important;
+    border-radius: var(--deck-border-radius) !important;
+    box-shadow: none !important; border: 1px solid var(--medical-border-color) !important;
+    overflow: hidden; box-sizing: border-box; position: relative; z-index: 1; margin-top: 15px; margin-bottom: 15px; margin-left: auto !important; margin-right: auto !important;
+}
+
+/* === Deck Browser Zählerfarben === */
+.deckbrowser td.count-fg.new-count, .deckbrowser span.new-count { color: var(--counter-new-color) !important; }
+.deckbrowser td.count-fg.review-count, .deckbrowser span.review-count { color: var(--counter-review-color) !important; }
+
+/* === Deck Browser - Kompakte Zähler-Spalten === */
+.deckbrowser td.count-fg,
+.deckbrowser th.count-label {
+    width: 65px !important;
+    min-width: 65px !important;
+    max-width: 65px !important;
+    text-align: right !important;
+    padding-left: 0 !important;
+}
+
+/* === Deck Overview === */
+.overview .deck-desc {
+    background-color: var(--medical-bg-paper) !important;
+    padding: 20px; border-radius: var(--border-radius);
+    border: 1px solid var(--medical-border-color); margin-top: 20px; box-shadow: var(--box-shadow-light); line-height: 1.6;
+    position: relative; z-index: 1;
+}
+body.nightMode .overview .deck-desc {
+    background-color: var(--medical-bg-subtle) !important;
+}
+.overview h1 {
+    color: var(--button-specific-blue); font-weight: 600; margin-bottom: 15px;
+    position: relative; z-index: 1;
+}
+
+/* === BOTTOM BAR CONTAINER === */
+#outer {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 12px 0 !important;
+}
+
+/* === Solid theme: colour the top and bottom toolbars too === */
+/* Body rules (class injected by the add-on) + html-level structural fallback
+   for the top toolbar (a#decks only exists there). Painting html also covers
+   any strip the body doesn't reach. */
+body.top-toolbar:not(.nightMode),
+body.bottom-toolbar:not(.nightMode),
+html:not(:has(body.nightMode)):has(body.top-toolbar),
+html:not(:has(body.nightMode)):has(body.bottom-toolbar),
+html:not(:has(body.nightMode)):has(.header a#decks),
+html:not(:has(body.nightMode)):has(#header a#decks) {
+    background: #dde8f5 !important;
+}
+body.nightMode.top-toolbar,
+body.nightMode.bottom-toolbar,
+html:has(body.nightMode.top-toolbar),
+html:has(body.nightMode.bottom-toolbar),
+html:has(body.nightMode):has(.header a#decks),
+html:has(body.nightMode):has(#header a#decks) {
+    background: #1c2431 !important;
+}
+/* The outer header strip is transparent so the solid colour shows through … */
+.header:has(a#decks),
+.header:has(a#decks) .left-tray,
+.header:has(a#decks) .right-tray,
+body.top-toolbar .header,
+body.top-toolbar #header,
+body.top-toolbar center,
+body.top-toolbar table,
+body.bottom-toolbar #header,
+body.bottom-toolbar table {
+    background: transparent !important;
+}
+/* … but the button pill keeps ONE solid surface (no see-through, no gaps): */
+.header:has(a#decks) .toolbar,
+body.top-toolbar .header .toolbar {
+    background: var(--medical-bg-paper) !important;
+    /* flush with the window's top edge: square on top, rounded at the bottom */
+    border-radius: 0 0 10px 10px !important;
+}
+/* Kill the per-link chip backgrounds that caused the gaps between buttons. */
+body.top-toolbar a.hitem,
+.header:has(a#decks) a.hitem {
+    background: transparent !important;
+}
+
+/* === Review mode: toolbars revert to Anki's default grey ================= */
+/* The add-on toggles body.reviewing on the toolbar webviews while a card is
+   being studied — the solid colour should only show on the main screens. */
+body.top-toolbar.reviewing,
+body.bottom-toolbar.reviewing,
+html:has(body.reviewing.top-toolbar),
+html:has(body.reviewing.bottom-toolbar),
+html:not(:has(body.nightMode)):has(body.reviewing):has(.header a#decks),
+html:not(:has(body.nightMode)):has(body.reviewing):has(#header a#decks) {
+    background: var(--canvas, #f5f5f5) !important;
+}
+body.nightMode.top-toolbar.reviewing,
+body.nightMode.bottom-toolbar.reviewing,
+html:has(body.nightMode.reviewing.top-toolbar),
+html:has(body.nightMode.reviewing.bottom-toolbar),
+html:has(body.nightMode.reviewing):has(.header a#decks),
+html:has(body.nightMode.reviewing):has(#header a#decks) {
+    background: var(--canvas, #2c2c2c) !important;
+}
+/* No coloured button pill during review either — plain default toolbar. */
+body.top-toolbar.reviewing .header .toolbar,
+html:has(body.reviewing) .header:has(a#decks) .toolbar {
+    background: transparent !important;
+    border-radius: 0 !important;
+}
+
+/* === Dashboard: hide the page scrollbar (scrolling itself still works) ====
+   The overlay scrollbar looks out of place on the widget dashboard; wheel,
+   trackpad and keyboard scrolling are unaffected. Scoped to the deck browser
+   and the custom deck-overview dashboard only. */
+body.deckbrowser::-webkit-scrollbar,
+body:has(#custom-dashboard)::-webkit-scrollbar,
+html:has(body.deckbrowser)::-webkit-scrollbar,
+html:has(#custom-dashboard)::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+}
+
+/* Keep SynapsePro’s wide deck list only in the regular dashboard mode. */
+body.deckbrowser:not(.synapse-minimal-dashboard) .decks-container,
+body.deckbrowser:not(.synapse-minimal-dashboard) > center > table {
+    min-width: 860px !important;
+    max-width: 860px !important;
+    width: 860px !important;
+}

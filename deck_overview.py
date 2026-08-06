@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import html
 import json
 import os
 import re
@@ -33,6 +34,10 @@ except ImportError:
 ADDON_PACKAGE = __name__.split('.')[0]
 
 current_settings = {}
+
+# Guard so the webview hooks are registered only once, even if
+# init_deck_overview() runs again on a profile switch.
+_hooks_registered = False
 
 def update_settings(settings):
     """Wird von __init__.py aufgerufen, um die Einstellungen zu synchronisieren."""
@@ -83,16 +88,36 @@ STOPWORDS = set([
 
 def get_marked_words(text):
     words = []
-    marked_blocks = re.findall(r'<(?:b|strong|u)[^>]*>(.*?)</(?:b|strong|u)>', text, flags=re.IGNORECASE)
-    cloze_blocks = re.findall(r'\{\{c\d+::(.*?)(?:::.*?)?\}\}', text)
-    
-    all_blocks = marked_blocks + cloze_blocks
-    
+    # Explicit formatting tags: <b>, <strong>, <u>
+    marked_blocks = re.findall(
+        r'<(?:b|strong|u)[^>]*>(.*?)</(?:b|strong|u)>',
+        text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Style-based bold/underline: <span style="font-weight: bold/700">,
+    # text-decoration: underline etc. Older Anki versions, mobile clients,
+    # imports and pasted content store formatting this way — without this,
+    # marked words in EXISTING decks are silently missed.
+    styled_blocks = [
+        m[1] for m in re.findall(
+            r'<(span|font|div)[^>]*style\s*=\s*["\'][^"\']*'
+            r'(?:font-weight\s*:\s*(?:bold|bolder|[6-9]00)'
+            r'|text-decoration[^"\';]*underline)'
+            r'[^"\']*["\'][^>]*>(.*?)</\1>',
+            text, flags=re.IGNORECASE | re.DOTALL)
+    ]
+
+    cloze_blocks = re.findall(r'\{\{c\d+::(.*?)(?:::.*?)?\}\}', text, flags=re.DOTALL)
+
+    all_blocks = marked_blocks + styled_blocks + cloze_blocks
+
     for block in all_blocks:
         clean_text = re.sub(r'<[^>]+>', '', block)
         clean_text = re.sub(r'&[a-zA-Z0-9#]+;', ' ', clean_text)
-        tokens = re.findall(r'\b[A-Za-zÄÖÜäöüß]+(?:-[A-Za-zÄÖÜäöüß]+)*\b', clean_text)
-        
+        # [^\W\d_] = any Unicode letter — covers á é í ó ú ñ ç ø ā … instead
+        # of only ASCII + German umlauts (Spanish/French/etc. words were
+        # previously dropped or truncated).
+        tokens = re.findall(r'\b[^\W\d_]+(?:-[^\W\d_]+)*\b', clean_text)
+
         for t in tokens:
             if len(t) > 2 and t.lower() not in STOPWORDS:
                 words.append(t.capitalize())
@@ -111,8 +136,16 @@ def process_deck_words_background(notes_flds):
     
     return json.dumps(top_words, ensure_ascii=False)
 
-def on_brainstorm_finished(future):
+def on_brainstorm_finished(future, expected_deck_id=None):
     """Wird aufgerufen, sobald der Hintergrund-Task fertig ist."""
+    try:
+        if (not mw or not mw.col or mw.state != "overview"
+                or not getattr(mw, "overview", None)
+                or (expected_deck_id is not None
+                    and mw.col.decks.current().get("id") != expected_deck_id)):
+            return
+    except Exception:
+        return
     try:
         words_json = future.result()
         mw.overview.web.eval(f"renderWordCloud({words_json});")
@@ -356,9 +389,11 @@ def get_stats(deck_id):
     total = mw.col.db.scalar(f"select count() from cards where did in ({ids_str})") or 0
     base_query = f"from revlog where cid in (select id from cards where did in ({ids_str}))"
     ok_revs = mw.col.db.scalar(f"select count() {base_query} and ease > 1") or 0
-    all_revs = mw.col.db.scalar(f"select count() {base_query}") or 1
+    # ease=0 rows are manual reschedules, not answered reviews. Including them
+    # artificially lowers retention.
+    all_revs = mw.col.db.scalar(f"select count() {base_query} and ease > 0") or 1
     ret_p = int((ok_revs / all_revs) * 100)
-    hard_cards = mw.col.db.scalar(f"select count() from cards where did in ({ids_str}) and lapses >= 5") or 0
+    hard_cards = mw.col.db.scalar(f"select count() from cards where did in ({ids_str}) and lapses >= 8") or 0
     learned = mw.col.db.scalar(f"select count() from cards where did in ({ids_str}) and ivl >= 21") or 0
     review_cards = mw.col.db.scalar(f"select count() from cards where did in ({ids_str}) and queue=2") or 0
     learn_cards  = mw.col.db.scalar(f"select count() from cards where did in ({ids_str}) and (queue=1 or queue=3)") or 0
@@ -376,13 +411,15 @@ def get_stats(deck_id):
             "review_p": review_p, "learn_p": learn_p, "new_p": new_p, "diff_img": diff_img}
 
 def on_message(handled, msg, ctx):
+    if not isinstance(ctx, Overview):
+        return handled
     if msg == "start_study":
         mw.col.startTimebox()
         mw.moveToState("review")
         return (True, None)
     elif msg == "browse_hard":
         deck = mw.col.decks.current()
-        query = f'"deck:{deck["name"]}" prop:lapses>=5'
+        query = f'"deck:{deck["name"]}" prop:lapses>=8'
         browser = aqt.dialogs.open("Browser", mw)
         browser.setFilter(query)
         return (True, None)
@@ -392,16 +429,131 @@ def on_message(handled, msg, ctx):
             # DB query must run on the main thread.
             dids = mw.col.decks.deck_and_child_ids(deck['id'])
             ids_str = ",".join(str(i) for i in dids)
-            query = f"select flds from notes where id in (select distinct nid from cards where did in ({ids_str})) LIMIT 10000"
+            # Bound both note count and field length; the DB query runs on the
+            # UI thread and an unbounded large deck can otherwise freeze Anki.
+            query = (f"select substr(flds, 1, 10000) from notes where id in "
+                     f"(select distinct nid from cards where did in ({ids_str})) LIMIT 2000")
             notes_flds = mw.col.db.list(query)
             
             # FIX: Nur die Text-Bearbeitung an den Hintergrund-Task geben
             mw.taskman.run_in_background(
                 lambda: process_deck_words_background(notes_flds),
-                on_brainstorm_finished
+                lambda future, did=deck['id']: on_brainstorm_finished(future, did)
             )
         return (True, None)
     return handled
+
+def _session_summary_inner():
+    """Self-contained (inline-styled) stats card for the finished session.
+
+    Rendered onto Anki's congrats page, which has none of our CSS variables —
+    all colours therefore come inline from the theme palette. Empty string
+    when there is no session to summarise.
+    """
+    try:
+        start_ms = getattr(mw, "_sp_session_start_ms", None)
+        if not start_ms:
+            return ""
+        row = mw.col.db.first(
+            "SELECT COUNT(*), SUM(time) FROM revlog WHERE id >= ? AND ease > 0",
+            int(start_ms),
+        )
+        count, total_ms = (row or (0, 0))
+        count = count or 0
+        total_ms = total_ms or 0
+        if count <= 0:
+            return ""
+
+        # Time as "12m 05s" (or "45s" for very short sessions).
+        total_s = int(total_ms / 1000)
+        if total_s >= 60:
+            time_str = f"{total_s // 60}m {total_s % 60:02d}s"
+        else:
+            time_str = f"{total_s}s"
+
+        # XP estimate with the same formula the manager uses (minutes * rate).
+        try:
+            from .gamification import XP_PER_MINUTE_STUDIED as _xp_rate
+        except Exception:
+            _xp_rate = 10
+        xp_earned = int((total_ms / 60000.0) * _xp_rate)
+
+        night = False
+        try:
+            night = bool(mw.pm.night_mode())
+        except Exception:
+            pass
+        c = _palette(night)
+        bg = c.get("surface", "#2c2c2c" if night else "#ffffff")
+        text = c.get("text", "#f5f5f7" if night else "#1d1d1f")
+        muted = c.get("text_muted", "#8e8e93")
+        border = c.get("grey_mid" if night else "grey_light", "#d1dce5")
+        accent = c.get("blue_bright" if night else "blue", "#0071D3")
+
+        remaining_html = ""
+        try:
+            gm = getattr(mw, "gamification_manager", None)
+            remaining = gm.get_remaining_xp() if gm else None
+            if isinstance(remaining, int):
+                lbl_remaining = _("{} XP to next level").format(f"{remaining:,}")
+                remaining_html = f'<span>{lbl_remaining}</span>'
+        except Exception:
+            pass
+
+        lbl_title = _("Session Summary")
+        lbl_cards = _("{} cards").format(count)
+        lbl_time = _("in {}").format(time_str)
+        lbl_xp = _("+{} XP earned").format(xp_earned)
+
+        return (
+            f'<div style="max-width:520px;margin:26px auto 0;padding:14px 20px;'
+            f'background:{bg};border:1px solid {border};border-radius:12px;'
+            f'text-align:center;box-sizing:border-box;font-family:-apple-system,'
+            f'BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;">'
+            f'<div style="font-size:12px;font-weight:600;letter-spacing:0.05em;'
+            f'text-transform:uppercase;color:{muted};margin-bottom:8px;">{lbl_title}</div>'
+            f'<div style="display:flex;justify-content:center;gap:26px;flex-wrap:wrap;'
+            f'font-size:15px;color:{text};">'
+            f'<span><b>{lbl_cards}</b> {lbl_time}</span>'
+            f'<span style="color:{accent};font-weight:600;">{lbl_xp}</span>'
+            f'{remaining_html}'
+            f'</div></div>'
+        )
+    except Exception as e:
+        print(f"SynapsePro: session summary error: {e}")
+        return ""
+
+
+def inject_session_summary_into_congrats():
+    """Add the session summary to Anki's congrats page via JS.
+
+    The congrats screen ("Congratulations! You have finished this deck…") is
+    an internal Anki TS page that bypasses webview_will_set_content, so the
+    card is injected after the fact. The JS double-checks it is really on
+    the congrats page and never inserts twice — safe to call speculatively.
+    """
+    try:
+        if not mw or not getattr(mw, "web", None):
+            return
+        snippet = _session_summary_inner()
+        if not snippet:
+            return
+        js = (
+            "(function(){"
+            "try{"
+            "if(location.href.indexOf('congrats')===-1) return;"
+            "if(document.getElementById('sp-session-summary')) return;"
+            "var d=document.createElement('div');"
+            "d.id='sp-session-summary';"
+            f"d.innerHTML={json.dumps(snippet)};"
+            "document.body.insertBefore(d, document.body.firstChild);"
+            "}catch(e){}"
+            "})();"
+        )
+        mw.web.eval(js)
+    except Exception as e:
+        print(f"SynapsePro: congrats summary inject failed: {e}")
+
 
 def on_overview_render(web, ctx):
     if not current_settings.get("deck_overview_enabled", True): return
@@ -411,7 +563,10 @@ def on_overview_render(web, ctx):
 
     try:
         s = get_stats(deck['id'])
-        
+        # Escape the (user-controlled) deck name before it goes into the HTML.
+        # For normal names this is byte-identical; only markup chars change.
+        deck_title = html.escape(deck['name'].split('::')[-1])
+
         # Pre-computed translated labels for the HTML template
         lbl_cards = _("{} Cards").format(s['total'])
         lbl_progress = _("Progress")
@@ -427,12 +582,12 @@ def on_overview_render(web, ctx):
         lbl_brainstorm_btn = _("Deck Brainstorm Cloud")
         lbl_start_study = _("Start Study")
 
-        html = f"""
+        page_html = f"""
         {get_style()}
         <div id="overview-wrapper">
             <div id="custom-dashboard">
                 <div class="deck-header">
-                    <h1>{deck['name'].split('::')[-1]}</h1>
+                    <h1>{deck_title}</h1>
                     <p>{lbl_cards}</p>
                 </div>
                 <div class="white-box">
@@ -488,10 +643,14 @@ def on_overview_render(web, ctx):
         </div>
         {get_script()}
         """
-        web.body = html
+        web.body = page_html
     except Exception as e:
         print(f"SynapsePro Deck Overview Error: {e}")
 
 def init_deck_overview():
+    global _hooks_registered
+    if _hooks_registered:
+        return
     webview_will_set_content.append(on_overview_render)
     webview_did_receive_js_message.append(on_message)
+    _hooks_registered = True
