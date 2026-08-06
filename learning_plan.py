@@ -5,7 +5,7 @@ import json
 import traceback
 import os
 from typing import Dict, List, Optional, TypedDict, Literal
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from aqt import mw
 from aqt.utils import tooltip
@@ -17,6 +17,20 @@ except ImportError:
         return text
 
 ADDON_NAME_LP = "GamificationPlusDailyWidgets_StatusManager"
+
+
+def _anki_today_key() -> str:
+    """Return today's plan key using Anki's scheduler rollover."""
+    try:
+        cutoff = getattr(mw.col.sched, "day_cutoff", None)
+        if cutoff is None:
+            cutoff = getattr(mw.col.sched, "dayCutoff", None)
+        if cutoff:
+            return datetime.fromtimestamp(int(cutoff) - 86400).strftime("%Y%m%d")
+        rollover = max(0, min(23, int(mw.col.conf.get("rollover", 4))))
+        return (datetime.now() - timedelta(hours=rollover)).strftime("%Y%m%d")
+    except Exception:
+        return date.today().strftime("%Y%m%d")
 
 
 PlanItemState = Literal["Not Started", "Running", "Paused", "Done"]
@@ -45,6 +59,8 @@ class LearningPlanManager:
         """
         self._config_json_path = config_json_path
         self._status: Dict[str, PlanItemStatus] = {}
+        self._config_cache_key = None
+        self._config_cache: Dict[str, Dict[str, PlanItemConfig]] = {}
 
         print(f"{ADDON_NAME_LP}: Initializing Status Manager...")
         if not self._config_json_path:
@@ -60,13 +76,21 @@ class LearningPlanManager:
     def _read_config_file(self) -> Dict[str, Dict[str, PlanItemConfig]]:
         """Reads the entire configuration from the JSON file."""
         if not self._config_json_path or not os.path.exists(self._config_json_path):
+            self._config_cache_key = None
+            self._config_cache = {}
             return {}
         try:
+            stat = os.stat(self._config_json_path)
+            cache_key = (stat.st_mtime_ns, stat.st_size)
+            if cache_key == self._config_cache_key:
+                return self._config_cache
             with open(self._config_json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             if not isinstance(data, dict):
                 print(f"{ADDON_NAME_LP}: WARNING - Invalid format in JSON config file (expected dict). Returning empty.")
                 return {}
+            self._config_cache_key = cache_key
+            self._config_cache = data
             return data
         except json.JSONDecodeError as e:
             print(f"{ADDON_NAME_LP}: ERROR decoding JSON config file '{self._config_json_path}': {e}")
@@ -77,9 +101,36 @@ class LearningPlanManager:
             return {}
 
     def _get_config_for_day(self, date_str: str) -> Dict[str, PlanItemConfig]:
-        """Reads the config file and returns the plan for a specific date string."""
+        """Reads the config file and returns the plan for a specific date string.
+
+        Defensive: the file may contain hand-edited or imported data with an
+        unexpected shape. Non-dict day values / subject configs are skipped and
+        target_seconds is coerced to a number, so downstream code (widgets,
+        timers) can never crash on malformed config data.
+        """
         full_config = self._read_config_file()
-        return full_config.get(date_str, {})
+        day_config = full_config.get(date_str, {})
+        if not isinstance(day_config, dict):
+            print(f"{ADDON_NAME_LP}: WARNING - Plan for {date_str} has invalid format ({type(day_config).__name__}), ignoring it.")
+            return {}
+        clean: Dict[str, PlanItemConfig] = {}
+        for subject, cfg in day_config.items():
+            if not isinstance(cfg, dict):
+                print(f"{ADDON_NAME_LP}: WARNING - Skipping subject '{subject}' on {date_str}: config must be an object, got {type(cfg).__name__}.")
+                continue
+            target = cfg.get("target_seconds", 0)
+            if isinstance(target, str):
+                try: target = float(target)
+                except ValueError: target = 0
+            if (isinstance(target, bool) or not isinstance(target, (int, float))
+                    or target <= 0 or target > 86400):
+                continue
+            cfg = dict(cfg)
+            cfg["target_seconds"] = int(target)
+            subject_name = str(subject).strip()[:120]
+            if subject_name:
+                clean[subject_name] = cfg
+        return clean
 
     def _initialize_status_for_today(self):
         """Initializes the status dict based on the plan for *today* read from the JSON file."""
@@ -88,7 +139,7 @@ class LearningPlanManager:
              self._status = {}
              return
 
-        today_str = date.today().strftime(self.DATE_FORMAT)
+        today_str = _anki_today_key()
         print(f"{ADDON_NAME_LP}: Initializing status for date: {today_str} from JSON: {self._config_json_path}")
 
         todays_plan_config = self._get_config_for_day(today_str)
@@ -111,7 +162,7 @@ class LearningPlanManager:
              print(f"{ADDON_NAME_LP} WARN: Cannot get plan for display, config path missing.")
              return []
 
-        today_str = date.today().strftime(self.DATE_FORMAT)
+        today_str = _anki_today_key()
         
 
         todays_plan_config = self._get_config_for_day(today_str)
@@ -184,7 +235,7 @@ class LearningPlanManager:
 
     def start_timer(self, subject: str):
         """Starts the timer for a subject by updating its status."""
-        today_str = date.today().strftime(self.DATE_FORMAT)
+        today_str = _anki_today_key()
         todays_plan_config = self._get_config_for_day(today_str)
         if subject not in todays_plan_config:
             print(f"{ADDON_NAME_LP}: ERROR - Cannot start timer for subject '{subject}', not in today's plan (JSON).")
@@ -203,7 +254,7 @@ class LearningPlanManager:
 
     def pause_timer(self, subject: str):
         """Pauses the timer for a subject by updating its status."""
-        today_str = date.today().strftime(self.DATE_FORMAT)
+        today_str = _anki_today_key()
         todays_plan_config = self._get_config_for_day(today_str)
         if subject not in todays_plan_config:
             print(f"{ADDON_NAME_LP}: ERROR - Cannot pause timer for subject '{subject}', not in today's plan (JSON).")
@@ -242,7 +293,7 @@ class LearningPlanManager:
 
     def mark_done(self, subject: str):
          """Marks a subject as done manually."""
-         today_str = date.today().strftime(self.DATE_FORMAT)
+         today_str = _anki_today_key()
          todays_plan_config = self._get_config_for_day(today_str)
          if subject not in todays_plan_config:
              print(f"{ADDON_NAME_LP}: ERROR - Cannot mark done subject '{subject}', not in today's plan (JSON).")
@@ -261,10 +312,27 @@ class LearningPlanManager:
          else:
              tooltip(_("'{}' is already marked as done.").format(subject))
 
+    def set_subject_done(self, subject: str, done: bool):
+        """Set or clear the completed state for one subject in today's plan."""
+        today_str = _anki_today_key()
+        todays_plan_config = self._get_config_for_day(today_str)
+        if subject not in todays_plan_config:
+            tooltip(_("Cannot mark done: '{}' not planned for today.").format(subject))
+            return
+        if done:
+            target_seconds = todays_plan_config[subject].get("target_seconds", 0)
+            self._update_subject_status(subject, {
+                "state": "Done",
+                "elapsed_seconds": float(target_seconds),
+                "start_timestamp": None,
+            })
+        else:
+            self._update_subject_status(subject, self._default_status())
 
-    def reset_plan_status(self):
+
+    def reset_plan_status(self, refresh: bool = True):
         """Resets the status *only for today's planned items* based on the JSON config."""
         print(f"{ADDON_NAME_LP}: Resetting status for today's plan items (reading from JSON).")
         self._initialize_status_for_today()
-        if hasattr(mw, 'gamification_manager') and mw.gamification_manager:
+        if refresh and hasattr(mw, 'gamification_manager') and mw.gamification_manager:
              mw.gamification_manager._force_refresh("lpm_reset_plan_status")

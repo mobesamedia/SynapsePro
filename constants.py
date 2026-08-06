@@ -7,7 +7,9 @@ addon_package_name = "SynapsePro1"
 ADDON_DISPLAY_NAME = "SynapsePro"
 print(f"Constants: Addon package name set to '{addon_package_name}'.")
 
-ADDON_VERSION = "1.3.0"
+ADDON_VERSION = "1.4.0"
+MIN_ANKI_VERSION = "25.09.4"
+MIN_ANKI_POINT_VERSION = 250904
 
 # --- Launcher Constants ---
 ADDON_NAME_LAUNCHER = "Launcher_Sidebar" 
@@ -47,7 +49,20 @@ SIDEBAR_WIDTH = 55
 BUTTON_BORDER_RADIUS = 8
 TIMER_BUTTON_ICON_SIZE = 18
 INFO_IMAGE_WIDTH = 200
-INFO_IMAGE_FILENAME = "info.png"
+INFO_IMAGE_FILENAME = "news-banner.png"
+
+# Sidebar tools that can receive a user-defined keyboard shortcut.  The keys
+# deliberately match their existing enable/disable setting so one persisted
+# map can drive both the settings UI and the runtime registrations.
+SIDEBAR_SHORTCUT_KEYS = (
+    "mindmap_enabled",
+    "gamification_sidebar_enabled",
+    "music_player_enabled",
+    "pomodoro_enabled",
+    "ai_assistant_enabled",
+    "website_viewer_enabled",
+    "notebook_enabled",
+)
 
 # --- Filenames & Object Names (Launcher & Submodules) ---
 LOGO_FILENAME = "logo.svg"
@@ -69,7 +84,10 @@ RESET_ICON_FILENAME = "reset.svg"; SKIP_ICON_FILENAME = "skip.svg"
 
 # --- Background Music Constants ---
 ADDON_NAME_MUSIC = "Background_Music"
-MUSIC_FILES = [ "lofi.mp3", "rain.mp3", "beta_waves.mp3", "alpha_waves.mp3", "classical.mp3", "library_sounds.mp3", "minecraft.mp3", "pokemon.mp3", ]
+MUSIC_FILES = [
+    "alpha_waves.mp3", "beta_waves.mp3", "library_sounds.mp3",
+    "jazz.mp3", "rain.mp3", "cozy.mp3",
+]
 
 # --- Pomodoro Constants ---
 ADDON_NAME_POMODORO = "Pomodoro_Integrated"
@@ -120,6 +138,5 @@ DEFAULT_ACTIVE_COLOR_THEME = "ocean"
 # --- Set by init at runtime ---
 addon_path: str = ""
 icons_folder: str = ""
-qt_version: int = 0
 sound_available: bool = False
 play_sound_function = lambda x: None

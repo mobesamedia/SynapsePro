@@ -9,26 +9,15 @@ from typing import Optional, Callable
 
 # --- PyQt Imports ---
 try:
-    from PyQt6.QtWidgets import (QDialog, QGridLayout, QLabel, QSpinBox, QLineEdit,
-                                 QCheckBox, QDialogButtonBox, QVBoxLayout, QFrame,
-                                 QHBoxLayout, QPushButton, QWidget, QTabWidget)
-    from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
-    from PyQt6.QtCore import QTimer, pyqtSignal, Qt
-    _qt_version = 6
+    from aqt.qt import (QDialog, QGridLayout, QLabel, QSpinBox, QLineEdit,
+                        QCheckBox, QDialogButtonBox, QVBoxLayout, QFrame,
+                        QHBoxLayout, QPushButton, QWidget, QScrollArea, QPixmap,
+                        QPainter, QColor, QFont, QTimer, pyqtSignal, Qt)
 except ImportError:
-    try:
-        from PyQt5.QtWidgets import (QDialog, QGridLayout, QLabel, QSpinBox, QLineEdit,
-                                     QCheckBox, QDialogButtonBox, QVBoxLayout, QFrame,
-                                     QHBoxLayout, QPushButton, QWidget, QTabWidget)
-        from PyQt5.QtGui import QPixmap, QPainter, QColor, QFont
-        from PyQt5.QtCore import QTimer, pyqtSignal, Qt, pyqtSlot as Slot
-        _qt_version = 5
-    except ImportError:
-        _qt_version = 0
-        QDialog = object
-        QTimer = object
-        pyqtSignal = object
-        Qt = object
+    QDialog = object
+    QTimer = object
+    pyqtSignal = object
+    Qt = object
 
 # --- Anki Imports ---
 from aqt import mw
@@ -42,6 +31,12 @@ try:
 except ImportError:
     def _(text):  # type: ignore
         return text
+
+try:
+    from .web_i18n import translations as _web_translations
+except ImportError:
+    def _web_translations(_surface):  # type: ignore
+        return {}
 
 try:
     from .theme import palette as _palette, FONT_FAMILY as _FONT_FAMILY
@@ -79,9 +74,6 @@ except Exception:
 
 def _build_pomodoro_style(night: bool) -> str:
     c = _palette(night)
-    tab_inactive_bg  = c['surface'] if night else c['grey_light']
-    tab_inactive_txt = c['text_muted'] if night else c['text']
-    tab_hover_bg     = c['grey_mid'] if night else c['grey_mid']
     return f"""
     QDialog {{
         background-color: {c['bg']};
@@ -89,21 +81,12 @@ def _build_pomodoro_style(night: bool) -> str:
         font-size: 13px;
         color: {c['text']};
     }}
-    QTabWidget::pane {{ border: none; background: transparent; }}
-    QTabWidget > QWidget {{ background: transparent; }}
-    QTabBar {{ background: transparent; }}
-    QTabBar::tab {{
-        background-color: {tab_inactive_bg};
-        color: {tab_inactive_txt};
-        border-radius: 7px;
-        padding: 6px 22px;
-        margin-right: 5px;
-        font-weight: 500;
-        min-width: 90px;
-        border: none;
+    QScrollArea {{ background: transparent; border: none; }}
+    QScrollArea > QWidget > QWidget {{ background: transparent; }}
+    QLabel#SectionLabel {{
+        font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+        color: {c['text_muted']}; background: transparent;
     }}
-    QTabBar::tab:selected {{ background-color: {c['blue']}; color: white; }}
-    QTabBar::tab:hover:!selected {{ background-color: {tab_hover_bg}; }}
     QFrame#CardFrame {{
         background-color: {c['surface']};
         border-radius: 12px;
@@ -216,10 +199,7 @@ class PomodoroBarChart(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        if _qt_version == 6:
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        else:
-            painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # ── Colours (from central theme) ─────────────────────────────────────
         c = _palette(self.is_dark)
@@ -261,16 +241,10 @@ class PomodoroBarChart(QWidget):
             b_color  = today_bar_color if is_today else bar_color
             lbl_color = today_txt_color if is_today else text_color
 
-            if _qt_version == 6:
-                no_pen = Qt.PenStyle.NoPen
-                align_hc = Qt.AlignmentFlag.AlignHCenter
-                align_bot = Qt.AlignmentFlag.AlignBottom
-                align_top = Qt.AlignmentFlag.AlignTop
-            else:
-                no_pen = Qt.NoPen
-                align_hc  = Qt.AlignHCenter
-                align_bot = Qt.AlignBottom
-                align_top = Qt.AlignTop
+            no_pen = Qt.PenStyle.NoPen
+            align_hc = Qt.AlignmentFlag.AlignHCenter
+            align_bot = Qt.AlignmentFlag.AlignBottom
+            align_top = Qt.AlignmentFlag.AlignTop
 
             if count > 0:
                 bar_h_px = max((count / max_count) * chart_h, 6.0)
@@ -345,10 +319,7 @@ class StatisticsTab(QWidget):
         layout.setContentsMargins(8, 14, 8, 14)
         layout.setSpacing(4)
 
-        if _qt_version == 6:
-            center = Qt.AlignmentFlag.AlignCenter
-        else:
-            center = Qt.AlignCenter
+        center = Qt.AlignmentFlag.AlignCenter
 
         val_lbl = QLabel(value_text)
         val_lbl.setAlignment(center)
@@ -437,10 +408,7 @@ class StatisticsTab(QWidget):
         # ── Reset button ──────────────────────────────────────────────────────
         reset_btn = QPushButton(_("Reset Statistics"))
         reset_btn.setObjectName("CancelButton")
-        if _qt_version == 6:
-            reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        else:
-            reset_btn.setCursor(Qt.PointingHandCursor)
+        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         reset_btn.clicked.connect(self._on_reset)
 
         btn_row = QHBoxLayout()
@@ -505,12 +473,14 @@ def save_pomodoro_config(config):
 
 
 class PomodoroConfigDialog(QDialog):
+    """Pomodoro dialog: settings AND statistics together on one scrollable page."""
+
     def __init__(self, parent=None):
         super().__init__(parent or mw)
         self.setWindowTitle(_("Pomodoro"))
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(380)
-        self.setMaximumHeight(520)
+        self.setMinimumWidth(520)
+        self.setMinimumHeight(480)
+        self.resize(540, 660)
 
         self.setStyleSheet(_build_pomodoro_style(is_night_mode))
 
@@ -521,54 +491,50 @@ class PomodoroConfigDialog(QDialog):
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(16)
+        main_layout.setSpacing(12)
 
-        # ── Tab widget ────────────────────────────────────────────────────────
-        self.tab_widget = QTabWidget()
-        self.tab_widget.setObjectName("PomodoroTabWidget")
+        # ── One scrollable page: Settings + Statistics ─────────────────────────
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
 
-        # Tab 1 – Settings
-        settings_tab = QWidget()
-        settings_layout = QVBoxLayout(settings_tab)
-        settings_layout.setContentsMargins(0, 14, 0, 0)
-        settings_layout.setSpacing(14)
-        self._build_settings_content(settings_layout)
-        self.tab_widget.addTab(settings_tab, _("Settings"))
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 6, 0)
+        content_layout.setSpacing(10)
 
-        # Tab 2 – Statistics
+        settings_label = QLabel(_("Settings").upper())
+        settings_label.setObjectName("SectionLabel")
+        content_layout.addWidget(settings_label)
+        self._build_settings_content(content_layout)
+
+        content_layout.addSpacing(8)
+        stats_label = QLabel(_("Statistics").upper())
+        stats_label.setObjectName("SectionLabel")
+        content_layout.addWidget(stats_label)
         self._stats_tab = StatisticsTab(is_dark=is_night_mode)
-        self.tab_widget.addTab(self._stats_tab, _("Statistics"))
+        content_layout.addWidget(self._stats_tab)
 
-        main_layout.addWidget(self.tab_widget)
+        content_layout.addStretch()
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll, 1)
 
-        # ── Bottom buttons ────────────────────────────────────────────────────
+        # ── Bottom buttons (always visible) ────────────────────────────────────
         btn_row = QHBoxLayout()
 
         self.cancel_btn = QPushButton(_("Cancel"))
         self.cancel_btn.setObjectName("CancelButton")
-        if _qt_version == 6:
-            self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        else:
-            self.cancel_btn.setCursor(Qt.PointingHandCursor)
+        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cancel_btn.clicked.connect(self.reject)
 
         self.save_btn = QPushButton(_("Save Settings"))
-        if _qt_version == 6:
-            self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        else:
-            self.save_btn.setCursor(Qt.PointingHandCursor)
+        self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_btn.clicked.connect(self.on_accept)
 
         btn_row.addWidget(self.cancel_btn)
         btn_row.addStretch()
         btn_row.addWidget(self.save_btn)
         main_layout.addLayout(btn_row)
-
-        # Show/hide Save button depending on active tab
-        self.tab_widget.currentChanged.connect(self._on_tab_changed)
-
-    def _on_tab_changed(self, index: int):
-        self.save_btn.setVisible(index == 0)
 
     def _build_settings_content(self, layout: QVBoxLayout):
         """Build the Settings card into *layout*."""
@@ -590,10 +556,7 @@ class PomodoroConfigDialog(QDialog):
             spin.setRange(min_val, max_val)
             spin.setValue(self.config[cfg_key])
             spin.setSuffix(_(" min"))
-            if _qt_version == 6:
-                spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            else:
-                spin.setAlignment(Qt.AlignCenter)
+            spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
             setattr(self, attr, spin)
             grid.addWidget(lbl,  row, 0)
             grid.addWidget(spin, row, 1)
@@ -607,10 +570,7 @@ class PomodoroConfigDialog(QDialog):
         self.target_spin = QSpinBox()
         self.target_spin.setRange(1, 10)
         self.target_spin.setValue(self.config["pomodoros_before_long_break"])
-        if _qt_version == 6:
-            self.target_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        else:
-            self.target_spin.setAlignment(Qt.AlignCenter)
+        self.target_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         grid.addWidget(lbl_target,       3, 0)
         grid.addWidget(self.target_spin, 3, 1)
 
@@ -619,10 +579,7 @@ class PomodoroConfigDialog(QDialog):
 
         self.auto_start_check = QCheckBox(_("Auto-start next timer"))
         self.auto_start_check.setChecked(self.config["auto_start_next"])
-        if _qt_version == 6:
-            self.auto_start_check.setCursor(Qt.CursorShape.PointingHandCursor)
-        else:
-            self.auto_start_check.setCursor(Qt.PointingHandCursor)
+        self.auto_start_check.setCursor(Qt.CursorShape.PointingHandCursor)
 
         chk_row = QHBoxLayout()
         chk_row.addStretch()
@@ -631,7 +588,6 @@ class PomodoroConfigDialog(QDialog):
         card_layout.addLayout(chk_row)
 
         layout.addWidget(card)
-        layout.addStretch()
 
     def on_accept(self):
         self.config["work_minutes"]               = self.work_spin.value()
@@ -643,11 +599,226 @@ class PomodoroConfigDialog(QDialog):
         self.accept()
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Web-based dialog (settings_web/pomodoro.html) — preferred UI.
+# Falls back to the native PomodoroConfigDialog when WebEngine is unavailable.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_web_ok = False
+try:
+    from aqt.qt import QUrl
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
+    from PyQt6.QtWebEngineCore import QWebEnginePage
+    _web_ok = True
+except ImportError:
+    _web_ok = False
+    QWebEngineView = QWebEnginePage = QUrl = object  # type: ignore
+
+
+def _pomo_web_payload() -> dict:
+    """Config + statistics + translated labels for the HTML page."""
+    config = (
+        mw.col.get_config(constants.CONFIG_KEY_POMODORO, constants.DEFAULT_POMODORO_CONFIG)
+        if mw and mw.col else constants.DEFAULT_POMODORO_CONFIG.copy()
+    )
+    for key, default_value in constants.DEFAULT_POMODORO_CONFIG.items():
+        config.setdefault(key, default_value)
+
+    stats = load_pomodoro_stats()
+    daily = stats.get("daily_data", {})
+    today = datetime.date.today()
+    today_data = daily.get(today.isoformat(), {})
+    SHORT_DAY_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    week = []
+    for i in range(7):
+        day = today - datetime.timedelta(days=(6 - i))
+        week.append({
+            "label": _(SHORT_DAY_KEYS[day.weekday()]),
+            "count": daily.get(day.isoformat(), {}).get("pomodoros", 0),
+            "isToday": day == today,
+        })
+
+    accent = "#0071D3"
+    try:
+        accent = _palette(is_night_mode).get("blue_accent", accent)
+    except Exception:
+        pass
+
+    return {
+        "isDark": is_night_mode,
+        "errors": _web_translations("errors"),
+        "accent": accent,
+        "config": {
+            "work":      config["work_minutes"],
+            "short":     config["short_break_minutes"],
+            "long":      config["long_break_minutes"],
+            "target":    config["pomodoros_before_long_break"],
+            "autoStart": bool(config["auto_start_next"]),
+        },
+        "stats": {
+            "total":          stats.get("total_pomodoros", 0),
+            "totalMinutes":   stats.get("total_focus_minutes", 0),
+            "currentStreak":  calculate_current_streak(stats),
+            "bestStreak":     stats.get("best_streak", 0),
+            "todayPomodoros": today_data.get("pomodoros", 0),
+            "todayMinutes":   today_data.get("focus_minutes", 0),
+            "week":           week,
+        },
+        "labels": {
+            "title":      _("Pomodoro"),
+            "settings":   _("Settings"),
+            "statistics": _("Statistics"),
+            "work":       _("Work Duration:").rstrip(": "),
+            "short":      _("Short Break:").rstrip(": "),
+            "long":       _("Long Break:").rstrip(": "),
+            "target":     _("Intervals per Cycle:").rstrip(": "),
+            "auto":       _("Auto-start next timer"),
+            "total":      _("Total Pomodoros"),
+            "focus":      _("Focus Time"),
+            "streak":     _("Current Streak"),
+            "best":       _("Best Streak"),
+            "week":       _("Last 7 Days"),
+            "today":      _("Today"),
+            "sessions":   _("sessions"),
+            "reset":      _("Reset Statistics"),
+            "cancel":     _("Cancel"),
+            "save":       _("Save Settings"),
+            "min":        _(" min").strip(),
+        },
+    }
+
+
+if _web_ok:
+
+    class _PomoPage(QWebEnginePage):  # type: ignore[misc]
+        """Intercepts SYNAPSEPRO_POMO:<action>[:<payload>] console messages."""
+        message = pyqtSignal(str)
+
+        def javaScriptConsoleMessage(self, level, message, line, source):  # type: ignore[override]
+            PREFIX = "SYNAPSEPRO_POMO:"
+            if isinstance(message, str) and message.startswith(PREFIX):
+                try:
+                    self.message.emit(message[len(PREFIX):])
+                except Exception as e:
+                    print(f"{constants.ADDON_NAME_POMODORO}: bridge emit failed: {e}")
+
+    class PomodoroWebDialog(QDialog):  # type: ignore[misc]
+        """Minimal one-page web UI for Pomodoro settings + statistics."""
+
+        def __init__(self, parent=None):
+            super().__init__(parent or mw)
+            html = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "settings_web", "pomodoro.html")
+            self._available = os.path.exists(html)
+            if not self._available:
+                return
+            self.setWindowTitle(_("Pomodoro"))
+            self.resize(430, 660)
+            self.setMinimumSize(380, 480)
+            lay = QVBoxLayout(self)
+            lay.setContentsMargins(0, 0, 0, 0)
+            self._view = QWebEngineView(self)
+            self._page = _PomoPage(self._view)
+            self._view.setPage(self._page)
+            # Match the page background to the theme BEFORE anything paints —
+            # otherwise the view flashes white in dark mode while loading.
+            try:
+                dark = bool(mw and mw.pm.night_mode())
+                self._page.setBackgroundColor(
+                    QColor("#1c1c1e") if dark else QColor("#f5f5f7"))
+            except Exception:
+                pass
+            self._page.message.connect(self._on_message)
+            lay.addWidget(self._view)
+            self._view.setUrl(QUrl.fromLocalFile(html))
+
+        def is_available(self) -> bool:
+            return bool(self._available)
+
+        def _inject(self):
+            try:
+                import json as _json
+                self._page.runJavaScript(f"window.init && init({_json.dumps(_pomo_web_payload())});")
+            except Exception as e:
+                print(f"{constants.ADDON_NAME_POMODORO}: web inject failed: {e}")
+
+        def _on_message(self, rest: str):
+            action, _sep, payload = rest.partition(":")
+            try:
+                if action == "ready":
+                    self._inject()
+                elif action == "save":
+                    self._on_save(payload)
+                elif action == "cancel":
+                    self.reject()
+                elif action == "reset":
+                    self._on_reset()
+                elif action == "err":
+                    print(f"{constants.ADDON_NAME_POMODORO}: web UI error: {payload}")
+            except Exception as e:
+                print(f"{constants.ADDON_NAME_POMODORO}: bridge action '{action}' error: {e}")
+
+        def _on_save(self, payload: str):
+            import json as _json
+            try:
+                data = _json.loads(payload) if payload else {}
+            except Exception:
+                data = {}
+
+            def _num(key: str, default: int, lo: int, hi: int) -> int:
+                try:
+                    return max(lo, min(hi, int(data.get(key, default))))
+                except (ValueError, TypeError):
+                    return default
+
+            config = (
+                mw.col.get_config(constants.CONFIG_KEY_POMODORO, constants.DEFAULT_POMODORO_CONFIG)
+                if mw and mw.col else constants.DEFAULT_POMODORO_CONFIG.copy()
+            )
+            config["work_minutes"]                = _num("work", 25, 1, 120)
+            config["short_break_minutes"]         = _num("short", 5, 1, 60)
+            config["long_break_minutes"]          = _num("long", 15, 1, 120)
+            config["pomodoros_before_long_break"] = _num("target", 4, 1, 10)
+            config["auto_start_next"]             = bool(data.get("autoStart", False))
+            save_pomodoro_config(config)
+            self.accept()
+
+        def _on_reset(self):
+            if not askUser(_("Are you sure you want to reset all Pomodoro statistics?")):
+                return
+            if mw and mw.col:
+                mw.col.set_config(
+                    constants.CONFIG_KEY_POMODORO_STATS,
+                    constants.DEFAULT_POMODORO_STATS.copy(),
+                )
+            tooltip(_("Statistics reset."))
+            try:
+                import json as _json
+                stats = _pomo_web_payload()["stats"]
+                self._page.runJavaScript(f"window.updateStats && updateStats({_json.dumps(stats)});")
+            except Exception as e:
+                print(f"{constants.ADDON_NAME_POMODORO}: stats refresh failed: {e}")
+
+else:
+    class PomodoroWebDialog:  # type: ignore[no-redef]
+        def __init__(self, *a, **k): pass
+        def is_available(self) -> bool: return False
+        def exec(self): return 0
+
+
 def open_pomodoro_config():
     if not mw:
         return
     load_pomodoro_config(update_ui=False)
-    dialog = PomodoroConfigDialog()
+    dialog = None
+    try:
+        cand = PomodoroWebDialog()
+        if cand.is_available():
+            dialog = cand
+    except Exception as e:
+        print(f"{constants.ADDON_NAME_POMODORO}: web dialog unavailable ({e}); using native.")
+    if dialog is None:
+        dialog = PomodoroConfigDialog()
     dialog.exec()
     if _update_ui_callback:
         _update_ui_callback()

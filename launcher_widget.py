@@ -14,8 +14,8 @@ try:
 except ImportError as e:
     print(f"Launcher Widget CRITICAL ERROR: Failed to import constants or study_plan_trigger: {e}")
     class MockConstants:
-        qt_version = 0; icons_folder = "."; SIDEBAR_BG_COLOR_HEX="#FFFFFF"; BUTTON_HOVER_PRESSED_COLOR="#0071D3"; BUTTON_ACTIVE_BG_COLOR="#0071D3"; DEFAULT_TEXT_COLOR="#333333"; SEPARATOR_LINE_COLOR="#888888"; TIMER_LABEL_COLOR="#888888"; TIMER_BUTTON_HOVER_COLOR="#d0d0d0"; TIMER_BUTTON_PRESSED_COLOR="#b0b0b0"; SIDEBAR_WIDTH = 55; BUTTON_ICON_SIZE = 30; TIMER_BUTTON_ICON_SIZE = 18; BUTTON_BORDER_RADIUS = 8; LOGO_FILENAME = "logo.svg"; START_ICON_FILENAME = "start.svg"; PAUSE_ICON_FILENAME = "pause.svg"; RESET_ICON_FILENAME = "reset.svg"; SKIP_ICON_FILENAME = "skip.svg"; AI_TOOL_ICON_FILENAME = "ai_tool.svg"; WEBSITE_ICON_FILENAME = "website.svg"; NOTEBOOK_ICON_FILENAME = "notes.svg"; MINDMAP_ICON_FILENAME = "mindmap.svg"; GAME_ICON_FILENAME = "game.svg"; STUDY_PLAN_ICON_FILENAME = "study_plan.svg"; TIMER_ICON_FILENAME = "timer.svg"; MUSIC_ICON_FILENAME = "music.svg";
-        AI_ASSISTANT_DOCK_OBJECT_NAME = "AIAssistantSidebarDock_Integrated_v1"; WEBSITE_DOCK_OBJECT_NAME = "IntegratedWebsiteSidebarDock_Mobesa_v1"; NOTEBOOK_DOCK_OBJECT_NAME = "IntegratedNotebookSidebarDock_Mobesa_v1"; MINDMAP_DOCK_OBJECT_NAME = "IntegratedMindmapSidebarDock_Mobesa_v1"; HOSPITAL_GAME_DOCK_OBJECT_NAME = "hospitalClickerGameDock"; DEFAULT_POMODORO_CONFIG = {"work_minutes": 25}; STATE_IDLE = 0; STATE_WORK = 1; STATE_SHORT_BREAK = 2; STATE_LONG_BREAK = 3; STATE_PAUSED = 4; addon_package_name = "Study Suite Addon"; ADDON_VERSION = "Unknown Version"; INFO_IMAGE_FILENAME = "info.png"; INFO_IMAGE_WIDTH = 200
+        icons_folder = "."; SIDEBAR_BG_COLOR_HEX="#FFFFFF"; BUTTON_HOVER_PRESSED_COLOR="#0071D3"; BUTTON_ACTIVE_BG_COLOR="#0071D3"; DEFAULT_TEXT_COLOR="#333333"; SEPARATOR_LINE_COLOR="#888888"; TIMER_LABEL_COLOR="#888888"; TIMER_BUTTON_HOVER_COLOR="#d0d0d0"; TIMER_BUTTON_PRESSED_COLOR="#b0b0b0"; SIDEBAR_WIDTH = 55; BUTTON_ICON_SIZE = 30; TIMER_BUTTON_ICON_SIZE = 18; BUTTON_BORDER_RADIUS = 8; LOGO_FILENAME = "logo.svg"; START_ICON_FILENAME = "start.svg"; PAUSE_ICON_FILENAME = "pause.svg"; RESET_ICON_FILENAME = "reset.svg"; SKIP_ICON_FILENAME = "skip.svg"; AI_TOOL_ICON_FILENAME = "ai_tool.svg"; WEBSITE_ICON_FILENAME = "website.svg"; NOTEBOOK_ICON_FILENAME = "notes.svg"; MINDMAP_ICON_FILENAME = "mindmap.svg"; GAME_ICON_FILENAME = "game.svg"; STUDY_PLAN_ICON_FILENAME = "study_plan.svg"; TIMER_ICON_FILENAME = "timer.svg"; MUSIC_ICON_FILENAME = "music.svg";
+        AI_ASSISTANT_DOCK_OBJECT_NAME = "AIAssistantSidebarDock_Integrated_v1"; WEBSITE_DOCK_OBJECT_NAME = "IntegratedWebsiteSidebarDock_Mobesa_v1"; NOTEBOOK_DOCK_OBJECT_NAME = "IntegratedNotebookSidebarDock_Mobesa_v1"; MINDMAP_DOCK_OBJECT_NAME = "IntegratedMindmapSidebarDock_Mobesa_v1"; HOSPITAL_GAME_DOCK_OBJECT_NAME = "hospitalClickerGameDock"; DEFAULT_POMODORO_CONFIG = {"work_minutes": 25}; STATE_IDLE = 0; STATE_WORK = 1; STATE_SHORT_BREAK = 2; STATE_LONG_BREAK = 3; STATE_PAUSED = 4; addon_package_name = "Study Suite Addon"; ADDON_VERSION = "Unknown Version"; INFO_IMAGE_FILENAME = "news-banner.png"; INFO_IMAGE_WIDTH = 200
     constants = MockConstants()
     class MockStudyPlanTrigger:
         trigger_study_plan_action = lambda: print("ERROR: Study Plan Trigger module failed to load.")
@@ -27,7 +27,6 @@ QWidget, QVBoxLayout, QPushButton, QSizePolicy, QStyle = object, object, object,
 QLabel, QFrame, QDockWidget, QHBoxLayout = object, object, object, object
 QIcon, QPixmap, QPalette, QColor, QFont, QMessageBox = object, object, object, object, object, object
 QSize, Qt, QTimer, QEvent, QObject = object, object, object, object, object
-Slot = object
 MouseButton = None
 QSvgWidget = object
 QSvgRenderer = object
@@ -35,29 +34,20 @@ QStackedWidget = object
 QByteArray = object
 QDialog, QDialogButtonBox = object, object
 
-if constants.qt_version == 6:
+try:
+    from aqt.qt import (QWidget, QVBoxLayout, QPushButton, QSizePolicy, QStyle, QLabel,
+                        QFrame, QDockWidget, QHBoxLayout, QMessageBox, QDialog,
+                        QDialogButtonBox, QStackedWidget, QIcon, QPixmap, QPalette,
+                        QColor, QFont, QPainter, QSize, Qt, QTimer, QEvent, QObject,
+                        QByteArray)
     try:
-        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QSizePolicy, QStyle, QLabel,
-                                     QFrame, QDockWidget, QHBoxLayout, QMessageBox, QDialog, QDialogButtonBox,
-                                     QStackedWidget)
-        from PyQt6.QtGui import QIcon, QPixmap, QPalette, QColor, QFont, QPainter
-        from PyQt6.QtCore import QSize, Qt, QTimer, QEvent, QObject, QByteArray
-        try: from PyQt6.QtSvgWidgets import QSvgWidget; from PyQt6.QtSvg import QSvgRenderer
-        except ImportError: QSvgWidget = object; QSvgRenderer = object
-        MouseButton = Qt.MouseButton; Slot = None
-    except ImportError as e: constants.qt_version = 0
-elif constants.qt_version == 5:
-    try:
-        from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QSizePolicy, QStyle, QLabel,
-                                     QFrame, QDockWidget, QHBoxLayout, QMessageBox, QDialog, QDialogButtonBox,
-                                     QStackedWidget)
-        from PyQt5.QtGui import QIcon, QPixmap, QPalette, QColor, QFont, QPainter
-        from PyQt5.QtCore import QSize, Qt, QTimer, QEvent, QObject, QByteArray, pyqtSlot as Slot
-        try: from PyQt5.QtSvgWidgets import QSvgWidget; from PyQt5.QtSvg import QSvgRenderer
-        except ImportError: QSvgWidget = object; QSvgRenderer = object
-        MouseButton = Qt.MouseButton
-    except ImportError as e: constants.qt_version = 0
-else: constants.qt_version = 0
+        from PyQt6.QtSvgWidgets import QSvgWidget
+        from PyQt6.QtSvg import QSvgRenderer
+    except ImportError:
+        QSvgWidget = object; QSvgRenderer = object
+    MouseButton = Qt.MouseButton
+except ImportError:
+    pass
 
 
 # --- Local Component Module Imports ---
@@ -98,10 +88,7 @@ class SidebarWidget(QWidget):
         self.setObjectName("SidebarContent")
 
         try:
-            if constants.qt_version == 6:
-                self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-            else:
-                self.setAttribute(Qt.WA_StyledBackground, True)
+            self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         except Exception: pass
 
         if QPalette is not object and QColor is not object:
@@ -122,6 +109,10 @@ class SidebarWidget(QWidget):
         self._logo_stack: Optional['QWidget'] = None
         self._settings_svg_widget: Optional['QWidget'] = None
         self._dock_visibility_connections: dict[str, tuple[Optional[weakref.ReferenceType['DockWidgetType']], object]] = {}
+        # dock object name -> weak ref of the launcher icon that toggles it.
+        # Lets docks opened *outside* the launcher (e.g. "Search in Sidebar")
+        # ask us to re-sync their icon's active state.
+        self._dock_button_refs: dict[str, weakref.ReferenceType['PushButtonType']] = {}
         self._timer_widget_container: Optional['WidgetType'] = None; self._timer_time_label: Optional['LabelType'] = None
         self._timer_start_pause_button: Optional['PushButtonType'] = None; self._timer_reset_button: Optional['PushButtonType'] = None; self._timer_skip_button: Optional['PushButtonType'] = None
         self._start_icon: Optional['IconType'] = None; self._pause_icon: Optional['IconType'] = None; self._reset_icon: Optional['IconType'] = None; self._skip_icon: Optional['IconType'] = None
@@ -131,7 +122,20 @@ class SidebarWidget(QWidget):
         if mw:
             try:
                 from aqt import gui_hooks
-                gui_hooks.theme_did_change.append(self.apply_stylesheet)
+                hook = self.apply_stylesheet
+                gui_hooks.theme_did_change.append(hook)
+                # Remove the hook when this widget is destroyed so old (already
+                # deleted) sidebar instances don't accumulate across profile
+                # switches and fire on dead C++ objects.
+                def _drop_theme_hook(*_a, _h=hook):
+                    try:
+                        gui_hooks.theme_did_change.remove(_h)
+                    except Exception:
+                        pass
+                try:
+                    self.destroyed.connect(_drop_theme_hook)
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -188,10 +192,7 @@ class SidebarWidget(QWidget):
         self.logo_widget.setToolTip(_("Open Add-on Settings"))
         self.logo_widget.installEventFilter(self)
         try:
-            if constants.qt_version == 6:
-                self.logo_widget.setCursor(Qt.CursorShape.PointingHandCursor)
-            else:
-                self.logo_widget.setCursor(Qt.PointingHandCursor)
+            self.logo_widget.setCursor(Qt.CursorShape.PointingHandCursor)
         except Exception:
             pass
         main_layout.addWidget(self.logo_widget); main_layout.addSpacing(15); main_layout.addStretch(1)
@@ -222,7 +223,9 @@ class SidebarWidget(QWidget):
                     btn_ref = weakref.ref(button)
                     qconnect(button.clicked, partial(self._handle_feature_click, action_func, dock_name, btn_ref))
                     
-                    if dock_name: buttons_to_connect[btn_ref] = dock_name
+                    if dock_name:
+                        buttons_to_connect[btn_ref] = dock_name
+                        self._dock_button_refs[dock_name] = btn_ref
                     
                     if icon_const == constants.STUDY_PLAN_ICON_FILENAME:
                         button.setCheckable(False)
@@ -280,6 +283,15 @@ class SidebarWidget(QWidget):
                     else: self._music_button.setEnabled(False)
                     main_layout.addWidget(self._music_button)
                     self._music_button.installEventFilter(self)
+                    # Show the playing track's cover art on this button.
+                    if hasattr(background_music, 'set_artwork_callback'):
+                        _self_ref = weakref.ref(self)
+                        _btn_ref = weakref.ref(self._music_button)
+                        def _on_music_artwork(path, _s=_self_ref, _b=_btn_ref):
+                            s, b = _s(), _b()
+                            if s is not None and b is not None:
+                                s._set_music_button_artwork(b, path)
+                        background_music.set_artwork_callback(_on_music_artwork)
             
             self.update_timer_ui()
         
@@ -328,6 +340,31 @@ class SidebarWidget(QWidget):
             button.setIcon(target_icon)
         button.update()
 
+    def sync_dock_button(self, dock_object_name: Optional[str]):
+        """Public hook so docks opened *outside* their launcher button still
+        highlight the matching icon.
+
+        The visibility listener that drives a button's active state is normally
+        wired up only when the user clicks that launcher button. When a dock is
+        opened by another path instead (e.g. the 'Search in Sidebar' context
+        menu), call this so the listener gets connected and the icon is synced
+        to the dock's current visibility."""
+        if not dock_object_name: return
+        btn_ref = self._dock_button_refs.get(dock_object_name)
+        if btn_ref is None: return
+        # Not connected yet → wire it up (this also syncs the state once).
+        if dock_object_name not in self._dock_visibility_connections:
+            self._setup_dock_visibility_connection(btn_ref, dock_object_name)
+            return
+        # Already connected → just refresh against the dock's current state.
+        try:
+            dock = mw.findChild(QDockWidget, dock_object_name) if mw else None
+            button = btn_ref()
+            if dock is not None and button is not None:
+                self._update_button_active_state(dock.isVisible(), button)
+        except Exception:
+            pass
+
     def create_timer_button(self, icon: 'IconType', tooltip: str, action: Callable) -> 'PushButtonType':
         btn = QPushButton()
         btn.setObjectName("timerControlButton"); btn.setToolTip(tooltip)
@@ -357,6 +394,43 @@ class SidebarWidget(QWidget):
         if valid_normal_icon is not empty_icon: button.setIcon(valid_normal_icon)
         else: button.setText("?")
         return button
+
+    def _set_music_button_artwork(self, button: 'PushButtonType', path: Optional[str]) -> None:
+        """Swap the music button icon: cover art while playing, music icon otherwise."""
+        try:
+            size = getattr(constants, 'BUTTON_ICON_SIZE', 30)
+            if path and os.path.exists(path):
+                pix = QPixmap(path)
+                if not pix.isNull():
+                    pix = pix.scaled(
+                        QSize(size, size),
+                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    # Round the corners like the player artwork (reuse helper).
+                    rounder = getattr(background_music, '_rounded_pixmap', None)
+                    if callable(rounder):
+                        pix = rounder(pix, 7)
+                    icon = QIcon(pix)
+                    # Same icon for normal/hover so the eventFilter swap keeps the cover.
+                    button.setProperty("normalIcon", icon)
+                    button.setProperty("whiteIcon", icon)
+                    button.setIcon(icon)
+                    return
+            # No artwork (paused/stopped/SoundCloud) → restore the default icons.
+            normal = self._create_qicon_helper(constants.MUSIC_ICON_FILENAME)
+            base, ext = os.path.splitext(constants.MUSIC_ICON_FILENAME)
+            white = self._create_qicon_helper(f"{base}_white{ext}")
+            empty = QIcon()
+            valid_normal = normal if (normal and not normal.isNull()) else empty
+            valid_white = white if (white and not white.isNull()) else valid_normal
+            button.setProperty("normalIcon", valid_normal)
+            button.setProperty("whiteIcon", valid_white)
+            button.setIcon(valid_normal)
+        except RuntimeError:
+            pass  # underlying C++ button already deleted
+        except Exception as e:
+            print(f"Launcher: music artwork update failed: {e}")
 
     def _show_settings_dialog(self):
         if self.settings_dialog_trigger:

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro</title>
+<style>
+  :root{
+    color-scheme:light;
+    --accent:#0071D3;
+    --bg:#f5f5f7; --card:#ffffff; --border:rgba(0,0,0,0.08);
+    --hairline:rgba(0,0,0,0.07); --text:#1d1d1f; --muted:#8a8a90;
+    --field-bg:#f0f0f2; --switch-off:#d8d8dd; --bar-empty:#e8e8ec;
+    --danger:#c93b3b;
+  }
+  html.dark, body.dark{
+    color-scheme:dark;
+    --bg:#1c1c1e; --card:#2a2a2c; --border:rgba(255,255,255,0.08);
+    --hairline:rgba(255,255,255,0.09); --text:#f5f5f7; --muted:#9a9aa0;
+    --field-bg:#3a3a3c; --switch-off:#48484a; --bar-empty:#3a3a3c;
+    --danger:#e06c6c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);font-size:13px;-webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  .content{flex:1;overflow-y:auto;padding:26px 26px 10px;}
+  .content::-webkit-scrollbar{width:5px;}
+  .content::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+  h1{font-size:21px;font-weight:700;letter-spacing:-0.02em;margin-bottom:18px;}
+  .sec{font-size:10.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+    color:var(--muted);margin:20px 2px 8px;}
+  .sec:first-of-type{margin-top:0;}
+
+  .group{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  .row{display:flex;align-items:center;gap:12px;padding:11px 15px;border-top:1px solid var(--hairline);}
+  .row:first-child{border-top:none;}
+  .row .rl{flex:1;font-size:13.5px;font-weight:500;letter-spacing:-0.01em;}
+
+  /* stepper */
+  .stepper{display:flex;align-items:center;gap:0;background:var(--field-bg);border-radius:8px;overflow:hidden;}
+  .stepper button{border:none;background:transparent;color:var(--muted);width:28px;height:28px;
+    font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1;}
+  .stepper button:hover{color:var(--accent);}
+  .stepper input{width:46px;height:28px;border:none;background:transparent;color:var(--text);
+    text-align:center;font-size:13px;font-weight:600;font-family:inherit;outline:none;
+    -moz-appearance:textfield;}
+  .stepper input::-webkit-inner-spin-button,.stepper input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0;}
+  .unit{font-size:11px;color:var(--muted);width:26px;}
+
+  /* switch */
+  .switch{position:relative;display:inline-block;width:40px;height:24px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:var(--switch-off);border-radius:24px;transition:background .2s;cursor:pointer;}
+  .slider::before{content:"";position:absolute;height:20px;width:20px;left:2px;top:2px;background:#fff;
+    border-radius:50%;transition:transform .2s cubic-bezier(.4,1.3,.5,1);box-shadow:0 1px 3px rgba(0,0,0,0.3);}
+  .switch input:checked + .slider{background:var(--accent);}
+  .switch input:checked + .slider::before{transform:translateX(16px);}
+
+  /* stat cards */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:13px 6px;text-align:center;}
+  .stat b{display:block;font-size:19px;font-weight:700;letter-spacing:-0.02em;}
+  .stat span{display:block;font-size:10px;color:var(--muted);margin-top:3px;line-height:1.3;}
+
+  /* chart */
+  .chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:14px 16px 10px;margin-top:8px;}
+  .chart-title{font-size:12px;font-weight:600;margin-bottom:12px;}
+  .chart{display:flex;align-items:flex-end;gap:8px;height:110px;}
+  .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .cnt{font-size:9.5px;color:var(--muted);margin-bottom:3px;font-weight:600;}
+  .bar{width:60%;max-width:26px;border-radius:5px;background:var(--accent);opacity:.55;
+    transition:height .4s cubic-bezier(0.22,1,0.36,1);min-height:3px;}
+  .col.today .bar{opacity:1;}
+  .bar.empty{background:var(--bar-empty);height:3px !important;opacity:1;}
+  .day{font-size:9.5px;color:var(--muted);margin-top:6px;}
+  .col.today .day,.col.today .cnt{color:var(--accent);font-weight:700;}
+
+  .today-row{display:flex;align-items:center;justify-content:space-between;
+    background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:11px 15px;margin-top:8px;font-size:13px;}
+  .today-row b{font-weight:600;}
+  .today-row span{color:var(--muted);}
+
+  .reset-link{display:inline-block;margin:14px 2px 4px;font-size:11.5px;color:var(--danger);
+    cursor:pointer;background:none;border:none;font-family:inherit;padding:0;}
+  .reset-link:hover{text-decoration:underline;}
+
+  .footer{display:flex;justify-content:flex-end;gap:10px;padding:12px 20px;
+    border-top:1px solid var(--hairline);background:var(--bg);flex-shrink:0;}
+  .btn{border:none;border-radius:9px;padding:8px 18px;font-size:13px;font-weight:600;
+    cursor:pointer;font-family:inherit;transition:filter .15s;}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{filter:brightness(1.07);}
+  .btn-grey{background:var(--field-bg);color:var(--text);}
+  .btn-grey:hover{filter:brightness(0.97);}
+  html.dark .btn-grey:hover, body.dark .btn-grey:hover{filter:brightness(1.15);}
+</style>
+<script>
+  /* Apply dark mode BEFORE the first paint (avoids a white flash) —
+     Anki propagates its theme via prefers-color-scheme. */
+  try{
+    if(window.matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.classList.add('dark');
+  }catch(e){}
+</script>
+</head>
+<body>
+  <div class="content">
+    <h1 id="title">Pomodoro</h1>
+
+    <div class="sec" id="secSettings">Settings</div>
+    <div class="group">
+      <div class="row"><div class="rl" id="lblWork">Work Duration</div>
+        <div class="stepper"><button data-step="-1" data-for="work">−</button><input id="work" type="number" min="1" max="120"><button data-step="1" data-for="work">+</button></div>
+        <span class="unit" id="unitWork">min</span></div>
+      <div class="row"><div class="rl" id="lblShort">Short Break</div>
+        <div class="stepper"><button data-step="-1" data-for="short">−</button><input id="short" type="number" min="1" max="60"><button data-step="1" data-for="short">+</button></div>
+        <span class="unit" id="unitShort">min</span></div>
+      <div class="row"><div class="rl" id="lblLong">Long Break</div>
+        <div class="stepper"><button data-step="-1" data-for="long">−</button><input id="long" type="number" min="1" max="120"><button data-step="1" data-for="long">+</button></div>
+        <span class="unit" id="unitLong">min</span></div>
+      <div class="row"><div class="rl" id="lblTarget">Intervals per Cycle</div>
+        <div class="stepper"><button data-step="-1" data-for="target">−</button><input id="target" type="number" min="1" max="10"><button data-step="1" data-for="target">+</button></div>
+        <span class="unit"></span></div>
+      <div class="row"><div class="rl" id="lblAuto">Auto-start next timer</div>
+        <label class="switch"><input type="checkbox" id="autostart"><span class="slider"></span></label></div>
+    </div>
+
+    <div class="sec" id="secStats">Statistics</div>
+    <div class="stats">
+      <div class="stat"><b id="stTotal">0</b><span id="lblTotal">Total Pomodoros</span></div>
+      <div class="stat"><b id="stFocus">0m</b><span id="lblFocus">Focus Time</span></div>
+      <div class="stat"><b id="stStreak">0</b><span id="lblStreak">Current Streak</span></div>
+      <div class="stat"><b id="stBest">0</b><span id="lblBest">Best Streak</span></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title" id="lblWeek">Last 7 Days</div>
+      <div class="chart" id="chart"></div>
+    </div>
+
+    <div class="today-row"><b id="lblToday">Today</b><span id="stToday">0 sessions · 0m</span></div>
+
+    <button class="reset-link" id="resetBtn">Reset Statistics</button>
+  </div>
+
+  <div class="footer">
+    <button class="btn btn-grey" id="cancelBtn">Cancel</button>
+    <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+  </div>
+
+<script>
+'use strict';
+function bridge(action, payload){
+  try{ console.log('SYNAPSEPRO_POMO:'+action+(payload!==undefined?(':'+payload):'')); }catch(e){}
+}
+function fmtTime(mins){
+  mins = mins|0;
+  return mins >= 60 ? Math.floor(mins/60)+'h '+(mins%60)+'m' : mins+'m';
+}
+function clampInput(el){
+  var v = parseInt(el.value, 10);
+  var min = parseInt(el.min,10), max = parseInt(el.max,10);
+  if(isNaN(v)) v = min;
+  el.value = Math.max(min, Math.min(max, v));
+}
+
+function renderStats(s){
+  document.getElementById('stTotal').textContent  = s.total || 0;
+  document.getElementById('stFocus').textContent  = fmtTime(s.totalMinutes || 0);
+  document.getElementById('stStreak').textContent = s.currentStreak || 0;
+  document.getElementById('stBest').textContent   = s.bestStreak || 0;
+  document.getElementById('stToday').textContent  =
+    (s.todayPomodoros || 0)+' '+(window._L.sessions||'sessions')+' · '+fmtTime(s.todayMinutes || 0);
+
+  var chart = document.getElementById('chart');
+  chart.innerHTML = '';
+  var week = s.week || [];
+  var max = 1;
+  week.forEach(function(d){ if(d.count > max) max = d.count; });
+  week.forEach(function(d){
+    var col = document.createElement('div');
+    col.className = 'col' + (d.isToday ? ' today' : '');
+    var cnt = document.createElement('div'); cnt.className = 'cnt';
+    cnt.textContent = d.count > 0 ? d.count : '';
+    var bar = document.createElement('div'); bar.className = 'bar' + (d.count > 0 ? '' : ' empty');
+    if(d.count > 0) bar.style.height = Math.max(6, Math.round(d.count / max * 100)) + '%';
+    var day = document.createElement('div'); day.className = 'day';
+    day.textContent = d.label || '';
+    col.appendChild(cnt); col.appendChild(bar); col.appendChild(day);
+    chart.appendChild(col);
+  });
+}
+
+window._L = {};
+window._E = {};
+function etr(source){ return Object.prototype.hasOwnProperty.call(window._E, source) ? window._E[source] : source; }
+window.init = function(data){
+  try{
+    data = data || {};
+    window._E = data.errors || {};
+    if(data.isDark){ document.documentElement.classList.add('dark'); document.body.classList.add('dark'); }
+    else{ document.documentElement.classList.remove('dark'); document.body.classList.remove('dark'); }
+    if(data.accent) document.documentElement.style.setProperty('--accent', data.accent);
+
+    // translated labels
+    var L = window._L = data.labels || {};
+    document.title = L.title || 'Pomodoro';
+    var map = {title:'title', secSettings:'settings', secStats:'statistics',
+      lblWork:'work', lblShort:'short', lblLong:'long', lblTarget:'target', lblAuto:'auto',
+      lblTotal:'total', lblFocus:'focus', lblStreak:'streak', lblBest:'best',
+      lblWeek:'week', lblToday:'today', resetBtn:'reset', cancelBtn:'cancel', saveBtn:'save'};
+    Object.keys(map).forEach(function(id){
+      if(L[map[id]]){ var el = document.getElementById(id); if(el) el.textContent = L[map[id]]; }
+    });
+    if(L.min){
+      document.getElementById('unitWork').textContent  = L.min;
+      document.getElementById('unitShort').textContent = L.min;
+      document.getElementById('unitLong').textContent  = L.min;
+    }
+
+    var cfg = data.config || {};
+    document.getElementById('work').value   = cfg.work   || 25;
+    document.getElementById('short').value  = cfg.short  || 5;
+    document.getElementById('long').value   = cfg.long   || 15;
+    document.getElementById('target').value = cfg.target || 4;
+    document.getElementById('autostart').checked = !!cfg.autoStart;
+
+    renderStats(data.stats || {});
+  }catch(e){ bridge('err', String(e)); }
+};
+
+// stats refresh after a reset (called from Python)
+window.updateStats = function(s){ renderStats(s || {}); };
+
+document.addEventListener('DOMContentLoaded', function(){
+  // steppers
+  document.querySelectorAll('.stepper button').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var el = document.getElementById(btn.dataset.for);
+      el.value = (parseInt(el.value,10) || 0) + parseInt(btn.dataset.step,10);
+      clampInput(el);
+    });
+  });
+  document.querySelectorAll('.stepper input').forEach(function(el){
+    el.addEventListener('change', function(){ clampInput(el); });
+  });
+
+  document.getElementById('saveBtn').addEventListener('click', function(){
+    ['work','short','long','target'].forEach(function(id){ clampInput(document.getElementById(id)); });
+    bridge('save', JSON.stringify({
+      work:   parseInt(document.getElementById('work').value, 10),
+      short:  parseInt(document.getElementById('short').value, 10),
+      long:   parseInt(document.getElementById('long').value, 10),
+      target: parseInt(document.getElementById('target').value, 10),
+      autoStart: document.getElementById('autostart').checked
+    }));
+  });
+  document.getElementById('cancelBtn').addEventListener('click', function(){ bridge('cancel'); });
+  document.getElementById('resetBtn').addEventListener('click', function(){ bridge('reset'); });
+
+  bridge('ready');
+});
+</script>
+
+    <script>
+    /* ── SynapsePro global error reporter ─────────────────────────────────
+       Self-contained (inline styles, no page-CSS dependencies): invisible
+       until a JS error occurs, then shows a dismissible banner with the
+       real traceback so users can report actionable bugs instead of
+       "buttons are not working". Never throws itself. */
+    (function() {
+        if (window.__spReportError) return;
+        function isDark() {
+            try {
+                if (document.documentElement.classList.contains('nightMode') || document.body.classList.contains('nightMode')
+                    || document.documentElement.classList.contains('dark') || document.body.classList.contains('dark')) return true;
+                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } catch (e) { return false; }
+        }
+        function ensureBanner() {
+            var b = document.getElementById('sp-error-banner');
+            if (b) return b;
+            if (!document.body) return null;
+            var dark = isDark();
+            b = document.createElement('div');
+            b.id = 'sp-error-banner';
+            b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483000;display:none;'
+                + 'font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:left;'
+                + 'padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,0.25);border-top:2px solid #dc3545;'
+                + (dark ? 'background:#2c2c2c;color:#e0e0e0;' : 'background:#ffffff;color:#333333;');
+            var btnCss = 'margin-right:8px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;border-radius:7px;'
+                + (dark ? 'background:#303030;color:#e0e0e0;border:1px solid #555;' : 'background:#fff;color:#333;border:1px solid #ccc;');
+            var preCss = 'display:none;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+                + 'font-size:11px;border-radius:6px;padding:8px;margin:0 0 8px 0;'
+                + (dark ? 'background:#404040;border:1px solid #555;' : 'background:#f5f5f5;border:1px solid #ccc;');
+            b.innerHTML = '<div style="font-weight:700;color:#dc3545;margin-bottom:4px;">' + etr('SynapsePro error') + '</div>'
+                + '<div class="sp-eb-msg" style="margin-bottom:6px;word-break:break-word;"></div>'
+                + '<pre class="sp-eb-pre" style="' + preCss + '"></pre>'
+                + '<div><button type="button" data-spact="details" style="' + btnCss + '">' + etr('Show details') + '</button>'
+                + '<button type="button" data-spact="copy" style="' + btnCss + '">' + etr('Copy error') + '</button>'
+                + '<button type="button" data-spact="dismiss" style="' + btnCss + '">' + etr('Dismiss') + '</button></div>';
+            document.body.appendChild(b);
+            b.addEventListener('click', function(e) {
+                var act = e.target && e.target.getAttribute && e.target.getAttribute('data-spact');
+                if (act === 'dismiss') b.style.display = 'none';
+                if (act === 'details') {
+                    var pre = b.querySelector('.sp-eb-pre');
+                    var open = pre.style.display === 'block';
+                    pre.style.display = open ? 'none' : 'block';
+                    e.target.textContent = open ? etr('Show details') : etr('Hide details');
+                }
+                if (act === 'copy') {
+                    var text = b.querySelector('.sp-eb-msg').textContent + '\n\n' + b.querySelector('.sp-eb-pre').textContent;
+                    try { navigator.clipboard.writeText(text); e.target.textContent = etr('Copied!'); setTimeout(function() { e.target.textContent = etr('Copy error'); }, 2000); } catch (err) {}
+                }
+            });
+            return b;
+        }
+        window.__spReportError = function(err, context) {
+            try {
+                var msg = (err && err.message) ? err.message : String(err);
+                var stack = (err && err.stack) ? String(err.stack) : etr('(no stack trace available)');
+                console.error('[SynapsePro]' + (context ? ' [' + context + ']' : ''), err);
+                var show = function() {
+                    var b = ensureBanner();
+                    if (!b) return;
+                    b.querySelector('.sp-eb-msg').textContent = (context ? context + ': ' : '') + msg
+                        + ' — ' + etr('Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('.sp-eb-pre').textContent = stack;
+                    b.style.display = 'block';
+                };
+                if (document.body) show();
+                else document.addEventListener('DOMContentLoaded', show);
+            } catch (e) { try { console.error('[SynapsePro] error while reporting error', e, err); } catch (e2) {} }
+        };
+        window.addEventListener('error', function(e) {
+            if (e.error && (e.error.message || e.error.stack)) window.__spReportError(e.error, etr('Unexpected error'));
+            else console.warn('[SynapsePro] Background browser error:', e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            if (e.reason && e.reason.synapseCritical === true) window.__spReportError(e.reason, etr('Unexpected error (async)'));
+            else console.warn('[SynapsePro] Background task rejected:', e.reason);
+            e.preventDefault();
+        });
+    })();
+    </script>
+</body>
+</html>

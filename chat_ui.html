@@ -8,6 +8,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root{
+  color-scheme:light;
   --bg:#ffffff;--surface:#f4f4f4;--text:#0d0d0d;--text-muted:#8e8ea0;
   --text-faint:#c0c0cc;--border:#e5e5e5;--user-bubble:#f0f0f0;
   --ai-bubble:#f7f7f8;--input-bg:#f4f4f4;--btn-bg:#0d0d0d;--btn-fg:#ffffff;
@@ -18,7 +19,8 @@
   --accent:#3b82f6;--accent-fg:#ffffff;
   --accent-glow:rgba(59,130,246,.12);--accent-glow-2:rgba(59,130,246,.08);
 }
-body.dark{
+html.dark, body.dark{
+  color-scheme:dark;
   --bg:#212121;--surface:#2f2f2f;--text:#ececec;--text-muted:#8e8ea0;
   --text-faint:#4a4a5a;--border:#3a3a3a;--user-bubble:#303030;
   --ai-bubble:#282828;--input-bg:#2f2f2f;--btn-bg:#ececec;--btn-fg:#0d0d0d;
@@ -61,6 +63,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,san
   color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;
   font-family:inherit;outline:none;-webkit-appearance:none;transition:border-color .12s}
 .s-select:focus,.s-input:focus{border-color:var(--text-muted)}
+.s-select option{background:var(--bg);color:var(--text);font-size:12px}
 .s-hint{font-size:10px;color:var(--text-muted);margin-top:3px;line-height:1.4}
 .s-save{width:100%;background:var(--accent);color:var(--accent-fg);border:none;
   border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;
@@ -154,6 +157,35 @@ body.empty #start-center{display:flex}
 .start-hint{font-size:11px;color:var(--text-faint);margin-top:14px;
   line-height:1.55;max-width:260px}
 
+/* ── Optional current-card context ── */
+.card-context-row{display:flex;align-items:center;justify-content:flex-end;gap:5px;
+  margin-top:7px;padding:0 3px;position:relative;z-index:4}
+#start-center .card-context-row{width:100%}
+.card-context-toggle{display:inline-flex;align-items:center;gap:6px;min-height:27px;
+  background:transparent;color:var(--text-muted);border:1px solid var(--border);
+  border-radius:14px;padding:4px 9px 4px 7px;font:inherit;font-size:10.5px;font-weight:550;
+  cursor:pointer;white-space:nowrap;transition:color .14s,border-color .14s,background .14s,opacity .14s}
+.card-context-toggle svg{width:13px;height:13px;flex-shrink:0}
+.card-context-toggle:hover:not(:disabled){color:var(--text);border-color:var(--text-muted)}
+.card-context-toggle.on{color:var(--accent);border-color:var(--accent);
+  background:var(--accent-glow)}
+.card-context-toggle:disabled{opacity:.38;cursor:default}
+.context-status-dot{width:5px;height:5px;border-radius:50%;background:var(--text-faint);
+  transition:background .14s,box-shadow .14s}
+.card-context-toggle.on .context-status-dot{background:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-glow)}
+.context-info-wrap{position:relative;display:flex;align-items:center}
+.context-info-btn{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+  border:0;background:transparent;color:var(--text-faint);border-radius:50%;font:inherit;
+  font-size:11px;font-weight:700;cursor:pointer;transition:color .12s,background .12s}
+.context-info-btn:hover,.context-info-btn[aria-expanded="true"]{color:var(--accent);background:var(--accent-glow)}
+.context-info-popover{display:none;position:absolute;right:0;bottom:calc(100% + 7px);
+  width:236px;max-width:calc(100vw - 28px);padding:10px 11px;background:var(--bg);
+  border:1px solid var(--border);border-radius:10px;box-shadow:0 7px 25px rgba(0,0,0,.14);
+  color:var(--text-muted);font-size:10.5px;font-weight:400;line-height:1.5;text-align:left;z-index:40}
+.context-info-popover.open{display:block}
+.context-info-popover b{color:var(--text);font-weight:600}
+
 /* ── Chip manager modal ── */
 #chip-modal{display:none;position:fixed;inset:0;background:var(--overlay);
   z-index:500;align-items:center;justify-content:center}
@@ -204,6 +236,40 @@ body.empty #start-center{display:flex}
   font-family:inherit;transition:opacity .15s}
 .cm-add-btn:hover{opacity:.82}
 
+/* ── API-key help ── */
+.s-keyhelp-link{display:inline-block;font-size:10.5px;color:var(--accent);
+  cursor:pointer;margin-top:4px;text-decoration:underline;user-select:none}
+.s-keyhelp-link:hover{opacity:.8}
+#keyhelp-modal{display:none;position:fixed;inset:0;background:var(--overlay);
+  z-index:520;align-items:center;justify-content:center}
+#keyhelp-modal.open{display:flex}
+#keyhelp-card{background:var(--bg);border:1px solid var(--border);border-radius:16px;
+  width:310px;max-height:82vh;overflow-y:auto;padding:18px;
+  box-shadow:0 8px 40px rgba(0,0,0,.22)}
+.kh-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.kh-title{font-size:14px;font-weight:600}
+.kh-close{background:none;border:1px solid var(--border);cursor:pointer;
+  color:var(--text-muted);font-size:11px;font-family:inherit;font-weight:500;
+  padding:3px 10px;border-radius:6px;line-height:1.5}
+.kh-close:hover{color:var(--text);background:var(--surface)}
+.kh-intro{font-size:11.5px;color:var(--text-muted);line-height:1.55;margin-bottom:12px}
+.kh-step{display:flex;gap:10px;margin-bottom:10px;align-items:flex-start}
+.kh-step-num{width:20px;height:20px;border-radius:50%;background:var(--accent);
+  color:var(--accent-fg);font-size:11px;font-weight:700;display:flex;
+  align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.kh-step-text{font-size:12px;line-height:1.55;color:var(--text)}
+.kh-step-text b{font-weight:600}
+.kh-note{font-size:10.5px;color:var(--text-muted);line-height:1.5;
+  background:var(--surface);border-radius:8px;padding:8px 10px;margin-top:4px}
+.kh-open-btn{width:100%;background:var(--accent);color:var(--accent-fg);border:none;
+  border-radius:8px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:opacity .15s;margin-top:12px}
+.kh-open-btn:hover{opacity:.82}
+#s-ollama-setup-btn{width:100%;background:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:11px;
+  font-weight:600;cursor:pointer;font-family:inherit;margin-top:6px;transition:border-color .12s}
+#s-ollama-setup-btn:hover{border-color:var(--accent);color:var(--accent)}
+
 /* ── Setup banner ── */
 #setup-banner{display:none;margin:10px 14px 0;background:var(--surface);
   border:1px solid var(--border);border-radius:10px;padding:10px 13px;
@@ -246,7 +312,7 @@ body:not(.empty) #chat{display:flex}
 .msg.ai .bubble.bubble--error{
   border-color:rgba(239,68,68,.5);
   background:rgba(239,68,68,.04)}
-body.dark .msg.ai .bubble.bubble--error{
+html.dark .msg.ai .bubble.bubble--error, body.dark .msg.ai .bubble.bubble--error{
   border-color:rgba(248,113,113,.45);
   background:rgba(248,113,113,.06)}
 .chip-indicator{font-size:11px;color:var(--text-faint);text-align:center;
@@ -278,11 +344,21 @@ body:not(.empty) #input-wrap{display:block}
   justify-content:center;flex-shrink:0;transition:opacity .15s}
 #send-btn:disabled{opacity:.22;cursor:default}
 
-/* ── Disclaimer ── */
-#disclaimer{display:none;text-align:center;font-size:10px;color:var(--text-faint);
-  padding:3px 14px 8px;flex-shrink:0;user-select:none;position:relative;z-index:1}
-body:not(.empty) #disclaimer{display:block}
+/* ── Compact input footer ── */
+.input-meta-row{display:flex;align-items:center;justify-content:space-between;
+  gap:8px;margin-top:5px;padding:0 3px;min-height:27px}
+#input-wrap .card-context-row{margin-top:0;padding:0;flex:0 0 auto}
+#disclaimer{flex:1 1 auto;min-width:0;text-align:left;font-size:9.5px;
+  line-height:1.3;color:var(--text-faint);user-select:none}
 </style>
+<script>
+  /* Apply dark mode BEFORE the first paint (avoids a white flash) —
+     Anki propagates its theme via prefers-color-scheme. */
+  try{
+    if(window.matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.classList.add('dark');
+  }catch(e){}
+</script>
 </head>
 <body class="empty">
 
@@ -325,11 +401,13 @@ body:not(.empty) #disclaimer{display:block}
         <option value="openrouter">OpenRouter</option>
         <option value="anthropic">Anthropic Claude</option>
         <option value="ollama">Ollama (Local)</option>
+        <option value="llamaserver">llama.cpp Server (Local)</option>
       </select>
     </div>
     <div class="s-row" id="s-apikey-row">
       <label class="s-label">API Key</label>
       <input class="s-input" type="password" id="s-apikey" placeholder="Enter your API key..." autocomplete="off"/>
+      <span class="s-keyhelp-link" id="s-keyhelp-link" onclick="openKeyHelp()">How do I get an API key?</span>
     </div>
     <div class="s-row">
       <label class="s-label">Model</label>
@@ -344,6 +422,16 @@ body:not(.empty) #disclaimer{display:block}
     <div class="s-row" id="s-ollama-row" style="display:none">
       <label class="s-label">Ollama Status</label>
       <div id="ollama-status-line">Checking...</div>
+      <button id="s-ollama-setup-btn" onclick="sendToPython('setup_ollama',{})">Open Setup Assistant</button>
+    </div>
+    <div class="s-row" id="s-llama-ep-row" style="display:none">
+      <label class="s-label">Server Endpoint</label>
+      <input class="s-input" type="url" id="s-llama-ep" placeholder="http://localhost:8080" autocomplete="off"/>
+      <div class="s-hint" id="llama-endpoint-hint">Base URL of your llama.cpp server (the OpenAI-compatible /v1 path is added automatically).</div>
+    </div>
+    <div class="s-row" id="s-llama-row" style="display:none">
+      <label class="s-label">Server Status</label>
+      <div id="llama-status-line">Checking...</div>
     </div>
     <div class="s-section">
       <div class="s-row">
@@ -385,10 +473,8 @@ body:not(.empty) #disclaimer{display:block}
 
     <div class="ip-section">
       <div class="ip-heading">What is an API Key?</div>
-      <div class="ip-body">
-        An <b>API key</b> is a password that lets SynapseGPT talk to an AI service on your behalf.
-        You create one for free (or low cost) in the provider's dashboard, paste it here, and the
-        add-on sends your questions directly to that service — no middleman.
+      <div class="ip-body" id="help-api-body">
+        An API key is a password that lets SynapseGPT talk to an AI service on your behalf. You create one in the provider's dashboard, paste it here, and the add-on sends your questions directly to that service.
       </div>
     </div>
 
@@ -396,12 +482,8 @@ body:not(.empty) #disclaimer{display:block}
 
     <div class="ip-section">
       <div class="ip-heading">Which provider should I choose?</div>
-      <div class="ip-body">
-        <b>OpenAI</b> (gpt-4o-mini) — fast &amp; affordable, great all-rounder.<br>
-        <b>Google Gemini</b> (flash) — free tier available, very capable.<br>
-        <b>Anthropic Claude</b> — strong at nuanced explanations.<br>
-        <b>OpenRouter</b> — access many models with one key, includes free options.<br>
-        <b>Ollama</b> — runs 100% locally on your machine, no key, no cost, no data leaves your device.
+      <div class="ip-body" id="help-provider-body">
+        OpenAI (gpt-5.4-mini) is a fast all-rounder. Google Gemini offers a capable free tier. Anthropic Claude is strong at nuanced explanations. OpenRouter provides many models with one key. Ollama runs locally without a key or usage fees.
       </div>
     </div>
 
@@ -409,11 +491,8 @@ body:not(.empty) #disclaimer{display:block}
 
     <div class="ip-section">
       <div class="ip-heading">Local AI with Ollama</div>
-      <div class="ip-body">
-        Ollama runs open-source models (Llama, Gemma, Qwen…) directly on your computer.
-        <b>Nothing is sent to the internet</b> — ideal for sensitive material.
-        Select <b>Ollama</b> as provider and click the link to install it, then pull a model
-        from the wizard. Recommended starter: <b>gemma2:2b</b> (~1.6 GB).
+      <div class="ip-body" id="help-ollama-body">
+        Ollama runs open-source models directly on your computer. Nothing is sent to an online AI provider. Select Ollama, open the setup assistant, and install a model such as gemma2:2b.
       </div>
     </div>
 
@@ -421,13 +500,17 @@ body:not(.empty) #disclaimer{display:block}
 
     <div class="ip-section">
       <div class="ip-heading">Privacy &amp; Data Security</div>
-      <div class="ip-body">
-        <b>Your API key is stored only on this device</b> in Anki's local config — it is never
-        uploaded to any server by this add-on.<br><br>
-        When you send a message, your question and card content go directly to the provider you
-        chose (OpenAI, Google, etc.) under <b>their</b> privacy policy.
-        If privacy is critical, use <b>Ollama</b> — everything stays local.<br><br>
-        SynapseGPT does <b>not</b> collect analytics, logs, or usage data.
+      <div class="ip-body" id="help-privacy-body">
+        Your API key is stored in your local Anki profile and is never uploaded by SynapsePro. Questions go directly to the selected provider. Visible card text is included only when you use a Quick Action or enable current-card context. The chat assistant does not collect chat analytics, logs, or conversations.
+      </div>
+    </div>
+
+    <hr class="ip-divider">
+
+    <div class="ip-section">
+      <div class="ip-heading">Common Questions</div>
+      <div class="ip-body" id="help-billing-body">
+        Chat subscriptions and API access are separate products with separate billing. Google Gemini and some OpenRouter models offer free tiers; Ollama runs locally for free. API credit is managed in the selected provider's dashboard.
       </div>
     </div>
 
@@ -435,11 +518,8 @@ body:not(.empty) #disclaimer{display:block}
 
     <div class="ip-section">
       <div class="ip-heading">Quick Tips</div>
-      <div class="ip-body">
-        • Open a card in the reviewer, then use the <b>action buttons</b> (Short, Concise…) to instantly analyse it.<br>
-        • Set <b>keyboard shortcuts</b> for buttons in the Manage menu.<br>
-        • Switch <b>Card Content</b> to "Front &amp; Back" for richer context.<br>
-        • Adjust <b>Chat Font Size</b> in Settings if text feels too small or large.
+      <div class="ip-body" id="help-tips-body">
+        Open a reviewer card before using Quick Actions. Enable current-card context for your own card questions. Manage button shortcuts in the Manage dialog. Choose Front &amp; Back for richer context and adjust the chat font size in Settings.
       </div>
     </div>
   </div>
@@ -461,6 +541,16 @@ body:not(.empty) #disclaimer{display:block}
         <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
       </svg>
     </button>
+  </div>
+  <div class="card-context-row" data-card-context-row>
+    <button class="card-context-toggle" data-card-context-toggle type="button" aria-pressed="false" onclick="toggleCardContext()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+      <span data-card-context-label>Use current card</span><span class="context-status-dot"></span>
+    </button>
+    <div class="context-info-wrap">
+      <button class="context-info-btn" data-card-context-info type="button" aria-label="About current card context" aria-expanded="false" onclick="toggleCardContextInfo(this,event)">i</button>
+      <div class="context-info-popover" role="tooltip"><b>Current card context</b><br>When enabled, the text of the card currently open in Anki is sent in the background with each question and used by the AI. It stays hidden from the chat and is read fresh when you press Send. Your selected AI provider receives this text; with Ollama it stays on your computer.</div>
+    </div>
   </div>
   <div class="start-hint">Type a question, or open an Anki card and use the quick action buttons above.</div>
 </div>
@@ -484,10 +574,34 @@ body:not(.empty) #disclaimer{display:block}
       </svg>
     </button>
   </div>
+  <div class="input-meta-row">
+    <div id="disclaimer">AI can make mistakes &middot; Verify important information</div>
+    <div class="card-context-row" data-card-context-row>
+      <button class="card-context-toggle" data-card-context-toggle type="button" aria-pressed="false" onclick="toggleCardContext()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        <span data-card-context-label>Use current card</span><span class="context-status-dot"></span>
+      </button>
+      <div class="context-info-wrap">
+        <button class="context-info-btn" data-card-context-info type="button" aria-label="About current card context" aria-expanded="false" onclick="toggleCardContextInfo(this,event)">i</button>
+        <div class="context-info-popover" role="tooltip"><b>Current card context</b><br>When enabled, the text of the card currently open in Anki is sent in the background with each question and used by the AI. It stays hidden from the chat and is read fresh when you press Send. Your selected AI provider receives this text; with Ollama it stays on your computer.</div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- ── Disclaimer ── -->
-<div id="disclaimer">AI can make mistakes &middot; Verify important information</div>
+<!-- ── API-key help modal ── -->
+<div id="keyhelp-modal">
+  <div id="keyhelp-card">
+    <div class="kh-header">
+      <span class="kh-title" id="kh-title">Get an API Key</span>
+      <button class="kh-close" onclick="closeKeyHelp()">Close</button>
+    </div>
+    <div class="kh-intro" id="kh-intro"></div>
+    <div id="kh-steps"></div>
+    <div class="kh-note" id="kh-note"></div>
+    <button class="kh-open-btn" id="kh-open-btn"></button>
+  </div>
+</div>
 
 <!-- ── Chip manager modal ── -->
 <div id="chip-modal">
@@ -505,7 +619,7 @@ body:not(.empty) #disclaimer{display:block}
       <input class="cm-add-input" id="cm-new-label" placeholder="Button name (e.g. Simplify)" maxlength="30"/>
       <textarea class="cm-add-textarea" id="cm-new-prompt"
         placeholder="Your prompt. Use {content} where the card text should go.&#10;Example: Explain {content} as if I were a beginner."></textarea>
-      <div class="cm-hint">Use <code style="font-size:10px">{content}</code> where the card text should appear.</div>
+      <div class="cm-hint" id="custom-prompt-hint">Use <code style="font-size:10px">{content}</code> where the card text should appear.</div>
       <div class="cm-error" id="cm-error"></div>
       <button class="cm-add-btn" onclick="addCustomChip()">Add Button</button>
     </div>
@@ -515,6 +629,55 @@ body:not(.empty) #disclaimer{display:block}
 <script>
 'use strict';
 
+// ── Localisation ─────────────────────────────────────────────────────────────
+var TR = {};
+function tr(source) {
+  source = String(source == null ? '' : source);
+  return Object.prototype.hasOwnProperty.call(TR, source) ? TR[source] : source;
+}
+function translateStaticUI(root) {
+  root = root || document.body;
+  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(node) {
+      var p = node.parentElement;
+      if (!p || /^(SCRIPT|STYLE|TEMPLATE)$/.test(p.tagName)) return NodeFilter.FILTER_REJECT;
+      return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+  var nodes = [], node;
+  while ((node = walker.nextNode())) nodes.push(node);
+  nodes.forEach(function(n) {
+    var raw = n.nodeValue;
+    var key = raw.replace(/\s+/g, ' ').trim();
+    var translated = tr(key);
+    if (translated !== key) {
+      n.nodeValue = (raw.match(/^\s*/) || [''])[0] + translated + (raw.match(/\s*$/) || [''])[0];
+    }
+  });
+  root.querySelectorAll('[placeholder],[title],[aria-label]').forEach(function(el) {
+    ['placeholder','title','aria-label'].forEach(function(attr) {
+      if (!el.hasAttribute(attr)) return;
+      var raw = el.getAttribute(attr);
+      var value = tr(raw);
+      if (value !== raw) el.setAttribute(attr, value);
+    });
+  });
+}
+function localizeHelpBodies() {
+  var bodies = {
+    'help-api-body': "An API key is a password that lets SynapseGPT talk to an AI service on your behalf. You create one in the provider's dashboard, paste it here, and the add-on sends your questions directly to that service.",
+    'help-provider-body': 'OpenAI (gpt-5.4-mini) is a fast all-rounder. Google Gemini offers a capable free tier. Anthropic Claude is strong at nuanced explanations. OpenRouter provides many models with one key. Ollama runs locally without a key or usage fees.',
+    'help-ollama-body': 'Ollama runs open-source models directly on your computer. Nothing is sent to an online AI provider. Select Ollama, open the setup assistant, and install a model such as gemma2:2b.',
+    'help-privacy-body': 'Your API key is stored in your local Anki profile and is never uploaded by SynapsePro. Questions go directly to the selected provider. Visible card text is included only when you use a Quick Action or enable current-card context. The chat assistant does not collect chat analytics, logs, or conversations.',
+    'help-billing-body': "Chat subscriptions and API access are separate products with separate billing. Google Gemini and some OpenRouter models offer free tiers; Ollama runs locally for free. API credit is managed in the selected provider's dashboard.",
+    'help-tips-body': 'Open a reviewer card before using Quick Actions. Enable current-card context for your own card questions. Manage button shortcuts in the Manage dialog. Choose Front & Back for richer context and adjust the chat font size in Settings.'
+  };
+  Object.keys(bodies).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = tr(bodies[id]);
+  });
+}
+
 // ── Bridge ────────────────────────────────────────────────────────────────────
 function sendToPython(action, data) {
   console.log('PYCALL:' + action + ':' + JSON.stringify(data || {}));
@@ -522,17 +685,32 @@ function sendToPython(action, data) {
 
 // ── Model lists ───────────────────────────────────────────────────────────────
 var MODELS = {
-  openai:     ['gpt-4o-mini','gpt-4o','gpt-4.1-mini','gpt-4.1','o4-mini'],
-  gemini:     ['gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-flash','gemini-1.5-pro'],
+  openai:     ['gpt-5.4-mini','gpt-5.5','gpt-5.4','gpt-4o-mini','gpt-4o'],
+  gemini:     ['gemini-3.6-flash','gemini-3.5-flash','gemini-3.5-flash-lite','gemini-3.1-pro-preview','gemini-2.5-flash'],
   openrouter: [
-    'openai/gpt-4o-mini','openai/gpt-4o','google/gemini-2.0-flash-001',
-    'anthropic/claude-haiku-4-5','anthropic/claude-sonnet-4-5',
+    'openai/gpt-5.4-mini','openai/gpt-5.5','google/gemini-3.5-flash',
+    'anthropic/claude-haiku-4-5','anthropic/claude-sonnet-5',
     'meta-llama/llama-3.1-8b-instruct','mistralai/mistral-small-3.1-24b',
     'meta-llama/llama-3.2-3b-instruct:free','meta-llama/llama-3.1-8b-instruct:free',
     'deepseek/deepseek-chat-v3-0324:free','mistralai/mistral-7b-instruct:free'
   ],
-  anthropic:  ['claude-haiku-4-5-20251001','claude-sonnet-4-6','claude-opus-4-6'],
-  ollama:     []
+  anthropic:  ['claude-sonnet-5','claude-haiku-4-5-20251001','claude-opus-4-8'],
+  ollama:     [],
+  llamaserver: []
+};
+
+// Retired model IDs → current equivalents, so a user's old saved selection
+// (e.g. gemini-1.5/2.0, which Google shut down) keeps working.
+var LEGACY_MODELS = {
+  'gemini-2.0-flash':'gemini-2.5-flash',
+  'gemini-2.0-flash-lite':'gemini-2.5-flash-lite',
+  'gemini-1.5-flash':'gemini-2.5-flash',
+  'gemini-1.5-pro':'gemini-2.5-pro',
+  'gemini-pro':'gemini-2.5-flash',
+  'gemini-3.1-flash':'gemini-3.5-flash',
+  'gemini-3.1-pro':'gemini-3.1-pro-preview',
+  'google/gemini-2.0-flash-001':'google/gemini-2.5-flash',
+  'claude-opus-4-6':'claude-opus-4-8'
 };
 
 // ── Built-in chips ────────────────────────────────────────────────────────────
@@ -547,6 +725,8 @@ var BUILTIN_CHIPS = [
 // ── State ─────────────────────────────────────────────────────────────────────
 var busy         = false;
 var chipsEnabled = false;
+var cardContextEnabled   = false;
+var cardContextAvailable = false;
 var chipConfig   = {
   builtin:   { short:true, concise:true, detailed:true, mcq:true, mnemonic:true },
   shortcuts: { short:'', concise:'', detailed:'', mcq:'', mnemonic:'' },
@@ -556,6 +736,9 @@ var chipConfig   = {
 // ── Streaming state ───────────────────────────────────────────────────────────
 var _streamBubble = null;
 var _streamRaw    = '';
+var _streamAnswer = null;   // answer sub-element (separate from "thinking")
+var _streamThink  = '';     // accumulated reasoning_content (reasoning models)
+var _thinkEl      = null;   // <details> disclosure holding the reasoning
 
 // ── Accent color ──────────────────────────────────────────────────────────────
 var ACCENT_PRESETS = ['#3b82f6','#6366f1','#8b5cf6','#ec4899','#10b981','#f59e0b','#ef4444'];
@@ -572,30 +755,60 @@ function setAccentColor(color) {
   var r = parseInt(color.slice(1,3),16);
   var g = parseInt(color.slice(3,5),16);
   var b = parseInt(color.slice(5,7),16);
-  var isDark = document.body.classList.contains('dark');
+  var isDark = document.body.classList.contains('dark') || document.documentElement.classList.contains('dark');
   // Full rgba strings — avoids rgba(var(--r),...) which some WebEngine builds reject
   var op1 = isDark ? 0.20 : 0.13;
   var op2 = isDark ? 0.13 : 0.09;
-  var root = document.documentElement;
-  root.style.setProperty('--accent', color);
-  root.style.setProperty('--accent-glow',   'rgba('+r+','+g+','+b+','+op1+')');
-  root.style.setProperty('--accent-glow-2', 'rgba('+r+','+g+','+b+','+op2+')');
-  root.style.setProperty('--accent-border',  'rgba('+r+','+g+','+b+','+(isDark?0.28:0.18)+')');
+  // Dark mode also declares defaults on body.dark. Apply the selected theme
+  // to both elements so that body's closer CSS variables cannot keep the
+  // violet fallback active after a theme change.
+  var targets = [document.documentElement];
+  if (document.body) targets.push(document.body);
+  targets.forEach(function(target) {
+    target.style.setProperty('--accent', color);
+    target.style.setProperty('--accent-glow',   'rgba('+r+','+g+','+b+','+op1+')');
+    target.style.setProperty('--accent-glow-2', 'rgba('+r+','+g+','+b+','+op2+')');
+    target.style.setProperty('--accent-border',  'rgba('+r+','+g+','+b+','+(isDark?0.28:0.18)+')');
+  });
   // fg: white on dark accent, dark on light accent
   var lum = (0.299*r + 0.587*g + 0.114*b) / 255;
-  root.style.setProperty('--accent-fg', lum > 0.6 ? '#0d0d0d' : '#ffffff');
+  targets.forEach(function(target) {
+    target.style.setProperty('--accent-fg', lum > 0.6 ? '#0d0d0d' : '#ffffff');
+  });
 }
 
 // ── Init (called from Python) ─────────────────────────────────────────────────
 function init(cfg) {
   console.log('AI Assistant: init() provider=' + cfg.provider);
-  if (cfg.isDark) document.body.classList.add('dark');
+  TR = cfg.translations || {};
+  if (cfg.isDark){ document.documentElement.classList.add('dark'); document.body.classList.add('dark'); }
+  else { document.documentElement.classList.remove('dark'); document.body.classList.remove('dark'); }
+  translateStaticUI(document.body);
+  localizeHelpBodies();
+  var llamaHint = document.getElementById('llama-endpoint-hint');
+  if (llamaHint) llamaHint.textContent = tr('Base URL of your llama.cpp server (the OpenAI-compatible /v1 path is added automatically).');
+  var promptInput = document.getElementById('cm-new-prompt');
+  if (promptInput) promptInput.placeholder = tr('Your prompt. Use {content} where the card text should go.\nExample: Explain {content} as if I were a beginner.');
+  var promptHint = document.getElementById('custom-prompt-hint');
+  if (promptHint) {
+    var hintText = tr('Use {content} where the card text should appear.');
+    var hintParts = hintText.split('{content}');
+    var hintCode = document.createElement('code');
+    hintCode.style.fontSize = '10px';
+    hintCode.textContent = '{content}';
+    promptHint.replaceChildren(
+      document.createTextNode(hintParts[0] || ''),
+      hintCode,
+      document.createTextNode(hintParts.slice(1).join('{content}'))
+    );
+  }
 
   safeSet('s-provider', cfg.provider  || 'openai');
   safeSet('s-apikey',   cfg.apiKey    || '');
   safeSet('s-language', cfg.language  || 'English');
   safeSet('s-source',   cfg.source    || 'Front Only');
   document.getElementById('s-ollama-ep').value = cfg.ollamaEndpoint || 'http://localhost:11434';
+  document.getElementById('s-llama-ep').value  = cfg.llamaEndpoint  || 'http://localhost:8080';
 
   // Accent color
   var accent = cfg.accentColor || (cfg.isDark ? '#6366f1' : '#3b82f6');
@@ -605,11 +818,16 @@ function init(cfg) {
   setFontSize(cfg.fontSize || '13px');
   safeSet('s-fontsize', cfg.fontSize || '13px');
 
+  cardContextEnabled = !!cfg.cardContextEnabled;
+  updateCardContextControls();
+
   onProviderChange(false);
-  if (cfg.model) document.getElementById('s-model').value = cfg.model;
+  if (cfg.model) document.getElementById('s-model').value = LEGACY_MODELS[cfg.model] || cfg.model;
 
   if (cfg.provider === 'ollama') {
     setOllamaStatus(cfg.ollamaRunning ? 'running' : 'stopped', cfg.ollamaModels || []);
+  } else if (cfg.provider === 'llamaserver') {
+    sendToPython('check_llama', {});
   }
 
   if (cfg.chipsConfig) {
@@ -641,6 +859,9 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('AI Assistant: DOMContentLoaded – signalling Python');
   sendToPython('page_ready', {});
 
+  // Smart auto-scroll: stop following the stream when the user scrolls up.
+  initChatScrollTracking();
+
   // Active-state input
   var inp = document.getElementById('user-input');
   inp.addEventListener('input', function() { autoResize(inp); updateSendBtn(); });
@@ -648,6 +869,23 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); trySend(); }
   });
   document.getElementById('send-btn').addEventListener('click', trySend);
+
+  // Model picker: the datalist dropdown filters by the current text, so with
+  // a model already selected the user had to delete it to see the full list.
+  // Clear the field on focus (full list opens) and restore the previous value
+  // on blur if nothing new was picked or typed.
+  (function() {
+    var modelInp = document.getElementById('s-model');
+    if (!modelInp) return;
+    var prevModel = null;
+    modelInp.addEventListener('focus', function() {
+      if (modelInp.value) { prevModel = modelInp.value; modelInp.value = ''; }
+    });
+    modelInp.addEventListener('blur', function() {
+      if (!modelInp.value && prevModel) modelInp.value = prevModel;
+      prevModel = null;
+    });
+  })();
 
   // Empty-state big input
   var startInp = document.getElementById('start-user-input');
@@ -660,6 +898,14 @@ document.addEventListener('DOMContentLoaded', function() {
   // Close modal on overlay click
   document.getElementById('chip-modal').addEventListener('click', function(e) {
     if (e.target === this) closeChipManager();
+  });
+  document.getElementById('keyhelp-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeKeyHelp();
+  });
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest || !e.target.closest('.context-info-wrap')) {
+      closeCardContextInfo();
+    }
   });
 
   // Global keyboard shortcuts for chip buttons (only when not typing)
@@ -720,7 +966,7 @@ function renderChips() {
 
   BUILTIN_CHIPS.forEach(function(c) {
     if (chipConfig.builtin[c.id] === false) return;
-    var btn = _makeChip(c.label, function() {
+    var btn = _makeChip(tr(c.label), function() {
       if (!chipsEnabled || busy) return;
       sendToPython('chip_action', { action: c.id, label: c.label });
     });
@@ -758,6 +1004,53 @@ function setChipsEnabled(enabled) {
   _applyChipState();
 }
 
+function setReviewState(enabled) {
+  cardContextAvailable = !!enabled;
+  setChipsEnabled(enabled);
+  updateCardContextControls();
+}
+
+function updateCardContextControls() {
+  document.querySelectorAll('[data-card-context-toggle]').forEach(function(btn) {
+    var active = cardContextEnabled && cardContextAvailable;
+    btn.classList.toggle('on', active);
+    btn.setAttribute('aria-pressed', cardContextEnabled ? 'true' : 'false');
+    // If the preference is already on, allow it to be switched off even after
+    // leaving review mode. Turning it on requires an actual card.
+    btn.disabled = busy || (!cardContextAvailable && !cardContextEnabled);
+    btn.title = cardContextAvailable
+      ? (cardContextEnabled ? tr('Current card context is on') : tr('Use the current Anki card as context'))
+      : (cardContextEnabled ? tr('Waiting for a card — click to turn off') : tr('Open a card in the reviewer first'));
+  });
+}
+
+function toggleCardContext() {
+  if (busy || (!cardContextAvailable && !cardContextEnabled)) return;
+  cardContextEnabled = !cardContextEnabled;
+  updateCardContextControls();
+  sendToPython('set_card_context', { enabled: cardContextEnabled });
+}
+
+function closeCardContextInfo() {
+  document.querySelectorAll('.context-info-popover.open').forEach(function(pop) {
+    pop.classList.remove('open');
+  });
+  document.querySelectorAll('[data-card-context-info]').forEach(function(btn) {
+    btn.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleCardContextInfo(button, event) {
+  if (event) event.stopPropagation();
+  var popover = button.parentNode.querySelector('.context-info-popover');
+  var shouldOpen = !popover.classList.contains('open');
+  closeCardContextInfo();
+  if (shouldOpen) {
+    popover.classList.add('open');
+    button.setAttribute('aria-expanded', 'true');
+  }
+}
+
 // ── Chip manager ──────────────────────────────────────────────────────────────
 function openChipManager() {
   document.getElementById('chip-modal').classList.add('open');
@@ -778,18 +1071,18 @@ function _renderChipManager() {
     var lbl = document.createElement('span');
     lbl.className   = 'cm-chip-label';
     lbl.style.flex  = '1';
-    lbl.textContent = c.label;
+    lbl.textContent = tr(c.label);
     // Shortcut input
     var scLbl = document.createElement('span');
     scLbl.className   = 'cm-shortcut-label';
-    scLbl.textContent = 'Key';
+    scLbl.textContent = tr('Key');
     var scInp = document.createElement('input');
     scInp.type       = 'text';
     scInp.className  = 'cm-shortcut-input';
     scInp.maxLength  = 1;
     scInp.value      = chipConfig.shortcuts[c.id] || '';
     scInp.placeholder= '—';
-    scInp.title      = 'Press this key to trigger "' + c.label + '" when not typing';
+    scInp.title      = tr('Press this key to trigger “{label}” when not typing').replace('{label}', tr(c.label));
     scInp.addEventListener('input', function() {
       var k = scInp.value.trim().slice(-1); // keep last char
       scInp.value = k;
@@ -799,7 +1092,7 @@ function _renderChipManager() {
     });
     var btn = document.createElement('button');
     btn.className   = 'cm-toggle-btn' + (on ? ' on' : '');
-    btn.textContent = on ? 'On' : 'Off';
+    btn.textContent = on ? tr('On') : tr('Off');
     btn.addEventListener('click', function() { toggleBuiltin(c.id); });
     row.appendChild(lbl);
     row.appendChild(scLbl); row.appendChild(scInp);
@@ -812,7 +1105,7 @@ function _renderChipManager() {
   if (!chipConfig.custom.length) {
     var ph = document.createElement('div');
     ph.style.cssText = 'font-size:12px;color:var(--text-muted);padding:6px 0';
-    ph.textContent = 'No custom buttons yet.';
+    ph.textContent = tr('No custom buttons yet.');
     cl.appendChild(ph);
   } else {
     chipConfig.custom.forEach(function(c) {
@@ -827,7 +1120,7 @@ function _renderChipManager() {
       info.appendChild(nm); info.appendChild(pv);
       var scLbl = document.createElement('span');
       scLbl.className   = 'cm-shortcut-label';
-      scLbl.textContent = 'Key';
+      scLbl.textContent = tr('Key');
       var scInp = document.createElement('input');
       scInp.type       = 'text';
       scInp.className  = 'cm-shortcut-input';
@@ -842,7 +1135,7 @@ function _renderChipManager() {
       });
       var del = document.createElement('button');
       del.className   = 'cm-delete-btn';
-      del.textContent = 'Delete';
+      del.textContent = tr('Delete');
       del.addEventListener('click', function() { deleteCustomChip(c.id); });
       row.appendChild(info);
       row.appendChild(scLbl); row.appendChild(scInp);
@@ -870,10 +1163,10 @@ function addCustomChip() {
   var label  = document.getElementById('cm-new-label').value.trim();
   var prompt = document.getElementById('cm-new-prompt').value.trim();
   var errEl  = document.getElementById('cm-error');
-  if (!label)  { errEl.textContent = 'Please enter a button name.'; return; }
-  if (!prompt) { errEl.textContent = 'Please enter a prompt.'; return; }
+  if (!label)  { errEl.textContent = tr('Please enter a button name.'); return; }
+  if (!prompt) { errEl.textContent = tr('Please enter a prompt.'); return; }
   if (prompt.indexOf('{content}') === -1) {
-    errEl.textContent = 'Add {content} to your prompt (where the card text goes).'; return;
+    errEl.textContent = tr('Add {content} to your prompt (where the card text goes).'); return;
   }
   errEl.textContent = '';
   chipConfig.custom.push({ id: String(Date.now()), label: label, prompt: prompt });
@@ -884,26 +1177,144 @@ function addCustomChip() {
   _renderChipManager();
 }
 
+// ── API-key help (per-provider, written for non-technical users) ─────────────
+var KEY_HELP = {
+  openai: {
+    name: 'OpenAI',
+    intro: 'An API key is like a personal password that lets this add-on talk to ChatGPT’s technology directly. It takes about 2 minutes to create.',
+    steps: [
+      'Click the button below to open the OpenAI key page in your browser.',
+      'Sign in — or create a free account if you don’t have one.',
+      'Click “Create new secret key”, give it any name (e.g. “Anki”) and confirm.',
+      'Copy the key that appears (it starts with “sk-”) — you only see it once!',
+      'Come back here and paste it into the API Key field, then press Save.'
+    ],
+    note: 'You may need to add a small credit balance (e.g. $5) under “Billing” before the key works. Typical usage costs only a few cents per month. Note: a ChatGPT Plus subscription does NOT include API credit — they are separate products.',
+    url: 'https://platform.openai.com/api-keys',
+    urlLabel: 'Open OpenAI Key Page'
+  },
+  gemini: {
+    name: 'Google Gemini',
+    intro: 'Google offers a free tier for Gemini — you can create a key with your normal Google account, no payment details needed.',
+    steps: [
+      'Click the button below to open Google AI Studio in your browser.',
+      'Sign in with your Google account.',
+      'Click “Create API key” and confirm.',
+      'Copy the key that appears (it starts with “AIza”).',
+      'Come back here and paste it into the API Key field, then press Save.'
+    ],
+    note: 'The free tier is generous enough for everyday studying. No credit card required.',
+    url: 'https://aistudio.google.com/apikey',
+    urlLabel: 'Open Google AI Studio'
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    intro: 'OpenRouter gives you access to many different AI models (OpenAI, Google, Meta …) with a single key — including some free models.',
+    steps: [
+      'Click the button below to open the OpenRouter key page in your browser.',
+      'Sign in — you can use a Google or GitHub account.',
+      'Click “Create Key”, give it any name and confirm.',
+      'Copy the key that appears (it starts with “sk-or-”).',
+      'Come back here and paste it into the API Key field, then press Save.'
+    ],
+    note: 'Models ending in “:free” cost nothing but are rate-limited. For faster answers, add a few dollars of credit and pick a paid model.',
+    url: 'https://openrouter.ai/keys',
+    urlLabel: 'Open OpenRouter Key Page'
+  },
+  anthropic: {
+    name: 'Anthropic Claude',
+    intro: 'Anthropic’s Claude models are great at clear, nuanced explanations. A key is created in the Anthropic Console.',
+    steps: [
+      'Click the button below to open the Anthropic Console in your browser.',
+      'Sign in — or create an account if you don’t have one.',
+      'Go to “API Keys” and click “Create Key”.',
+      'Copy the key that appears (it starts with “sk-ant-”) — you only see it once!',
+      'Come back here and paste it into the API Key field, then press Save.'
+    ],
+    note: 'You may need to add a small credit balance under “Plans & Billing” before the key works. Note: a Claude Pro subscription does NOT include API credit — they are separate products.',
+    url: 'https://console.anthropic.com/settings/keys',
+    urlLabel: 'Open Anthropic Console'
+  },
+  llamaserver: {
+    name: 'llama.cpp Server',
+    intro: 'A llama.cpp server usually runs locally and needs NO API key. Only fill the key field if you started your server with the --api-key option.',
+    steps: [
+      'Start your llama.cpp server (llama-server) on your computer or network.',
+      'Enter its address in the “Server Endpoint” field (default: http://localhost:8080).',
+      'Leave the API Key field empty unless your server requires one.',
+      'Press Save — the status line shows whether the server is reachable.'
+    ],
+    note: 'Everything stays on your own machine — free and private.',
+    url: '',
+    urlLabel: ''
+  }
+};
+
+function openKeyHelp() {
+  var prov = document.getElementById('s-provider').value;
+  var h = KEY_HELP[prov];
+  if (!h) return;
+  document.getElementById('kh-title').textContent = tr('Get a {provider} API Key').replace('{provider}', h.name);
+  document.getElementById('kh-intro').textContent = tr(h.intro);
+  var stepsEl = document.getElementById('kh-steps');
+  stepsEl.innerHTML = '';
+  h.steps.forEach(function(s, i) {
+    var row = document.createElement('div'); row.className = 'kh-step';
+    var num = document.createElement('div'); num.className = 'kh-step-num';
+    num.textContent = String(i + 1);
+    var txt = document.createElement('div'); txt.className = 'kh-step-text';
+    txt.textContent = tr(s);
+    row.appendChild(num); row.appendChild(txt);
+    stepsEl.appendChild(row);
+  });
+  document.getElementById('kh-note').textContent = h.note ? tr(h.note) : '';
+  document.getElementById('kh-note').style.display = h.note ? 'block' : 'none';
+  var btn = document.getElementById('kh-open-btn');
+  if (h.url) {
+    btn.style.display = 'block';
+    btn.textContent = tr(h.urlLabel);
+    btn.onclick = function() { sendToPython('open_url', { url: h.url }); };
+  } else {
+    btn.style.display = 'none';
+  }
+  document.getElementById('keyhelp-modal').classList.add('open');
+}
+function closeKeyHelp() {
+  document.getElementById('keyhelp-modal').classList.remove('open');
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 function onProviderChange(resetModel) {
   if (resetModel === undefined) resetModel = true;
   var prov     = document.getElementById('s-provider').value;
   var isOllama = prov === 'ollama';
+  var isLlama  = prov === 'llamaserver';
+  // Local providers don't require an API key; llama.cpp may use an optional one.
   document.getElementById('s-apikey-row').style.display    = isOllama ? 'none' : '';
   document.getElementById('s-ollama-ep-row').style.display = isOllama ? '' : 'none';
   document.getElementById('s-ollama-row').style.display    = isOllama ? '' : 'none';
+  document.getElementById('s-llama-ep-row').style.display  = isLlama  ? '' : 'none';
+  document.getElementById('s-llama-row').style.display     = isLlama  ? '' : 'none';
+  var apikey = document.getElementById('s-apikey');
+  apikey.placeholder = isLlama ? tr('Optional — only if server uses --api-key')
+                               : tr('Enter your API key...');
+  var khl = document.getElementById('s-keyhelp-link');
+  if (khl) khl.textContent = isLlama ? tr('Do I need an API key?') : tr('How do I get an API key?');
   var inp = document.getElementById('s-model');
   var dl  = document.getElementById('s-model-list');
   dl.innerHTML = '';
-  if (!isOllama) {
+  if (isOllama) {
+    inp.placeholder = tr('Fetching models...');
+    sendToPython('check_ollama', {});
+  } else if (isLlama) {
+    inp.placeholder = tr('Model name (e.g. the model your server loaded)');
+    sendToPython('check_llama', {});
+  } else {
     (MODELS[prov] || []).forEach(function(m) {
       var o = document.createElement('option'); o.value = m; dl.appendChild(o);
     });
     if (resetModel && MODELS[prov] && MODELS[prov].length) inp.value = MODELS[prov][0];
-    inp.placeholder = 'Select or type a model...';
-  } else {
-    inp.placeholder = 'Fetching models...';
-    sendToPython('check_ollama', {});
+    inp.placeholder = tr('Select or type a model...');
   }
 }
 
@@ -912,10 +1323,10 @@ function populateOllamaModels(models) {
   var dl  = document.getElementById('s-model-list');
   dl.innerHTML = '';
   if (!models || !models.length) {
-    inp.placeholder = 'No models installed -- set up Ollama first';
+    inp.placeholder = tr('No models installed — set up Ollama first');
   } else {
     models.forEach(function(m) { var o = document.createElement('option'); o.value = m; dl.appendChild(o); });
-    inp.placeholder = 'Select or type a model...';
+    inp.placeholder = tr('Select or type a model...');
     if (!inp.value) inp.value = models[0];
   }
 }
@@ -923,11 +1334,30 @@ function populateOllamaModels(models) {
 function setOllamaStatus(status, models) {
   var el = document.getElementById('ollama-status-line');
   if (status === 'running') {
-    el.innerHTML = '<span style="color:var(--success)">Running</span>';
+    el.innerHTML = '<span style="color:var(--success)">' + esc(tr('Running')) + '</span>';
     if (models && models.length) populateOllamaModels(models);
   } else {
-    el.innerHTML = '<span style="color:var(--error)">Not running</span>' +
-      ' &mdash; <a onclick="sendToPython(\'setup_ollama\',{})">Set up Ollama</a>';
+    el.innerHTML = '<span style="color:var(--error)">' + esc(tr('Not running')) + '</span>' +
+      ' &mdash; <a onclick="sendToPython(\'setup_ollama\',{})">' + esc(tr('Set up Ollama')) + '</a>';
+  }
+}
+
+function setLlamaStatus(status, models) {
+  var el = document.getElementById('llama-status-line');
+  if (!el) return;
+  if (status === 'running') {
+    el.innerHTML = '<span style="color:var(--success)">' + esc(tr('Reachable')) + '</span>';
+    // Offer the loaded model(s) as suggestions, but allow any custom name.
+    var inp = document.getElementById('s-model');
+    var dl  = document.getElementById('s-model-list');
+    dl.innerHTML = '';
+    if (models && models.length) {
+      models.forEach(function(m) { var o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+      if (!inp.value) inp.value = models[0];
+    }
+  } else {
+    el.innerHTML = '<span style="color:var(--error)">' + esc(tr('Not reachable')) + '</span>' +
+      ' &mdash; ' + esc(tr('Check the endpoint and make sure the server is running.'));
   }
 }
 
@@ -940,13 +1370,14 @@ function saveSettings() {
     source:         document.getElementById('s-source').value,
     ownPrompt:      '',
     ollamaEndpoint: document.getElementById('s-ollama-ep').value.trim() || 'http://localhost:11434',
+    llamaEndpoint:  document.getElementById('s-llama-ep').value.trim() || 'http://localhost:8080',
     fontSize:       document.getElementById('s-fontsize').value || '13px'
   };
   setFontSize(data.fontSize);
   console.log('AI Assistant: save_settings provider=' + data.provider + ' model=' + data.model);
   sendToPython('save_settings', data);
   var banner    = document.getElementById('setup-banner');
-  var configured = (data.provider === 'ollama') || !!data.apiKey;
+  var configured = (data.provider === 'ollama') || (data.provider === 'llamaserver') || !!data.apiKey;
   if (configured) {
     banner.style.display = 'none';
     delete banner.dataset.showOnActive;
@@ -964,7 +1395,7 @@ function saveSettings() {
 function updateModelLabel() {
   var p = document.getElementById('s-provider').value;
   var m = document.getElementById('s-model').value || '';
-  var names = {openai:'OpenAI',gemini:'Gemini',openrouter:'OpenRouter',anthropic:'Anthropic',ollama:'Ollama'};
+  var names = {openai:'OpenAI',gemini:'Gemini',openrouter:'OpenRouter',anthropic:'Anthropic',ollama:'Ollama',llamaserver:'llama.cpp'};
   var mn = m.split('/').pop();
   document.getElementById('model-label').textContent = (names[p] || p) + (mn ? ' · ' + mn : '');
 }
@@ -1034,7 +1465,10 @@ function trySendFromEmpty() {
   startChat();
   addMsg('user', text);
   setBusy(true);
-  sendToPython('send_message', { text: text });
+  sendToPython('send_message', {
+    text: text,
+    useCardContext: cardContextEnabled && cardContextAvailable
+  });
 }
 
 // Send from the active-state regular input
@@ -1047,7 +1481,37 @@ function trySend() {
   inp.value = '';
   autoResize(inp);
   setBusy(true);
-  sendToPython('send_message', { text: text });
+  sendToPython('send_message', {
+    text: text,
+    useCardContext: cardContextEnabled && cardContextAvailable
+  });
+}
+
+// ── Smart auto-scroll ─────────────────────────────────────────────────────────
+// Follow the stream only while the user is at (or near) the bottom. As soon
+// as they scroll up to read, stop yanking them down; scrolling back to the
+// bottom re-enables following automatically.
+var _autoFollow = true;
+
+function _chatNearBottom(chat) {
+  return (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < 40;
+}
+
+function scrollChatToBottom(force) {
+  var chat = document.getElementById('chat');
+  if (!chat) return;
+  if (force) _autoFollow = true;
+  if (_autoFollow) chat.scrollTop = chat.scrollHeight;
+}
+
+function initChatScrollTracking() {
+  var chat = document.getElementById('chat');
+  if (!chat) return;
+  chat.addEventListener('scroll', function() {
+    // Programmatic scrolls land at the bottom, so this stays true for them;
+    // only a real user scroll away from the bottom disables following.
+    _autoFollow = _chatNearBottom(chat);
+  }, { passive: true });
 }
 
 function addMsg(role, rawText) {
@@ -1059,7 +1523,7 @@ function addMsg(role, rawText) {
   bub.innerHTML = renderMarkdown(rawText);
   row.appendChild(bub);
   chat.appendChild(row);
-  chat.scrollTop = chat.scrollHeight;
+  scrollChatToBottom(true);
 }
 
 // ── Streaming (called from Python) ────────────────────────────────────────────
@@ -1073,19 +1537,56 @@ function startAIBubble() {
   var bub = document.createElement('div');
   bub.id        = 'streaming-bubble';
   bub.className = 'bubble';
+  var ans = document.createElement('div');   // answer goes here, below any thinking block
+  ans.className = 'stream-answer';
+  bub.appendChild(ans);
   row.appendChild(bub);
   chat.appendChild(row);
   _streamBubble = bub;
+  _streamAnswer = ans;
   _streamRaw    = '';
-  chat.scrollTop = chat.scrollHeight;
+  _streamThink  = '';
+  _thinkEl      = null;
+  scrollChatToBottom(true);
+}
+
+// Reasoning models (e.g. Qwen3, DeepSeek-R1 via llama.cpp / OpenRouter) stream
+// their chain-of-thought separately in delta.reasoning_content. Show it in a
+// collapsible "Thinking" disclosure above the answer so the bubble isn't blank
+// while the model reasons, and so reasoning never pollutes the saved answer.
+function appendThinking(chunk) {
+  if (!_streamBubble) return;
+  if (!_thinkEl) {
+    _thinkEl = document.createElement('details');
+    _thinkEl.open = true;
+    _thinkEl.style.cssText = 'margin-bottom:6px;font-size:0.92em';
+    var sum = document.createElement('summary');
+    sum.textContent = tr('Thinking…');
+    sum.style.cssText = 'color:var(--text-muted);cursor:pointer;user-select:none';
+    var body = document.createElement('div');
+    body.style.cssText = 'color:var(--text-muted);white-space:pre-wrap;margin-top:4px;'
+      + 'padding-left:8px;border-left:2px solid var(--text-muted);opacity:0.85';
+    _thinkEl.appendChild(sum);
+    _thinkEl.appendChild(body);
+    _thinkEl._body = body;
+    _streamBubble.insertBefore(_thinkEl, _streamAnswer);
+  }
+  _streamThink += chunk;
+  _thinkEl._body.textContent = _streamThink;
+  scrollChatToBottom(false);
 }
 
 function appendChunk(chunk) {
   if (!_streamBubble) return;
+  // First real answer token: collapse the thinking disclosure.
+  if (_thinkEl && _streamRaw === '') {
+    _thinkEl.open = false;
+    var s = _thinkEl.querySelector('summary');
+    if (s) s.textContent = tr('Thoughts');
+  }
   _streamRaw += chunk;
-  _streamBubble.innerHTML = renderMarkdown(_streamRaw);
-  var chat = document.getElementById('chat');
-  if (chat) chat.scrollTop = chat.scrollHeight;
+  _streamAnswer.innerHTML = renderMarkdown(_streamRaw);
+  scrollChatToBottom(false);
 }
 
 function finalizeResponse() {
@@ -1093,20 +1594,25 @@ function finalizeResponse() {
     var row = document.getElementById('streaming-row');
     if (row) row.removeAttribute('id');
     _streamBubble.removeAttribute('id');
-    _streamBubble.innerHTML = renderMarkdown(_streamRaw);
+    if (_streamAnswer) _streamAnswer.innerHTML = renderMarkdown(_streamRaw);
   }
   _streamBubble = null;
+  _streamAnswer = null;
   _streamRaw    = '';
+  _streamThink  = '';
+  _thinkEl      = null;
   setBusy(false);
-  var chat = document.getElementById('chat');
-  if (chat) chat.scrollTop = chat.scrollHeight;
+  scrollChatToBottom(false);
 }
 
 function cancelStream() {
   var row = document.getElementById('streaming-row');
   if (row) row.remove();
   _streamBubble = null;
+  _streamAnswer = null;
   _streamRaw    = '';
+  _streamThink  = '';
+  _thinkEl      = null;
   hideTyping();
   setBusy(false);
 }
@@ -1122,7 +1628,7 @@ function receiveErrorAsChat(text) {
   bub.className = 'bubble bubble--error';
   row.appendChild(bub);
   chat.appendChild(row);
-  chat.scrollTop = chat.scrollHeight;
+  scrollChatToBottom(true);
   // Fast typewriter effect — batches chars so it's quick but still animated
   var chars = text.split('');
   var idx = 0;
@@ -1131,7 +1637,7 @@ function receiveErrorAsChat(text) {
     var batch = Math.min(4, chars.length - idx);
     bub.textContent = chars.slice(0, idx + batch).join('');
     idx += batch;
-    chat.scrollTop = chat.scrollHeight;
+    scrollChatToBottom(false);
     if (idx < chars.length) setTimeout(tick, 16);
   }
   setTimeout(tick, 60);
@@ -1150,7 +1656,7 @@ function receiveResponse(text, isError) {
   bub.innerHTML = renderMarkdown(text);
   row.appendChild(bub);
   chat.appendChild(row);
-  chat.scrollTop = chat.scrollHeight;
+  scrollChatToBottom(true);
 }
 
 function receiveChipPrompt(label) {
@@ -1162,7 +1668,7 @@ function receiveChipPrompt(label) {
   chat.appendChild(ind);
   setBusy(true);
   showTyping();
-  chat.scrollTop = chat.scrollHeight;
+  scrollChatToBottom(true);
 }
 
 function showTyping() {
@@ -1176,7 +1682,7 @@ function showTyping() {
   bub.innerHTML = '<div class="typing-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
   row.appendChild(bub);
   chat.appendChild(row);
-  chat.scrollTop = chat.scrollHeight;
+  scrollChatToBottom(true);
 }
 
 function hideTyping() {
@@ -1206,6 +1712,7 @@ function setBusy(s) {
   busy = s;
   updateSendBtn();
   updateStartSendBtn();
+  updateCardContextControls();
 }
 function updateSendBtn() {
   var b = document.getElementById('send-btn');
@@ -1244,5 +1751,88 @@ function renderMarkdown(raw) {
   return s;
 }
 </script>
+
+    <script>
+    /* ── SynapsePro global error reporter ─────────────────────────────────
+       Self-contained (inline styles, no page-CSS dependencies): invisible
+       until a JS error occurs, then shows a dismissible banner with the
+       real traceback so users can report actionable bugs instead of
+       "buttons are not working". Never throws itself. */
+    (function() {
+        if (window.__spReportError) return;
+        function isDark() {
+            try {
+                if (document.documentElement.classList.contains('nightMode') || document.body.classList.contains('nightMode')
+                    || document.documentElement.classList.contains('dark') || document.body.classList.contains('dark')) return true;
+                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } catch (e) { return false; }
+        }
+        function ensureBanner() {
+            var b = document.getElementById('sp-error-banner');
+            if (b) return b;
+            if (!document.body) return null;
+            var dark = isDark();
+            b = document.createElement('div');
+            b.id = 'sp-error-banner';
+            b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483000;display:none;'
+                + 'font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:left;'
+                + 'padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,0.25);border-top:2px solid #dc3545;'
+                + (dark ? 'background:#2c2c2c;color:#e0e0e0;' : 'background:#ffffff;color:#333333;');
+            var btnCss = 'margin-right:8px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;border-radius:7px;'
+                + (dark ? 'background:#303030;color:#e0e0e0;border:1px solid #555;' : 'background:#fff;color:#333;border:1px solid #ccc;');
+            var preCss = 'display:none;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+                + 'font-size:11px;border-radius:6px;padding:8px;margin:0 0 8px 0;'
+                + (dark ? 'background:#404040;border:1px solid #555;' : 'background:#f5f5f5;border:1px solid #ccc;');
+            b.innerHTML = '<div style="font-weight:700;color:#dc3545;margin-bottom:4px;">' + esc(tr('SynapsePro error')) + '</div>'
+                + '<div class="sp-eb-msg" style="margin-bottom:6px;word-break:break-word;"></div>'
+                + '<pre class="sp-eb-pre" style="' + preCss + '"></pre>'
+                + '<div><button type="button" data-spact="details" style="' + btnCss + '">' + esc(tr('Show details')) + '</button>'
+                + '<button type="button" data-spact="copy" style="' + btnCss + '">' + esc(tr('Copy error')) + '</button>'
+                + '<button type="button" data-spact="dismiss" style="' + btnCss + '">' + esc(tr('Dismiss')) + '</button></div>';
+            document.body.appendChild(b);
+            b.addEventListener('click', function(e) {
+                var act = e.target && e.target.getAttribute && e.target.getAttribute('data-spact');
+                if (act === 'dismiss') b.style.display = 'none';
+                if (act === 'details') {
+                    var pre = b.querySelector('.sp-eb-pre');
+                    var open = pre.style.display === 'block';
+                    pre.style.display = open ? 'none' : 'block';
+                    e.target.textContent = open ? tr('Show details') : tr('Hide details');
+                }
+                if (act === 'copy') {
+                    var text = b.querySelector('.sp-eb-msg').textContent + '\n\n' + b.querySelector('.sp-eb-pre').textContent;
+                    try { navigator.clipboard.writeText(text); e.target.textContent = tr('Copied!'); setTimeout(function() { e.target.textContent = tr('Copy error'); }, 2000); } catch (err) {}
+                }
+            });
+            return b;
+        }
+        window.__spReportError = function(err, context) {
+            try {
+                var msg = (err && err.message) ? err.message : String(err);
+                var stack = (err && err.stack) ? String(err.stack) : tr('(no stack trace available)');
+                console.error('[SynapsePro]' + (context ? ' [' + context + ']' : ''), err);
+                var show = function() {
+                    var b = ensureBanner();
+                    if (!b) return;
+                    b.querySelector('.sp-eb-msg').textContent = (context ? context + ': ' : '') + msg
+                        + ' — ' + tr('Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('.sp-eb-pre').textContent = stack;
+                    b.style.display = 'block';
+                };
+                if (document.body) show();
+                else document.addEventListener('DOMContentLoaded', show);
+            } catch (e) { try { console.error('[SynapsePro] error while reporting error', e, err); } catch (e2) {} }
+        };
+        window.addEventListener('error', function(e) {
+            if (e.error && (e.error.message || e.error.stack)) window.__spReportError(e.error, tr('Unexpected error'));
+            else console.warn('[SynapsePro] Background browser error:', e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            if (e.reason && e.reason.synapseCritical === true) window.__spReportError(e.reason, tr('Unexpected error (async)'));
+            else console.warn('[SynapsePro] Background task rejected:', e.reason);
+            e.preventDefault();
+        });
+    })();
+    </script>
 </body>
 </html>

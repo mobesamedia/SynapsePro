@@ -40,6 +40,11 @@ Adding / editing translations
 
 from typing import Dict
 
+try:
+    from .web_translations import WEB_TRANSLATIONS
+except ImportError:
+    from web_translations import WEB_TRANSLATIONS  # type: ignore
+
 
 # --------------------------------------------------------------------- #
 # Active language
@@ -125,7 +130,7 @@ def _(text: str) -> str:
     lang = _current_lang()
     if lang == "en":
         return text
-    entry = TRANSLATIONS.get(text)
+    entry = TRANSLATIONS.get(text) or WEB_TRANSLATIONS.get(text)
     if not entry:
         return text
     return entry.get(lang) or text
@@ -503,6 +508,16 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "zh": "侧边栏",
         "hi": "साइडबार",
     },
+    "Show or hide the launcher sidebar.": {
+        "de": "Launcher-Sidebar ein- oder ausblenden.",
+        "es": "Mostrar u ocultar la barra lateral del lanzador.",
+        "ko": "런처 사이드바를 표시하거나 숨깁니다.",
+        "pt": "Mostrar ou ocultar a barra lateral do iniciador.",
+        "fr": "Afficher ou masquer la barre latérale du lanceur.",
+        "vi": "Hiện hoặc ẩn thanh bên của trình khởi chạy.",
+        "zh": "显示或隐藏启动器侧边栏。",
+        "hi": "लॉन्चर साइडबार दिखाएँ या छिपाएँ।",
+    },
     "Mind Map": {
         "de": "Mindmap",
         "es": "Mapa mental",
@@ -706,6 +721,16 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "vi": "Bộ đếm giờ đã tạm dừng",
         "zh": "计时器已暂停",
         "hi": "टाइमर रुका है",
+    },
+    "Add subjects": {
+        "de": "Fächer hinzufügen",
+        "es": "Añadir asignaturas",
+        "ko": "과목 추가",
+        "pt": "Adicionar disciplinas",
+        "fr": "Ajouter des matières",
+        "vi": "Thêm môn học",
+        "zh": "添加科目",
+        "hi": "विषय जोड़ें",
     },
     "Subject finished": {
         "de": "Fach abgeschlossen",
@@ -1135,16 +1160,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "zh": "加载下一目标中…",
         "hi": "अगला लक्ष्य लोड हो रहा है…",
     },
-    "Current Streak": {
-        "de": "Aktuelle Streak",
-        "es": "Racha actual",
-        "ko": "현재 스트릭",
-        "pt": "Sequência atual",
-        "fr": "Série actuelle",
-        "vi": "Chuỗi hiện tại",
-        "zh": "当前连击",
-        "hi": "वर्तमान स्ट्रीक",
-    },
     "? Day Streak": {
         "de": "? Tage Streak",
         "es": "Racha de ? días",
@@ -1215,6 +1230,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "zh": "等级 {}",
         "hi": "स्तर {}",
     },
+    "Level": {
+        "de": "Level", "es": "Nivel", "ko": "레벨", "pt": "Nível",
+        "fr": "Niveau", "vi": "Cấp độ", "zh": "等级", "hi": "स्तर",
+    },
+    "Daily Fact": {
+        "de": "Täglicher Fakt", "es": "Dato diario", "ko": "오늘의 상식", "pt": "Fato diário",
+        "fr": "Fait du jour", "vi": "Sự thật hằng ngày", "zh": "每日知识", "hi": "दैनिक तथ्य",
+    },
     "{} Day Streak": {
         "de": "{} Tag Streak",
         "es": "Racha de {} día",
@@ -1234,6 +1257,46 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "vi": "Chuỗi {} ngày",
         "zh": "{} 天连击",
         "hi": "{} दिनों की स्ट्रीक",
+    },
+    "{} Day": {
+        "de": "{} Tag",
+        "es": "{} día",
+        "ko": "{}일",
+        "pt": "{} dia",
+        "fr": "{} jour",
+        "vi": "{} ngày",
+        "zh": "{} 天",
+        "hi": "{} दिन",
+    },
+    "{} Days": {
+        "de": "{} Tage",
+        "es": "{} días",
+        "ko": "{}일",
+        "pt": "{} dias",
+        "fr": "{} jours",
+        "vi": "{} ngày",
+        "zh": "{} 天",
+        "hi": "{} दिन",
+    },
+    "Own icon or text…": {
+        "de": "Eigenes Icon oder Text…",
+        "es": "Icono o texto propio…",
+        "ko": "직접 아이콘/텍스트 입력…",
+        "pt": "Ícone ou texto próprio…",
+        "fr": "Icône ou texte personnalisé…",
+        "vi": "Biểu tượng hoặc chữ tùy chọn…",
+        "zh": "自定义图标或文字…",
+        "hi": "अपना आइकन या टेक्स्ट…",
+    },
+    "Only {} XP left": {
+        "de": "Nur noch {} XP",
+        "es": "Solo faltan {} XP",
+        "ko": "XP {} 남음",
+        "pt": "Faltam {} XP",
+        "fr": "Plus que {} XP",
+        "vi": "Còn {} XP",
+        "zh": "还差 {} XP",
+        "hi": "केवल {} XP शेष",
     },
     "Needed for next level: {}": {
         "de": "Für das nächste Level: {}",
@@ -2437,16 +2500,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
 
     # pomodoro.py – Statistics tab
-    "Settings": {
-        "de": "Einstellungen",
-        "es": "Ajustes",
-        "ko": "설정",
-        "pt": "Configurações",
-        "fr": "Paramètres",
-        "vi": "Cài đặt",
-        "zh": "设置",
-        "hi": "सेटिंग्स",
-    },
     "Statistics": {
         "de": "Statistiken",
         "es": "Estadísticas",
@@ -2546,16 +2599,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "vi": "Đã đặt lại thống kê.",
         "zh": "统计已重置。",
         "hi": "सांख्यिकी रीसेट हुई।",
-    },
-    "sessions": {
-        "de": "Einheiten",
-        "es": "sesiones",
-        "ko": "세션",
-        "pt": "sessões",
-        "fr": "sessions",
-        "vi": "phiên",
-        "zh": "场次",
-        "hi": "सत्र",
     },
     # Short weekday labels used in the bar chart
     "Mon": {
@@ -2701,16 +2744,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "vi": "Tỷ lệ thẻ chưa xem trong bộ sưu tập.",
         "zh": "收藏中未查看卡片的百分比。",
         "hi": "संग्रह में न देखे गए कार्डों का प्रतिशत।",
-    },
-    "Statistics": {
-        "de": "Statistik",
-        "es": "Estadísticas",
-        "ko": "통계",
-        "pt": "Estatísticas",
-        "fr": "Statistiques",
-        "vi": "Thống kê",
-        "zh": "统计",
-        "hi": "सांख्यिकी",
     },
     "Consistency": {
         "de": "Beständigkeit",
@@ -5810,17 +5843,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "zh": "始终显示此截止日期（取消勾选 = 自动选择最近的截止日期）",
         "hi": "इस समय सीमा को हमेशा दिखाएं (अनचेक = निकटतम आगामी स्वचालित रूप से चुनें)",
     },
-    "Done": {
-        "de": "Fertig",
-        "es": "Listo",
-        "ko": "완료",
-        "pt": "Concluído",
-        "fr": "Terminé",
-        "vi": "Xong",
-        "zh": "完成",
-        "hi": "हो गया",
-    },
-
     # ================================================================= #
     # configuration.py – DeadlineViewDialog
     # ================================================================= #
@@ -6456,16 +6478,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "zh": "添加任务\u2026",
         "hi": "कार्य जोड़ें\u2026",
     },
-    "+ Add": {
-        "de": "+ Hinzufügen",
-        "es": "+ Añadir",
-        "ko": "+ 추가",
-        "pt": "+ Adicionar",
-        "fr": "+ Ajouter",
-        "vi": "+ Thêm",
-        "zh": "+ 添加",
-        "hi": "+ जोड़ें",
-    },
     "Tag (optional)": {
         "de": "Tag (optional)",
         "es": "Etiqueta (opcional)",
@@ -6660,6 +6672,236 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "zh": "PDF 只能在此查看，不能编辑。请保持文件在原路径；移动或删除将断开链接。",
         "hi": "PDF यहाँ केवल देखे जा सकते हैं, संपादित नहीं किए जा सकते। अपनी फ़ाइलें मूल पथ पर रखें; उन्हें हटाने या स्थानांतरित करने से लिंक टूट जाएगा।",
     },
+    "PDF study viewer": {
+        "de": "PDF-Lernansicht",
+        "es": "Visor de estudio de PDF",
+        "ko": "PDF 학습 뷰어",
+        "pt": "Visualizador de estudo de PDF",
+        "fr": "Visionneuse PDF d’étude",
+        "vi": "Trình xem PDF học tập",
+        "zh": "PDF 学习查看器",
+        "hi": "PDF अध्ययन व्यूअर",
+    },
+    "Select text in text-based PDFs to copy it or prepare an Anki card. Scanned PDFs require OCR.": {
+        "de": "Markiere Text in textbasierten PDFs, um ihn zu kopieren oder eine Anki-Karte vorzubereiten. Eingescannte PDFs benötigen OCR.",
+        "es": "Selecciona texto en PDFs con texto para copiarlo o preparar una tarjeta de Anki. Los PDFs escaneados requieren OCR.",
+        "ko": "텍스트 PDF에서 텍스트를 선택해 복사하거나 Anki 카드를 준비하세요. 스캔된 PDF에는 OCR이 필요합니다.",
+        "pt": "Selecione texto em PDFs com texto para copiá-lo ou preparar um cartão do Anki. PDFs digitalizados exigem OCR.",
+        "fr": "Sélectionnez du texte dans les PDF textuels pour le copier ou préparer une carte Anki. Les PDF numérisés nécessitent l’OCR.",
+        "vi": "Chọn văn bản trong PDF có lớp chữ để sao chép hoặc chuẩn bị thẻ Anki. PDF quét cần OCR.",
+        "zh": "在含文本的 PDF 中选择文字，即可复制或准备 Anki 卡片。扫描版 PDF 需要 OCR。",
+        "hi": "टेक्स्ट वाले PDF में पाठ चुनकर उसे कॉपी करें या Anki कार्ड तैयार करें। स्कैन किए गए PDF के लिए OCR आवश्यक है।",
+    },
+    "Card front": {
+        "de": "Kartenvorderseite",
+        "es": "Anverso de la tarjeta",
+        "ko": "카드 앞면",
+        "pt": "Frente do cartão",
+        "fr": "Recto de la carte",
+        "vi": "Mặt trước thẻ",
+        "zh": "卡片正面",
+        "hi": "कार्ड का सामने वाला भाग",
+    },
+    "Card back": {
+        "de": "Kartenrückseite",
+        "es": "Reverso de la tarjeta",
+        "ko": "카드 뒷면",
+        "pt": "Verso do cartão",
+        "fr": "Verso de la carte",
+        "vi": "Mặt sau thẻ",
+        "zh": "卡片背面",
+        "hi": "कार्ड का पिछला भाग",
+    },
+    "Open in Anki": {
+        "de": "In Anki öffnen",
+        "es": "Abrir en Anki",
+        "ko": "Anki에서 열기",
+        "pt": "Abrir no Anki",
+        "fr": "Ouvrir dans Anki",
+        "vi": "Mở trong Anki",
+        "zh": "在 Anki 中打开",
+        "hi": "Anki में खोलें",
+    },
+    "Clear": {
+        "de": "Leeren",
+        "es": "Borrar",
+        "ko": "지우기",
+        "pt": "Limpar",
+        "fr": "Effacer",
+        "vi": "Xóa",
+        "zh": "清空",
+        "hi": "साफ़ करें",
+    },
+    "Front saved": {
+        "de": "Vorderseite gespeichert",
+        "es": "Anverso guardado",
+        "ko": "앞면 저장됨",
+        "pt": "Frente salva",
+        "fr": "Recto enregistré",
+        "vi": "Đã lưu mặt trước",
+        "zh": "正面已保存",
+        "hi": "सामने वाला भाग सहेजा गया",
+    },
+    "Back saved": {
+        "de": "Rückseite gespeichert",
+        "es": "Reverso guardado",
+        "ko": "뒷면 저장됨",
+        "pt": "Verso salvo",
+        "fr": "Verso enregistré",
+        "vi": "Đã lưu mặt sau",
+        "zh": "背面已保存",
+        "hi": "पिछला भाग सहेजा गया",
+    },
+    "Front": {
+        "de": "Vorderseite",
+        "es": "Anverso",
+        "ko": "앞면",
+        "pt": "Frente",
+        "fr": "Recto",
+        "vi": "Mặt trước",
+        "zh": "正面",
+        "hi": "सामने",
+    },
+    "Back side": {
+        "de": "Rückseite",
+        "es": "Reverso",
+        "ko": "뒷면",
+        "pt": "Verso",
+        "fr": "Verso",
+        "vi": "Mặt sau",
+        "zh": "背面",
+        "hi": "पीछे",
+    },
+    "Select some PDF text first.": {
+        "de": "Markiere zuerst Text in der PDF.",
+        "es": "Selecciona primero texto del PDF.",
+        "ko": "먼저 PDF 텍스트를 선택하세요.",
+        "pt": "Selecione primeiro um texto do PDF.",
+        "fr": "Sélectionnez d’abord du texte dans le PDF.",
+        "vi": "Hãy chọn văn bản PDF trước.",
+        "zh": "请先选择 PDF 文本。",
+        "hi": "पहले PDF का कुछ पाठ चुनें।",
+    },
+    "Discard the unfinished card draft?": {
+        "de": "Den unfertigen Kartenentwurf verwerfen?",
+        "es": "¿Descartar el borrador de tarjeta sin terminar?",
+        "ko": "완성되지 않은 카드 초안을 버릴까요?",
+        "pt": "Descartar o rascunho de cartão inacabado?",
+        "fr": "Supprimer le brouillon de carte inachevé ?",
+        "vi": "Hủy bản nháp thẻ chưa hoàn thành?",
+        "zh": "放弃未完成的卡片草稿吗？",
+        "hi": "अधूरा कार्ड ड्राफ़्ट छोड़ दें?",
+    },
+    "Selected text copied": {
+        "de": "Markierter Text kopiert",
+        "es": "Texto seleccionado copiado",
+        "ko": "선택한 텍스트가 복사됨",
+        "pt": "Texto selecionado copiado",
+        "fr": "Texte sélectionné copié",
+        "vi": "Đã sao chép văn bản đã chọn",
+        "zh": "已复制所选文本",
+        "hi": "चुना हुआ पाठ कॉपी किया गया",
+    },
+    "Source": {
+        "de": "Quelle",
+        "es": "Fuente",
+        "ko": "출처",
+        "pt": "Fonte",
+        "fr": "Source",
+        "vi": "Nguồn",
+        "zh": "来源",
+        "hi": "स्रोत",
+    },
+    "Page": {
+        "de": "Seite",
+        "es": "Página",
+        "ko": "페이지",
+        "pt": "Página",
+        "fr": "Page",
+        "vi": "Trang",
+        "zh": "页",
+        "hi": "पृष्ठ",
+    },
+    "Pages": {
+        "de": "Seiten",
+        "es": "Páginas",
+        "ko": "페이지",
+        "pt": "Páginas",
+        "fr": "Pages",
+        "vi": "Trang",
+        "zh": "页",
+        "hi": "पृष्ठ",
+    },
+    "Card draft opened in Anki": {
+        "de": "Kartenentwurf in Anki geöffnet",
+        "es": "Borrador de tarjeta abierto en Anki",
+        "ko": "Anki에서 카드 초안을 열었습니다",
+        "pt": "Rascunho de cartão aberto no Anki",
+        "fr": "Brouillon de carte ouvert dans Anki",
+        "vi": "Đã mở bản nháp thẻ trong Anki",
+        "zh": "已在 Anki 中打开卡片草稿",
+        "hi": "कार्ड ड्राफ़्ट Anki में खोला गया",
+    },
+    "Select text for the card front first.": {
+        "de": "Markiere zuerst Text für die Kartenvorderseite.",
+        "es": "Selecciona primero texto para el anverso de la tarjeta.",
+        "ko": "먼저 카드 앞면에 넣을 텍스트를 선택하세요.",
+        "pt": "Selecione primeiro o texto para a frente do cartão.",
+        "fr": "Sélectionnez d’abord le texte du recto de la carte.",
+        "vi": "Hãy chọn văn bản cho mặt trước của thẻ trước.",
+        "zh": "请先选择卡片正面的文本。",
+        "hi": "पहले कार्ड के सामने के लिए पाठ चुनें।",
+    },
+    "The selected text is too long for a card.": {
+        "de": "Der markierte Text ist zu lang für eine Karte.",
+        "es": "El texto seleccionado es demasiado largo para una tarjeta.",
+        "ko": "선택한 텍스트가 카드에 넣기에는 너무 깁니다.",
+        "pt": "O texto selecionado é longo demais para um cartão.",
+        "fr": "Le texte sélectionné est trop long pour une carte.",
+        "vi": "Văn bản đã chọn quá dài cho một thẻ.",
+        "zh": "所选文本太长，无法用于一张卡片。",
+        "hi": "चुना हुआ पाठ एक कार्ड के लिए बहुत लंबा है।",
+    },
+    "The Add Cards window already contains an unfinished note. Finish or clear it, then try again.": {
+        "de": "Im Hinzufügen-Fenster befindet sich bereits eine unfertige Notiz. Schließe sie ab oder leere sie und versuche es erneut.",
+        "es": "La ventana Añadir tarjetas ya contiene una nota sin terminar. Termínala o bórrala y vuelve a intentarlo.",
+        "ko": "카드 추가 창에 완성되지 않은 노트가 이미 있습니다. 완료하거나 지운 뒤 다시 시도하세요.",
+        "pt": "A janela Adicionar cartões já contém uma nota inacabada. Conclua-a ou limpe-a e tente novamente.",
+        "fr": "La fenêtre Ajouter contient déjà une note inachevée. Terminez-la ou effacez-la, puis réessayez.",
+        "vi": "Cửa sổ Thêm thẻ đã có một ghi chú chưa hoàn thành. Hãy hoàn tất hoặc xóa nó rồi thử lại.",
+        "zh": "“添加卡片”窗口中已有未完成的笔记。请先完成或清空它，然后重试。",
+        "hi": "कार्ड जोड़ें विंडो में पहले से एक अधूरा नोट है। उसे पूरा या साफ़ करके फिर प्रयास करें।",
+    },
+    "Could not copy the selected text.": {
+        "de": "Der markierte Text konnte nicht kopiert werden.",
+        "es": "No se pudo copiar el texto seleccionado.",
+        "ko": "선택한 텍스트를 복사할 수 없습니다.",
+        "pt": "Não foi possível copiar o texto selecionado.",
+        "fr": "Impossible de copier le texte sélectionné.",
+        "vi": "Không thể sao chép văn bản đã chọn.",
+        "zh": "无法复制所选文本。",
+        "hi": "चुना हुआ पाठ कॉपी नहीं किया जा सका।",
+    },
+    "The selected text is too long to copy at once.": {
+        "de": "Der markierte Text ist zu lang, um ihn auf einmal zu kopieren.",
+        "es": "El texto seleccionado es demasiado largo para copiarlo de una vez.",
+        "ko": "선택한 텍스트가 너무 길어 한 번에 복사할 수 없습니다.",
+        "pt": "O texto selecionado é longo demais para ser copiado de uma só vez.",
+        "fr": "Le texte sélectionné est trop long pour être copié en une seule fois.",
+        "vi": "Văn bản đã chọn quá dài để sao chép cùng một lúc.",
+        "zh": "所选文本太长，无法一次复制。",
+        "hi": "चुना हुआ पाठ एक बार में कॉपी करने के लिए बहुत लंबा है।",
+    },
+    "Could not open the card draft in Anki.": {
+        "de": "Der Kartenentwurf konnte nicht in Anki geöffnet werden.",
+        "es": "No se pudo abrir el borrador de tarjeta en Anki.",
+        "ko": "Anki에서 카드 초안을 열 수 없습니다.",
+        "pt": "Não foi possível abrir o rascunho de cartão no Anki.",
+        "fr": "Impossible d’ouvrir le brouillon de carte dans Anki.",
+        "vi": "Không thể mở bản nháp thẻ trong Anki.",
+        "zh": "无法在 Anki 中打开卡片草稿。",
+        "hi": "कार्ड ड्राफ़्ट Anki में नहीं खोला जा सका।",
+    },
 
     # ================================================================= #
     # web_notebook/pdf_viewer.html – Relink & tooltip strings
@@ -6802,10 +7044,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "de": "Mit KI erstellen", "es": "Crear con IA", "ko": "AI로 만들기", "pt": "Criar com IA",
         "fr": "Créer avec IA", "vi": "Tạo bằng AI", "zh": "用AI创建", "hi": "AI से बनाएं",
     },
-    "Import": {
-        "de": "Importieren", "es": "Importar", "ko": "가져오기", "pt": "Importar",
-        "fr": "Importer", "vi": "Nhập", "zh": "导入", "hi": "आयात करें",
-    },
     "Export": {
         "de": "Exportieren", "es": "Exportar", "ko": "내보내기", "pt": "Exportar",
         "fr": "Exporter", "vi": "Xuất", "zh": "导出", "hi": "निर्यात करें",
@@ -6903,6 +7141,957 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "vi": "Nhấp chuột phải vào nút để xem tùy chọn. Kéo chấm xanh để tạo nút mới.",
         "zh": "右键点击节点查看选项。拖动蓝色点创建新节点。",
         "hi": "विकल्पों के लिए नोड पर राइट-क्लिक करें। नए नोड बनाने के लिए नीले बिंदु को खींचें।",
+    },
+
+    # ── Measurable daily challenges (gamification) ─────────────────────────
+    "Review {} cards today.": {
+        "de": "Wiederhole heute {} Karten.", "es": "Repasa {} tarjetas hoy.", "ko": "오늘 카드 {}장을 복습하세요.", "pt": "Revise {} cartões hoje.",
+        "fr": "Révisez {} cartes aujourd'hui.", "vi": "Ôn {} thẻ hôm nay.", "zh": "今天复习 {} 张卡片。", "hi": "आज {} कार्ड दोहराएं।",
+    },
+    "Learn {} new cards today.": {
+        "de": "Lerne heute {} neue Karten.", "es": "Aprende {} tarjetas nuevas hoy.", "ko": "오늘 새 카드 {}장을 학습하세요.", "pt": "Aprenda {} cartões novos hoje.",
+        "fr": "Apprenez {} nouvelles cartes aujourd'hui.", "vi": "Học {} thẻ mới hôm nay.", "zh": "今天学习 {} 张新卡片。", "hi": "आज {} नए कार्ड सीखें।",
+    },
+    "Study for {} minutes today.": {
+        "de": "Lerne heute {} Minuten.", "es": "Estudia {} minutos hoy.", "ko": "오늘 {}분 동안 공부하세요.", "pt": "Estude por {} minutos hoje.",
+        "fr": "Étudiez {} minutes aujourd'hui.", "vi": "Học {} phút hôm nay.", "zh": "今天学习 {} 分钟。", "hi": "आज {} मिनट पढ़ाई करें।",
+    },
+    "Review cards from {} different decks today.": {
+        "de": "Wiederhole heute Karten aus {} verschiedenen Stapeln.", "es": "Repasa hoy tarjetas de {} mazos diferentes.",
+        "ko": "오늘 서로 다른 덱 {}개의 카드를 복습하세요.", "pt": "Revise hoje cartões de {} baralhos diferentes.",
+        "fr": "Révisez aujourd'hui des cartes de {} paquets différents.", "vi": "Hôm nay ôn thẻ từ {} bộ thẻ khác nhau.",
+        "zh": "今天复习来自 {} 个不同牌组的卡片。", "hi": "आज {} अलग-अलग डेक के कार्ड दोहराएं।",
+    },
+    "Challenge not completed yet ({}/{}).": {
+        "de": "Challenge noch nicht geschafft ({}/{}).", "es": "Desafío aún no completado ({}/{}).", "ko": "아직 챌린지를 완료하지 못했습니다 ({}/{}).",
+        "pt": "Desafio ainda não concluído ({}/{}).", "fr": "Défi pas encore accompli ({}/{}).", "vi": "Thử thách chưa hoàn thành ({}/{}).",
+        "zh": "挑战尚未完成（{}/{}）。", "hi": "चुनौती अभी पूरी नहीं हुई ({}/{})।",
+    },
+    "Claim +{} XP": {
+        "de": "+{} XP abholen", "es": "Reclamar +{} XP", "ko": "+{} XP 받기", "pt": "Resgatar +{} XP",
+        "fr": "Récupérer +{} XP", "vi": "Nhận +{} XP", "zh": "领取 +{} XP", "hi": "+{} XP प्राप्त करें",
+    },
+
+    # ── Focus Music player ────────────────────────────────────────────────
+    "Previous track": {
+        "de": "Vorheriger Titel", "es": "Pista anterior", "ko": "이전 트랙", "pt": "Faixa anterior",
+        "fr": "Piste précédente", "vi": "Bản trước", "zh": "上一曲", "hi": "पिछला ट्रैक",
+    },
+    "Next track": {
+        "de": "Nächster Titel", "es": "Pista siguiente", "ko": "다음 트랙", "pt": "Próxima faixa",
+        "fr": "Piste suivante", "vi": "Bản tiếp theo", "zh": "下一曲", "hi": "अगला ट्रैक",
+    },
+
+    # ── Pomodoro (single-page dialog) ─────────────────────────────────────
+    "sessions": {
+        "de": "Einheiten", "es": "sesiones", "ko": "세션", "pt": "sessões",
+        "fr": "sessions", "vi": "phiên", "zh": "次", "hi": "सत्र",
+    },
+
+    # ── Ollama setup assistant (AI Assistant) ─────────────────────────────
+    "Set up Ollama – Local AI": {
+        "de": "Ollama einrichten – Lokale KI", "es": "Configurar Ollama – IA local", "ko": "Ollama 설정 – 로컬 AI", "pt": "Configurar Ollama – IA local",
+        "fr": "Configurer Ollama – IA locale", "vi": "Thiết lập Ollama – AI cục bộ", "zh": "设置 Ollama – 本地 AI", "hi": "Ollama सेटअप – लोकल AI",
+    },
+    "Checking Ollama status…": {
+        "de": "Prüfe Ollama-Status…", "es": "Comprobando el estado de Ollama…", "ko": "Ollama 상태 확인 중…", "pt": "Verificando o status do Ollama…",
+        "fr": "Vérification du statut d'Ollama…", "vi": "Đang kiểm tra trạng thái Ollama…", "zh": "正在检查 Ollama 状态…", "hi": "Ollama स्थिति जाँची जा रही है…",
+    },
+    "Ollama is not running": {
+        "de": "Ollama läuft nicht", "es": "Ollama no se está ejecutando", "ko": "Ollama가 실행되고 있지 않습니다", "pt": "O Ollama não está em execução",
+        "fr": "Ollama n'est pas lancé", "vi": "Ollama chưa chạy", "zh": "Ollama 未运行", "hi": "Ollama नहीं चल रहा है",
+    },
+    "Ollama lets you run AI models locally — free, private, no API key needed. Nothing you type ever leaves your computer.": {
+        "de": "Mit Ollama laufen KI-Modelle lokal auf deinem Rechner — kostenlos, privat, ohne API-Key. Nichts, was du eingibst, verlässt deinen Computer.",
+        "es": "Ollama ejecuta modelos de IA localmente: gratis, privado y sin clave API. Nada de lo que escribes sale de tu ordenador.",
+        "ko": "Ollama는 AI 모델을 내 컴퓨터에서 로컬로 실행합니다 — 무료, 프라이빗, API 키 불필요. 입력한 내용은 컴퓨터 밖으로 나가지 않습니다.",
+        "pt": "O Ollama executa modelos de IA localmente — grátis, privado, sem chave de API. Nada do que você digita sai do seu computador.",
+        "fr": "Ollama exécute des modèles d'IA localement — gratuit, privé, sans clé API. Rien de ce que vous tapez ne quitte votre ordinateur.",
+        "vi": "Ollama chạy các mô hình AI ngay trên máy của bạn — miễn phí, riêng tư, không cần khóa API. Những gì bạn nhập không rời khỏi máy tính.",
+        "zh": "Ollama 让 AI 模型完全在本地运行——免费、私密、无需 API 密钥。您输入的内容不会离开您的电脑。",
+        "hi": "Ollama AI मॉडल को आपके कंप्यूटर पर लोकल रूप से चलाता है — मुफ़्त, निजी, बिना API कुंजी। आपका टाइप किया कुछ भी कंप्यूटर से बाहर नहीं जाता।",
+    },
+    "<b>Step 1:</b> Click <i>Download Ollama</i> below and choose the macOS version.<br><b>Step 2:</b> Open the downloaded file and drag Ollama into your Applications folder.<br><b>Step 3:</b> Launch Ollama once — a small icon appears in the menu bar. That means it is running in the background.<br><b>Step 4:</b> Come back here and click <i>Check again</i>.": {
+        "de": "<b>Schritt 1:</b> Klicke unten auf <i>Ollama herunterladen</i> und wähle die macOS-Version.<br><b>Schritt 2:</b> Öffne die heruntergeladene Datei und ziehe Ollama in deinen Programme-Ordner.<br><b>Schritt 3:</b> Starte Ollama einmal — ein kleines Symbol erscheint in der Menüleiste. Das heißt, es läuft im Hintergrund.<br><b>Schritt 4:</b> Komm hierher zurück und klicke auf <i>Erneut prüfen</i>.",
+        "es": "<b>Paso 1:</b> Haz clic abajo en <i>Descargar Ollama</i> y elige la versión para macOS.<br><b>Paso 2:</b> Abre el archivo descargado y arrastra Ollama a tu carpeta de Aplicaciones.<br><b>Paso 3:</b> Inicia Ollama una vez — aparecerá un pequeño icono en la barra de menús. Eso significa que se ejecuta en segundo plano.<br><b>Paso 4:</b> Vuelve aquí y pulsa <i>Comprobar de nuevo</i>.",
+        "ko": "<b>1단계:</b> 아래의 <i>Ollama 다운로드</i>를 클릭하고 macOS 버전을 선택하세요.<br><b>2단계:</b> 다운로드한 파일을 열고 Ollama를 응용 프로그램 폴더로 드래그하세요.<br><b>3단계:</b> Ollama를 한 번 실행하세요 — 메뉴 막대에 작은 아이콘이 나타나면 백그라운드에서 실행 중이라는 뜻입니다.<br><b>4단계:</b> 여기로 돌아와 <i>다시 확인</i>을 클릭하세요.",
+        "pt": "<b>Passo 1:</b> Clique em <i>Baixar Ollama</i> abaixo e escolha a versão para macOS.<br><b>Passo 2:</b> Abra o arquivo baixado e arraste o Ollama para a pasta Aplicativos.<br><b>Passo 3:</b> Inicie o Ollama uma vez — um pequeno ícone aparece na barra de menus. Isso significa que ele está rodando em segundo plano.<br><b>Passo 4:</b> Volte aqui e clique em <i>Verificar novamente</i>.",
+        "fr": "<b>Étape 1 :</b> Cliquez sur <i>Télécharger Ollama</i> ci-dessous et choisissez la version macOS.<br><b>Étape 2 :</b> Ouvrez le fichier téléchargé et faites glisser Ollama dans votre dossier Applications.<br><b>Étape 3 :</b> Lancez Ollama une fois — une petite icône apparaît dans la barre de menus. Cela signifie qu'il tourne en arrière-plan.<br><b>Étape 4 :</b> Revenez ici et cliquez sur <i>Vérifier à nouveau</i>.",
+        "vi": "<b>Bước 1:</b> Nhấn <i>Tải Ollama</i> bên dưới và chọn phiên bản macOS.<br><b>Bước 2:</b> Mở tệp đã tải và kéo Ollama vào thư mục Applications.<br><b>Bước 3:</b> Khởi động Ollama một lần — một biểu tượng nhỏ xuất hiện trên thanh menu, nghĩa là nó đang chạy nền.<br><b>Bước 4:</b> Quay lại đây và nhấn <i>Kiểm tra lại</i>.",
+        "zh": "<b>第 1 步：</b>点击下方的<i>下载 Ollama</i>并选择 macOS 版本。<br><b>第 2 步：</b>打开下载的文件，将 Ollama 拖入“应用程序”文件夹。<br><b>第 3 步：</b>启动一次 Ollama — 菜单栏会出现一个小图标，表示它正在后台运行。<br><b>第 4 步：</b>回到这里并点击<i>重新检查</i>。",
+        "hi": "<b>चरण 1:</b> नीचे <i>Ollama डाउनलोड करें</i> पर क्लिक करें और macOS संस्करण चुनें।<br><b>चरण 2:</b> डाउनलोड की गई फ़ाइल खोलें और Ollama को Applications फ़ोल्डर में खींचें।<br><b>चरण 3:</b> Ollama एक बार चलाएँ — मेनू बार में एक छोटा आइकन दिखेगा, यानी यह बैकग्राउंड में चल रहा है।<br><b>चरण 4:</b> यहाँ वापस आएँ और <i>फिर से जाँचें</i> पर क्लिक करें।",
+    },
+    "<b>Step 1:</b> Click <i>Download Ollama</i> below and choose the Windows version.<br><b>Step 2:</b> Run the downloaded installer (OllamaSetup.exe) and follow the steps.<br><b>Step 3:</b> After installation Ollama starts automatically and keeps running in the background (look for its icon in the system tray).<br><b>Step 4:</b> Come back here and click <i>Check again</i>.": {
+        "de": "<b>Schritt 1:</b> Klicke unten auf <i>Ollama herunterladen</i> und wähle die Windows-Version.<br><b>Schritt 2:</b> Führe den heruntergeladenen Installer (OllamaSetup.exe) aus und folge den Schritten.<br><b>Schritt 3:</b> Nach der Installation startet Ollama automatisch und läuft im Hintergrund weiter (achte auf das Symbol im Infobereich).<br><b>Schritt 4:</b> Komm hierher zurück und klicke auf <i>Erneut prüfen</i>.",
+        "es": "<b>Paso 1:</b> Haz clic abajo en <i>Descargar Ollama</i> y elige la versión para Windows.<br><b>Paso 2:</b> Ejecuta el instalador descargado (OllamaSetup.exe) y sigue los pasos.<br><b>Paso 3:</b> Tras la instalación, Ollama se inicia automáticamente y sigue ejecutándose en segundo plano (busca su icono en la bandeja del sistema).<br><b>Paso 4:</b> Vuelve aquí y pulsa <i>Comprobar de nuevo</i>.",
+        "ko": "<b>1단계:</b> 아래의 <i>Ollama 다운로드</i>를 클릭하고 Windows 버전을 선택하세요.<br><b>2단계:</b> 다운로드한 설치 파일(OllamaSetup.exe)을 실행하고 단계를 따르세요.<br><b>3단계:</b> 설치 후 Ollama는 자동으로 시작되어 백그라운드에서 계속 실행됩니다(시스템 트레이의 아이콘을 확인하세요).<br><b>4단계:</b> 여기로 돌아와 <i>다시 확인</i>을 클릭하세요.",
+        "pt": "<b>Passo 1:</b> Clique em <i>Baixar Ollama</i> abaixo e escolha a versão para Windows.<br><b>Passo 2:</b> Execute o instalador baixado (OllamaSetup.exe) e siga as etapas.<br><b>Passo 3:</b> Após a instalação, o Ollama inicia automaticamente e continua em segundo plano (procure o ícone na bandeja do sistema).<br><b>Passo 4:</b> Volte aqui e clique em <i>Verificar novamente</i>.",
+        "fr": "<b>Étape 1 :</b> Cliquez sur <i>Télécharger Ollama</i> ci-dessous et choisissez la version Windows.<br><b>Étape 2 :</b> Lancez l'installateur téléchargé (OllamaSetup.exe) et suivez les étapes.<br><b>Étape 3 :</b> Après l'installation, Ollama démarre automatiquement et reste actif en arrière-plan (cherchez son icône dans la zone de notification).<br><b>Étape 4 :</b> Revenez ici et cliquez sur <i>Vérifier à nouveau</i>.",
+        "vi": "<b>Bước 1:</b> Nhấn <i>Tải Ollama</i> bên dưới và chọn phiên bản Windows.<br><b>Bước 2:</b> Chạy trình cài đặt đã tải (OllamaSetup.exe) và làm theo các bước.<br><b>Bước 3:</b> Sau khi cài đặt, Ollama tự khởi động và chạy nền (tìm biểu tượng ở khay hệ thống).<br><b>Bước 4:</b> Quay lại đây và nhấn <i>Kiểm tra lại</i>.",
+        "zh": "<b>第 1 步：</b>点击下方的<i>下载 Ollama</i>并选择 Windows 版本。<br><b>第 2 步：</b>运行下载的安装程序（OllamaSetup.exe）并按步骤操作。<br><b>第 3 步：</b>安装后 Ollama 会自动启动并在后台持续运行（可在系统托盘中找到它的图标）。<br><b>第 4 步：</b>回到这里并点击<i>重新检查</i>。",
+        "hi": "<b>चरण 1:</b> नीचे <i>Ollama डाउनलोड करें</i> पर क्लिक करें और Windows संस्करण चुनें।<br><b>चरण 2:</b> डाउनलोड किया इंस्टॉलर (OllamaSetup.exe) चलाएँ और चरणों का पालन करें।<br><b>चरण 3:</b> इंस्टॉल के बाद Ollama अपने आप शुरू होता है और बैकग्राउंड में चलता रहता है (सिस्टम ट्रे में इसका आइकन देखें)।<br><b>चरण 4:</b> यहाँ वापस आएँ और <i>फिर से जाँचें</i> पर क्लिक करें।",
+    },
+    "<b>Step 1:</b> Open a terminal window.<br><b>Step 2:</b> Run this command:<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>Step 3:</b> Start it with <code>ollama serve</code> (on most systems it starts automatically).<br><b>Step 4:</b> Come back here and click <i>Check again</i>.": {
+        "de": "<b>Schritt 1:</b> Öffne ein Terminal-Fenster.<br><b>Schritt 2:</b> Führe diesen Befehl aus:<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>Schritt 3:</b> Starte es mit <code>ollama serve</code> (auf den meisten Systemen startet es automatisch).<br><b>Schritt 4:</b> Komm hierher zurück und klicke auf <i>Erneut prüfen</i>.",
+        "es": "<b>Paso 1:</b> Abre una ventana de terminal.<br><b>Paso 2:</b> Ejecuta este comando:<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>Paso 3:</b> Inícialo con <code>ollama serve</code> (en la mayoría de los sistemas se inicia automáticamente).<br><b>Paso 4:</b> Vuelve aquí y pulsa <i>Comprobar de nuevo</i>.",
+        "ko": "<b>1단계:</b> 터미널 창을 여세요.<br><b>2단계:</b> 이 명령을 실행하세요:<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>3단계:</b> <code>ollama serve</code>로 시작하세요(대부분의 시스템에서는 자동으로 시작됩니다).<br><b>4단계:</b> 여기로 돌아와 <i>다시 확인</i>을 클릭하세요.",
+        "pt": "<b>Passo 1:</b> Abra uma janela de terminal.<br><b>Passo 2:</b> Execute este comando:<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>Passo 3:</b> Inicie com <code>ollama serve</code> (na maioria dos sistemas ele inicia automaticamente).<br><b>Passo 4:</b> Volte aqui e clique em <i>Verificar novamente</i>.",
+        "fr": "<b>Étape 1 :</b> Ouvrez une fenêtre de terminal.<br><b>Étape 2 :</b> Exécutez cette commande :<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>Étape 3 :</b> Démarrez-le avec <code>ollama serve</code> (sur la plupart des systèmes, il démarre automatiquement).<br><b>Étape 4 :</b> Revenez ici et cliquez sur <i>Vérifier à nouveau</i>.",
+        "vi": "<b>Bước 1:</b> Mở cửa sổ terminal.<br><b>Bước 2:</b> Chạy lệnh này:<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>Bước 3:</b> Khởi động bằng <code>ollama serve</code> (đa số hệ thống sẽ tự khởi động).<br><b>Bước 4:</b> Quay lại đây và nhấn <i>Kiểm tra lại</i>.",
+        "zh": "<b>第 1 步：</b>打开终端窗口。<br><b>第 2 步：</b>运行此命令：<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>第 3 步：</b>用 <code>ollama serve</code> 启动（大多数系统会自动启动）。<br><b>第 4 步：</b>回到这里并点击<i>重新检查</i>。",
+        "hi": "<b>चरण 1:</b> टर्मिनल विंडो खोलें।<br><b>चरण 2:</b> यह कमांड चलाएँ:<br><code>curl -fsSL https://ollama.com/install.sh | sh</code><br><b>चरण 3:</b> <code>ollama serve</code> से शुरू करें (अधिकांश सिस्टम पर यह अपने आप शुरू होता है)।<br><b>चरण 4:</b> यहाँ वापस आएँ और <i>फिर से जाँचें</i> पर क्लिक करें।",
+    },
+    "Download Ollama": {
+        "de": "Ollama herunterladen", "es": "Descargar Ollama", "ko": "Ollama 다운로드", "pt": "Baixar Ollama",
+        "fr": "Télécharger Ollama", "vi": "Tải Ollama", "zh": "下载 Ollama", "hi": "Ollama डाउनलोड करें",
+    },
+    "Check again": {
+        "de": "Erneut prüfen", "es": "Comprobar de nuevo", "ko": "다시 확인", "pt": "Verificar novamente",
+        "fr": "Vérifier à nouveau", "vi": "Kiểm tra lại", "zh": "重新检查", "hi": "फिर से जाँचें",
+    },
+    "Choose a Model": {
+        "de": "Modell auswählen", "es": "Elige un modelo", "ko": "모델 선택", "pt": "Escolha um modelo",
+        "fr": "Choisissez un modèle", "vi": "Chọn mô hình", "zh": "选择模型", "hi": "मॉडल चुनें",
+    },
+    "Installed models:": {
+        "de": "Installierte Modelle:", "es": "Modelos instalados:", "ko": "설치된 모델:", "pt": "Modelos instalados:",
+        "fr": "Modèles installés :", "vi": "Mô hình đã cài:", "zh": "已安装的模型：", "hi": "इंस्टॉल किए गए मॉडल:",
+    },
+    "Recommended models to download:": {
+        "de": "Empfohlene Modelle zum Download:", "es": "Modelos recomendados para descargar:", "ko": "다운로드 추천 모델:", "pt": "Modelos recomendados para baixar:",
+        "fr": "Modèles recommandés à télécharger :", "vi": "Mô hình đề xuất để tải:", "zh": "推荐下载的模型：", "hi": "डाउनलोड हेतु अनुशंसित मॉडल:",
+    },
+    "Pull": {
+        "de": "Laden", "es": "Descargar", "ko": "받기", "pt": "Baixar",
+        "fr": "Télécharger", "vi": "Tải", "zh": "拉取", "hi": "डाउनलोड",
+    },
+    "Use Selected Model": {
+        "de": "Ausgewähltes Modell verwenden", "es": "Usar el modelo seleccionado", "ko": "선택한 모델 사용", "pt": "Usar o modelo selecionado",
+        "fr": "Utiliser le modèle sélectionné", "vi": "Dùng mô hình đã chọn", "zh": "使用所选模型", "hi": "चयनित मॉडल उपयोग करें",
+    },
+    "Pulling {}…": {
+        "de": "Lade {} herunter…", "es": "Descargando {}…", "ko": "{} 다운로드 중…", "pt": "Baixando {}…",
+        "fr": "Téléchargement de {}…", "vi": "Đang tải {}…", "zh": "正在下载 {}…", "hi": "{} डाउनलोड हो रहा है…",
+    },
+    "✓ {} downloaded": {
+        "de": "✓ {} heruntergeladen", "es": "✓ {} descargado", "ko": "✓ {} 다운로드 완료", "pt": "✓ {} baixado",
+        "fr": "✓ {} téléchargé", "vi": "✓ Đã tải {}", "zh": "✓ {} 已下载", "hi": "✓ {} डाउनलोड हुआ",
+    },
+    "Using Ollama model: {}": {
+        "de": "Verwende Ollama-Modell: {}", "es": "Usando el modelo de Ollama: {}", "ko": "Ollama 모델 사용 중: {}", "pt": "Usando o modelo Ollama: {}",
+        "fr": "Modèle Ollama utilisé : {}", "vi": "Đang dùng mô hình Ollama: {}", "zh": "正在使用 Ollama 模型：{}", "hi": "Ollama मॉडल उपयोग में: {}",
+    },
+    "AI settings saved.": {
+        "de": "KI-Einstellungen gespeichert.", "es": "Ajustes de IA guardados.", "ko": "AI 설정이 저장되었습니다.", "pt": "Configurações de IA salvas.",
+        "fr": "Paramètres d'IA enregistrés.", "vi": "Đã lưu cài đặt AI.", "zh": "AI 设置已保存。", "hi": "AI सेटिंग्स सहेजी गईं।",
+    },
+    "AI Assistant is not available (missing Qt/Anki components).": {
+        "de": "KI-Assistent ist nicht verfügbar (fehlende Qt-/Anki-Komponenten).", "es": "El asistente de IA no está disponible (faltan componentes de Qt/Anki).",
+        "ko": "AI 어시스턴트를 사용할 수 없습니다 (Qt/Anki 구성 요소 없음).", "pt": "O assistente de IA não está disponível (componentes Qt/Anki ausentes).",
+        "fr": "L'assistant IA n'est pas disponible (composants Qt/Anki manquants).", "vi": "Trợ lý AI không khả dụng (thiếu thành phần Qt/Anki).",
+        "zh": "AI 助手不可用（缺少 Qt/Anki 组件）。", "hi": "AI असिस्टेंट उपलब्ध नहीं है (Qt/Anki घटक अनुपलब्ध)।",
+    },
+    "AI Assistant setup error: {}": {
+        "de": "Fehler beim Einrichten des KI-Assistenten: {}", "es": "Error al configurar el asistente de IA: {}",
+        "ko": "AI 어시스턴트 설정 오류: {}", "pt": "Erro na configuração do assistente de IA: {}",
+        "fr": "Erreur de configuration de l'assistant IA : {}", "vi": "Lỗi thiết lập trợ lý AI: {}",
+        "zh": "AI 助手设置错误：{}", "hi": "AI असिस्टेंट सेटअप त्रुटि: {}",
+    },
+    "Local": {
+        "de": "Lokal", "es": "Local", "ko": "로컬", "pt": "Local",
+        "fr": "Local", "vi": "Cục bộ", "zh": "本地", "hi": "लोकल",
+    },
+    "Load": {
+        "de": "Laden", "es": "Cargar", "ko": "불러오기", "pt": "Carregar",
+        "fr": "Charger", "vi": "Tải", "zh": "加载", "hi": "लोड करें",
+    },
+    "Custom URL…": {
+        "de": "Eigene URL…", "es": "URL personalizada…", "ko": "사용자 지정 URL…", "pt": "URL personalizada…",
+        "fr": "URL personnalisée…", "vi": "URL tùy chỉnh…", "zh": "自定义 URL…", "hi": "कस्टम URL…",
+    },
+    "Please paste a valid SoundCloud URL.": {
+        "de": "Bitte füge eine gültige SoundCloud-URL ein.", "es": "Pega una URL válida de SoundCloud.",
+        "ko": "유효한 SoundCloud URL을 붙여넣으세요.", "pt": "Cole uma URL válida do SoundCloud.",
+        "fr": "Veuillez coller une URL SoundCloud valide.", "vi": "Vui lòng dán URL SoundCloud hợp lệ.",
+        "zh": "请粘贴有效的 SoundCloud 链接。", "hi": "कृपया एक मान्य SoundCloud URL पेस्ट करें।",
+    },
+    "You can save up to {count} custom SoundCloud URLs.": {
+        "de": "Du kannst bis zu {count} eigene SoundCloud-URLs speichern.", "es": "Puedes guardar hasta {count} URL personalizadas de SoundCloud.",
+        "ko": "사용자 지정 SoundCloud URL은 최대 {count}개까지 저장할 수 있습니다.", "pt": "Você pode salvar até {count} URLs personalizadas do SoundCloud.",
+        "fr": "Vous pouvez enregistrer jusqu’à {count} URL SoundCloud personnalisées.", "vi": "Bạn có thể lưu tối đa {count} URL SoundCloud tùy chỉnh.",
+        "zh": "最多可以保存 {count} 个自定义 SoundCloud 链接。", "hi": "आप अधिकतम {count} कस्टम SoundCloud URL सहेज सकते हैं।",
+    },
+    "SoundCloud could not load this URL.": {
+        "de": "SoundCloud konnte diese URL nicht laden.", "es": "SoundCloud no pudo cargar esta URL.",
+        "ko": "SoundCloud에서 이 URL을 불러올 수 없습니다.", "pt": "O SoundCloud não conseguiu carregar esta URL.",
+        "fr": "SoundCloud n’a pas pu charger cette URL.", "vi": "SoundCloud không thể tải URL này.",
+        "zh": "SoundCloud 无法加载此链接。", "hi": "SoundCloud इस URL को लोड नहीं कर सका।",
+    },
+    "Requires QtWebEngine (not available in this Anki build).": {
+        "de": "Benötigt QtWebEngine (in dieser Anki-Version nicht verfügbar).", "es": "Requiere QtWebEngine (no disponible en esta versión de Anki).",
+        "ko": "QtWebEngine이 필요합니다 (이 Anki 빌드에서는 사용 불가).", "pt": "Requer QtWebEngine (não disponível nesta versão do Anki).",
+        "fr": "Nécessite QtWebEngine (indisponible dans cette version d'Anki).", "vi": "Cần QtWebEngine (không có trong bản Anki này).",
+        "zh": "需要 QtWebEngine（此 Anki 版本不可用）。", "hi": "QtWebEngine आवश्यक है (इस Anki बिल्ड में उपलब्ध नहीं)।",
+    },
+    "SoundCloud player could not be initialised.": {
+        "de": "SoundCloud-Player konnte nicht initialisiert werden.", "es": "No se pudo inicializar el reproductor de SoundCloud.",
+        "ko": "SoundCloud 플레이어를 초기화할 수 없습니다.", "pt": "Não foi possível inicializar o player do SoundCloud.",
+        "fr": "Le lecteur SoundCloud n'a pas pu être initialisé.", "vi": "Không thể khởi tạo trình phát SoundCloud.",
+        "zh": "无法初始化 SoundCloud 播放器。", "hi": "SoundCloud प्लेयर प्रारंभ नहीं हो सका।",
+    },
+    "SoundCloud player file is missing.": {
+        "de": "SoundCloud-Player-Datei fehlt.", "es": "Falta el archivo del reproductor de SoundCloud.",
+        "ko": "SoundCloud 플레이어 파일이 없습니다.", "pt": "O arquivo do player do SoundCloud está ausente.",
+        "fr": "Le fichier du lecteur SoundCloud est manquant.", "vi": "Thiếu tệp trình phát SoundCloud.",
+        "zh": "缺少 SoundCloud 播放器文件。", "hi": "SoundCloud प्लेयर फ़ाइल गायब है।",
+    },
+    "SoundCloud streaming needs QtWebEngine, which isn't available in this Anki build.": {
+        "de": "SoundCloud-Streaming benötigt QtWebEngine, das in dieser Anki-Version nicht verfügbar ist.",
+        "es": "La reproducción de SoundCloud necesita QtWebEngine, que no está disponible en esta versión de Anki.",
+        "ko": "SoundCloud 스트리밍에는 QtWebEngine이 필요하지만 이 Anki 빌드에서는 사용할 수 없습니다.",
+        "pt": "O streaming do SoundCloud precisa do QtWebEngine, que não está disponível nesta versão do Anki.",
+        "fr": "Le streaming SoundCloud nécessite QtWebEngine, indisponible dans cette version d'Anki.",
+        "vi": "Phát SoundCloud cần QtWebEngine, không có trong bản Anki này.",
+        "zh": "SoundCloud 流媒体需要 QtWebEngine，此 Anki 版本不可用。",
+        "hi": "SoundCloud स्ट्रीमिंग के लिए QtWebEngine चाहिए, जो इस Anki बिल्ड में उपलब्ध नहीं है।",
+    },
+
+    # ── Misc previously untranslated UI strings ────────────────────────────
+    "Time's up — finished studying: %s": {
+        "de": "Zeit um — Lernen beendet: %s", "es": "Se acabó el tiempo — estudio terminado: %s", "ko": "시간 종료 — 학습 완료: %s", "pt": "Tempo esgotado — estudo concluído: %s",
+        "fr": "Temps écoulé — étude terminée : %s", "vi": "Hết giờ — đã học xong: %s", "zh": "时间到 — 学习完成：%s", "hi": "समय समाप्त — पढ़ाई पूरी: %s",
+    },
+    "Mark as done": {
+        "de": "Als erledigt markieren", "es": "Marcar como hecho", "ko": "완료로 표시", "pt": "Marcar como concluído",
+        "fr": "Marquer comme terminé", "vi": "Đánh dấu đã xong", "zh": "标记为完成", "hi": "पूर्ण चिह्नित करें",
+    },
+    "My Deadline": {
+        "de": "Meine Deadline", "es": "Mi fecha límite", "ko": "내 마감일", "pt": "Meu prazo",
+        "fr": "Mon échéance", "vi": "Hạn chót của tôi", "zh": "我的截止日期", "hi": "मेरी समय-सीमा",
+    },
+    "Next deadline": {
+        "de": "Nächste Deadline", "es": "Próxima fecha límite", "ko": "다음 마감일", "pt": "Próximo prazo",
+        "fr": "Échéance suivante", "vi": "Hạn chót tiếp theo", "zh": "下一个截止日期", "hi": "अगली समय-सीमा",
+    },
+    "Learn": {
+        "de": "Lernen", "es": "Aprender", "ko": "학습", "pt": "Aprender",
+        "fr": "Apprendre", "vi": "Học", "zh": "学习", "hi": "सीखें",
+    },
+    "Review": {
+        "de": "Wiederholen", "es": "Repasar", "ko": "복습", "pt": "Revisar",
+        "fr": "Réviser", "vi": "Ôn tập", "zh": "复习", "hi": "दोहराएं",
+    },
+    "Back to Anki": {
+        "de": "Zurück zu Anki", "es": "Volver a Anki", "ko": "Anki로 돌아가기", "pt": "Voltar ao Anki",
+        "fr": "Retour à Anki", "vi": "Quay lại Anki", "zh": "返回 Anki", "hi": "Anki पर वापस",
+    },
+    "Close Window": {
+        "de": "Fenster schließen", "es": "Cerrar ventana", "ko": "창 닫기", "pt": "Fechar janela",
+        "fr": "Fermer la fenêtre", "vi": "Đóng cửa sổ", "zh": "关闭窗口", "hi": "विंडो बंद करें",
+    },
+    "New Window": {
+        "de": "Neues Fenster", "es": "Nueva ventana", "ko": "새 창", "pt": "Nova janela",
+        "fr": "Nouvelle fenêtre", "vi": "Cửa sổ mới", "zh": "新窗口", "hi": "नई विंडो",
+    },
+    "Start": {
+        "de": "Start", "es": "Iniciar", "ko": "시작", "pt": "Iniciar",
+        "fr": "Démarrer", "vi": "Bắt đầu", "zh": "开始", "hi": "शुरू करें",
+    },
+    "Could not open file: {}": {
+        "de": "Datei konnte nicht geöffnet werden: {}", "es": "No se pudo abrir el archivo: {}", "ko": "파일을 열 수 없습니다: {}", "pt": "Não foi possível abrir o arquivo: {}",
+        "fr": "Impossible d'ouvrir le fichier : {}", "vi": "Không thể mở tệp: {}", "zh": "无法打开文件：{}", "hi": "फ़ाइल नहीं खुल सकी: {}",
+    },
+    "Could not read PDF: {}": {
+        "de": "PDF konnte nicht gelesen werden: {}", "es": "No se pudo leer el PDF: {}", "ko": "PDF를 읽을 수 없습니다: {}", "pt": "Não foi possível ler o PDF: {}",
+        "fr": "Impossible de lire le PDF : {}", "vi": "Không thể đọc PDF: {}", "zh": "无法读取 PDF：{}", "hi": "PDF नहीं पढ़ा जा सका: {}",
+    },
+    "File not found – it may have been moved or deleted:\n{}": {
+        "de": "Datei nicht gefunden – sie wurde eventuell verschoben oder gelöscht:\n{}",
+        "es": "Archivo no encontrado: puede haber sido movido o eliminado:\n{}",
+        "ko": "파일을 찾을 수 없습니다 – 이동되었거나 삭제되었을 수 있습니다:\n{}",
+        "pt": "Arquivo não encontrado – pode ter sido movido ou excluído:\n{}",
+        "fr": "Fichier introuvable – il a peut-être été déplacé ou supprimé :\n{}",
+        "vi": "Không tìm thấy tệp – có thể đã bị di chuyển hoặc xóa:\n{}",
+        "zh": "找不到文件 – 可能已被移动或删除：\n{}",
+        "hi": "फ़ाइल नहीं मिली – शायद स्थानांतरित या हटा दी गई है:\n{}",
+    },
+    "Move to folder": {
+        "de": "In Ordner verschieben", "es": "Mover a carpeta", "ko": "폴더로 이동", "pt": "Mover para pasta",
+        "fr": "Déplacer vers un dossier", "vi": "Chuyển vào thư mục", "zh": "移动到文件夹", "hi": "फ़ोल्डर में ले जाएँ",
+    },
+    "Pinned": {
+        "de": "Angepinnt", "es": "Fijadas", "ko": "고정됨", "pt": "Fixadas",
+        "fr": "Épinglées", "vi": "Đã ghim", "zh": "已固定", "hi": "पिन की गई",
+    },
+    "Pin": {
+        "de": "Anpinnen", "es": "Fijar", "ko": "고정", "pt": "Fixar",
+        "fr": "Épingler", "vi": "Ghim", "zh": "固定", "hi": "पिन करें",
+    },
+    "Unpin": {
+        "de": "Loslösen", "es": "Desfijar", "ko": "고정 해제", "pt": "Desafixar",
+        "fr": "Désépingler", "vi": "Bỏ ghim", "zh": "取消固定", "hi": "अनपिन करें",
+    },
+    "New Folder": {
+        "de": "Neuer Ordner", "es": "Nueva carpeta", "ko": "새 폴더", "pt": "Nova pasta",
+        "fr": "Nouveau dossier", "vi": "Thư mục mới", "zh": "新建文件夹", "hi": "नया फ़ोल्डर",
+    },
+    "Folder name:": {
+        "de": "Ordnername:", "es": "Nombre de la carpeta:", "ko": "폴더 이름:", "pt": "Nome da pasta:",
+        "fr": "Nom du dossier :", "vi": "Tên thư mục:", "zh": "文件夹名称：", "hi": "फ़ोल्डर का नाम:",
+    },
+    "Rename folder:": {
+        "de": "Ordner umbenennen:", "es": "Renombrar carpeta:", "ko": "폴더 이름 변경:", "pt": "Renomear pasta:",
+        "fr": "Renommer le dossier :", "vi": "Đổi tên thư mục:", "zh": "重命名文件夹：", "hi": "फ़ोल्डर का नाम बदलें:",
+    },
+    "Delete folder? Pages inside will be kept.": {
+        "de": "Ordner löschen? Die Seiten darin bleiben erhalten.",
+        "es": "¿Eliminar carpeta? Las páginas se conservarán.",
+        "ko": "폴더를 삭제할까요? 안의 페이지는 유지됩니다.",
+        "pt": "Excluir pasta? As páginas serão mantidas.",
+        "fr": "Supprimer le dossier ? Les pages seront conservées.",
+        "vi": "Xóa thư mục? Các trang bên trong sẽ được giữ lại.",
+        "zh": "删除文件夹？其中的页面将保留。",
+        "hi": "फ़ोल्डर हटाएँ? अंदर के पृष्ठ रखे जाएँगे।",
+    },
+    "No folder": {
+        "de": "Kein Ordner", "es": "Sin carpeta", "ko": "폴더 없음", "pt": "Sem pasta",
+        "fr": "Aucun dossier", "vi": "Không có thư mục", "zh": "无文件夹", "hi": "कोई फ़ोल्डर नहीं",
+    },
+    "PDF Files (*.pdf)": {
+        "de": "PDF-Dateien (*.pdf)", "es": "Archivos PDF (*.pdf)", "ko": "PDF 파일 (*.pdf)", "pt": "Arquivos PDF (*.pdf)",
+        "fr": "Fichiers PDF (*.pdf)", "vi": "Tệp PDF (*.pdf)", "zh": "PDF 文件 (*.pdf)", "hi": "PDF फ़ाइलें (*.pdf)",
+    },
+    "Select PDF": {
+        "de": "PDF auswählen", "es": "Seleccionar PDF", "ko": "PDF 선택", "pt": "Selecionar PDF",
+        "fr": "Sélectionner un PDF", "vi": "Chọn PDF", "zh": "选择 PDF", "hi": "PDF चुनें",
+    },
+    "This PDF is {size:.1f} MB. Loading it into the sidebar may be slow or use a lot of memory.\n\nContinue anyway?": {
+        "de": "Dieses PDF ist {size:.1f} MB groß. Das Laden in die Seitenleiste kann langsam sein oder viel Speicher belegen.\n\nTrotzdem fortfahren?",
+        "es": "Este PDF pesa {size:.1f} MB. Cargarlo en la barra lateral puede ser lento o usar mucha memoria.\n\n¿Continuar de todos modos?",
+        "ko": "이 PDF는 {size:.1f} MB입니다. 사이드바에 로드하면 느리거나 메모리를 많이 사용할 수 있습니다.\n\n계속하시겠습니까?",
+        "pt": "Este PDF tem {size:.1f} MB. Carregá-lo na barra lateral pode ser lento ou usar muita memória.\n\nContinuar mesmo assim?",
+        "fr": "Ce PDF fait {size:.1f} Mo. Le charger dans la barre latérale peut être lent ou consommer beaucoup de mémoire.\n\nContinuer quand même ?",
+        "vi": "PDF này nặng {size:.1f} MB. Tải vào thanh bên có thể chậm hoặc tốn nhiều bộ nhớ.\n\nVẫn tiếp tục?",
+        "zh": "此 PDF 大小为 {size:.1f} MB。加载到侧边栏可能较慢或占用大量内存。\n\n仍要继续吗？",
+        "hi": "यह PDF {size:.1f} MB का है। साइडबार में लोड करना धीमा हो सकता है या बहुत मेमोरी ले सकता है।\n\nफिर भी जारी रखें?",
+    },
+    "Back to sidebar": {
+        "de": "Zurück zur Seitenleiste", "es": "Volver a la barra lateral", "ko": "사이드바로 돌아가기", "pt": "Voltar à barra lateral",
+        "fr": "Retour à la barre latérale", "vi": "Quay lại thanh bên", "zh": "返回侧边栏", "hi": "साइडबार पर वापस",
+    },
+    "Open in main window": {
+        "de": "Im Hauptfenster öffnen", "es": "Abrir en la ventana principal", "ko": "메인 창에서 열기", "pt": "Abrir na janela principal",
+        "fr": "Ouvrir dans la fenêtre principale", "vi": "Mở trong cửa sổ chính", "zh": "在主窗口中打开", "hi": "मुख्य विंडो में खोलें",
+    },
+    "Web": {
+        "de": "Web", "es": "Web", "ko": "웹", "pt": "Web",
+        "fr": "Web", "vi": "Web", "zh": "网页", "hi": "वेब",
+    },
+
+    # ── Native settings dialog (fallback without WebEngine) ────────────────
+    "Appearance": {
+        "de": "Erscheinungsbild", "es": "Apariencia", "ko": "모양", "pt": "Aparência",
+        "fr": "Apparence", "vi": "Giao diện", "zh": "外观", "hi": "रूप-रंग",
+    },
+    "Dashboard": {
+        "de": "Dashboard", "es": "Panel", "ko": "대시보드", "pt": "Painel",
+        "fr": "Tableau de bord", "vi": "Bảng điều khiển", "zh": "仪表板", "hi": "डैशबोर्ड",
+    },
+    "Minimalist Dashboard": {
+        "de": "Minimalistisches Dashboard", "es": "Panel minimalista", "ko": "미니멀 대시보드", "pt": "Painel minimalista",
+        "fr": "Tableau de bord minimaliste", "vi": "Bảng điều khiển tối giản", "zh": "极简仪表板", "hi": "मिनिमल डैशबोर्ड",
+    },
+    "Shows level, streak, challenge, study plan, deadline and key statistics in one compact panel.": {
+        "de": "Zeigt Level, Streak, Challenge, Lernplan, Deadline und die wichtigsten Statistiken in einem kompakten Panel.",
+        "es": "Muestra el nivel, la racha, el reto, el plan de estudio, la fecha límite y las estadísticas clave en un panel compacto.",
+        "ko": "레벨, 스트릭, 챌린지, 학습 계획, 마감일과 핵심 통계를 하나의 간결한 패널에 표시합니다.",
+        "pt": "Mostra nível, sequência, desafio, plano de estudos, prazo e estatísticas principais em um painel compacto.",
+        "fr": "Affiche le niveau, la série, le défi, le plan d’étude, l’échéance et les statistiques clés dans un panneau compact.",
+        "vi": "Hiển thị cấp độ, chuỗi ngày, thử thách, kế hoạch học, thời hạn và thống kê chính trong một bảng gọn.",
+        "zh": "在一个紧凑面板中显示等级、连续学习、挑战、学习计划、截止日期和关键统计。",
+        "hi": "स्तर, स्ट्रीक, चुनौती, अध्ययन योजना, समयसीमा और मुख्य आँकड़े एक कॉम्पैक्ट पैनल में दिखाता है।",
+    },
+    "Language": {
+        "de": "Sprache", "es": "Idioma", "ko": "언어", "pt": "Idioma",
+        "fr": "Langue", "vi": "Ngôn ngữ", "zh": "语言", "hi": "भाषा",
+    },
+    "Color Theme": {
+        "de": "Farbschema", "es": "Tema de color", "ko": "색상 테마", "pt": "Tema de cores",
+        "fr": "Thème de couleur", "vi": "Chủ đề màu", "zh": "颜色主题", "hi": "रंग थीम",
+    },
+    "Background Style": {
+        "de": "Hintergrund-Stil", "es": "Estilo de fondo", "ko": "배경 스타일", "pt": "Estilo de fundo",
+        "fr": "Style d'arrière-plan", "vi": "Kiểu nền", "zh": "背景样式", "hi": "पृष्ठभूमि शैली",
+    },
+    "Daily Fact Topic": {
+        "de": "Thema des täglichen Fakts", "es": "Tema del dato diario", "ko": "오늘의 상식 주제", "pt": "Tema do fato diário",
+        "fr": "Thème du fait du jour", "vi": "Chủ đề sự thật hằng ngày", "zh": "每日知识主题", "hi": "दैनिक तथ्य विषय",
+    },
+    "Daily Widgets": {
+        "de": "Tägliche Widgets", "es": "Widgets diarios", "ko": "데일리 위젯", "pt": "Widgets diários",
+        "fr": "Widgets quotidiens", "vi": "Widget hằng ngày", "zh": "每日小部件", "hi": "दैनिक विजेट",
+    },
+    "Gamification Widgets": {
+        "de": "Gamification-Widgets", "es": "Widgets de gamificación", "ko": "게이미피케이션 위젯", "pt": "Widgets de gamificação",
+        "fr": "Widgets de gamification", "vi": "Widget trò chơi hóa", "zh": "游戏化小部件", "hi": "गेमिफ़िकेशन विजेट",
+    },
+    "Sidebar Visibility": {
+        "de": "Sichtbarkeit der Seitenleiste", "es": "Visibilidad de la barra lateral", "ko": "사이드바 표시", "pt": "Visibilidade da barra lateral",
+        "fr": "Visibilité de la barre latérale", "vi": "Hiển thị thanh bên", "zh": "侧边栏可见性", "hi": "साइडबार दृश्यता",
+    },
+    "Statistics Time Range": {
+        "de": "Zeitraum der Statistiken", "es": "Rango de tiempo de estadísticas", "ko": "통계 기간", "pt": "Período das estatísticas",
+        "fr": "Période des statistiques", "vi": "Khoảng thời gian thống kê", "zh": "统计时间范围", "hi": "आंकड़ों की समय-सीमा",
+    },
+    "Language, daily facts, the statistics range and when the sidebar is shown.": {
+        "de": "Sprache, tägliche Fakten, der Statistik-Zeitraum und wann die Seitenleiste angezeigt wird.",
+        "es": "Idioma, datos diarios, el rango de estadísticas y cuándo se muestra la barra lateral.",
+        "ko": "언어, 오늘의 상식, 통계 기간, 사이드바 표시 시점.",
+        "pt": "Idioma, fatos diários, o período das estatísticas e quando a barra lateral é exibida.",
+        "fr": "Langue, faits quotidiens, période des statistiques et affichage de la barre latérale.",
+        "vi": "Ngôn ngữ, sự thật hằng ngày, khoảng thống kê và khi nào hiển thị thanh bên.",
+        "zh": "语言、每日知识、统计范围以及何时显示侧边栏。",
+        "hi": "भाषा, दैनिक तथ्य, आंकड़ों की सीमा और साइडबार कब दिखे।",
+    },
+    "Interface language. \"Auto\" follows your Anki language.": {
+        "de": "Sprache der Oberfläche. \"Auto\" folgt deiner Anki-Sprache.",
+        "es": "Idioma de la interfaz. \"Auto\" sigue el idioma de Anki.",
+        "ko": "인터페이스 언어. \"Auto\"는 Anki 언어를 따릅니다.",
+        "pt": "Idioma da interface. \"Auto\" segue o idioma do Anki.",
+        "fr": "Langue de l'interface. \"Auto\" suit la langue d'Anki.",
+        "vi": "Ngôn ngữ giao diện. \"Auto\" theo ngôn ngữ Anki của bạn.",
+        "zh": "界面语言。\"Auto\"跟随您的 Anki 语言。",
+        "hi": "इंटरफ़ेस भाषा। \"Auto\" आपकी Anki भाषा का अनुसरण करता है।",
+    },
+    "Subject the daily fact on the home screen is drawn from.": {
+        "de": "Fachgebiet, aus dem der tägliche Fakt auf dem Startbildschirm stammt.",
+        "es": "Tema del que se extrae el dato diario de la pantalla de inicio.",
+        "ko": "홈 화면의 오늘의 상식이 나오는 분야.",
+        "pt": "Assunto de onde vem o fato diário da tela inicial.",
+        "fr": "Sujet dont provient le fait du jour de l'écran d'accueil.",
+        "vi": "Chủ đề mà sự thật hằng ngày trên màn hình chính được lấy từ đó.",
+        "zh": "主屏幕每日知识的来源主题。",
+        "hi": "जिस विषय से होम स्क्रीन का दैनिक तथ्य लिया जाता है।",
+    },
+    "Period covered by the statistics widget.": {
+        "de": "Zeitraum, den das Statistik-Widget abdeckt.", "es": "Período que cubre el widget de estadísticas.",
+        "ko": "통계 위젯이 다루는 기간.", "pt": "Período coberto pelo widget de estatísticas.",
+        "fr": "Période couverte par le widget de statistiques.", "vi": "Khoảng thời gian widget thống kê bao phủ.",
+        "zh": "统计小部件涵盖的时间段。", "hi": "आंकड़े विजेट द्वारा कवर की गई अवधि।",
+    },
+    "Show the launcher always, or hide it while you review.": {
+        "de": "Launcher immer anzeigen oder beim Wiederholen ausblenden.",
+        "es": "Mostrar el lanzador siempre u ocultarlo mientras repasas.",
+        "ko": "런처를 항상 표시하거나 복습 중에는 숨깁니다.",
+        "pt": "Mostrar o iniciador sempre ou ocultá-lo durante a revisão.",
+        "fr": "Toujours afficher le lanceur, ou le masquer pendant la révision.",
+        "vi": "Luôn hiển thị thanh khởi chạy, hoặc ẩn khi bạn ôn tập.",
+        "zh": "始终显示启动器，或在复习时隐藏。",
+        "hi": "लॉन्चर हमेशा दिखाएँ, या दोहराते समय छिपाएँ।",
+    },
+    "Choose the accent colour used across SynapsePro and the background style.": {
+        "de": "Wähle die Akzentfarbe für SynapsePro und den Hintergrund-Stil.",
+        "es": "Elige el color de acento de SynapsePro y el estilo de fondo.",
+        "ko": "SynapsePro 전체에 사용할 강조 색상과 배경 스타일을 선택하세요.",
+        "pt": "Escolha a cor de destaque do SynapsePro e o estilo de fundo.",
+        "fr": "Choisissez la couleur d'accent de SynapsePro et le style d'arrière-plan.",
+        "vi": "Chọn màu nhấn dùng trong SynapsePro và kiểu nền.",
+        "zh": "选择 SynapsePro 使用的强调色和背景样式。",
+        "hi": "SynapsePro में उपयोग होने वाला एक्सेंट रंग और पृष्ठभूमि शैली चुनें।",
+    },
+    "Accent colour for buttons, highlights and widgets.": {
+        "de": "Akzentfarbe für Buttons, Hervorhebungen und Widgets.",
+        "es": "Color de acento para botones, resaltados y widgets.",
+        "ko": "버튼, 강조 표시 및 위젯의 강조 색상.",
+        "pt": "Cor de destaque para botões, realces e widgets.",
+        "fr": "Couleur d'accent pour les boutons, surlignages et widgets.",
+        "vi": "Màu nhấn cho nút, phần tô sáng và widget.",
+        "zh": "按钮、高亮和小部件的强调色。",
+        "hi": "बटन, हाइलाइट और विजेट के लिए एक्सेंट रंग।",
+    },
+    "Overall background of the add-on screens.": {
+        "de": "Gesamter Hintergrund der Add-on-Bildschirme.",
+        "es": "Fondo general de las pantallas del complemento.",
+        "ko": "애드온 화면의 전체 배경.",
+        "pt": "Fundo geral das telas do complemento.",
+        "fr": "Arrière-plan général des écrans du module.",
+        "vi": "Nền tổng thể của các màn hình tiện ích.",
+        "zh": "插件界面的整体背景。",
+        "hi": "ऐड-ऑन स्क्रीन की समग्र पृष्ठभूमि।",
+    },
+    "Widgets shown on the Anki home screen (the deck list).": {
+        "de": "Widgets auf dem Anki-Startbildschirm (der Stapelliste).",
+        "es": "Widgets mostrados en la pantalla de inicio de Anki (la lista de mazos).",
+        "ko": "Anki 홈 화면(덱 목록)에 표시되는 위젯.",
+        "pt": "Widgets exibidos na tela inicial do Anki (a lista de baralhos).",
+        "fr": "Widgets affichés sur l'écran d'accueil d'Anki (la liste des paquets).",
+        "vi": "Widget hiển thị trên màn hình chính Anki (danh sách bộ thẻ).",
+        "zh": "显示在 Anki 主屏幕（牌组列表）上的小部件。",
+        "hi": "Anki होम स्क्रीन (डेक सूची) पर दिखने वाले विजेट।",
+    },
+    "The screen shown after you click a deck, before studying.": {
+        "de": "Der Bildschirm nach dem Klick auf einen Stapel, vor dem Lernen.",
+        "es": "La pantalla que aparece al hacer clic en un mazo, antes de estudiar.",
+        "ko": "덱을 클릭한 후 학습 전에 표시되는 화면.",
+        "pt": "A tela exibida após clicar em um baralho, antes de estudar.",
+        "fr": "L'écran affiché après un clic sur un paquet, avant l'étude.",
+        "vi": "Màn hình hiện ra sau khi bạn nhấn vào bộ thẻ, trước khi học.",
+        "zh": "点击牌组后、学习前显示的界面。",
+        "hi": "डेक पर क्लिक करने के बाद, पढ़ाई से पहले दिखने वाली स्क्रीन।",
+    },
+    "Tools available in the launcher bar on the side of Anki.": {
+        "de": "Werkzeuge in der Launcher-Leiste an der Seite von Anki.",
+        "es": "Herramientas disponibles en la barra lateral de Anki.",
+        "ko": "Anki 측면 런처 바에서 사용할 수 있는 도구.",
+        "pt": "Ferramentas disponíveis na barra lateral do Anki.",
+        "fr": "Outils disponibles dans la barre latérale d'Anki.",
+        "vi": "Công cụ có trong thanh khởi chạy bên cạnh Anki.",
+        "zh": "Anki 侧边启动栏中可用的工具。",
+        "hi": "Anki के किनारे लॉन्चर बार में उपलब्ध उपकरण।",
+    },
+    "You need to restart Anki to apply changes to the sidebar tools.": {
+        "de": "Starte Anki neu, um Änderungen an den Seitenleisten-Werkzeugen zu übernehmen.",
+        "es": "Debes reiniciar Anki para aplicar los cambios en las herramientas de la barra lateral.",
+        "ko": "사이드바 도구 변경을 적용하려면 Anki를 다시 시작하세요.",
+        "pt": "Reinicie o Anki para aplicar as mudanças nas ferramentas da barra lateral.",
+        "fr": "Redémarrez Anki pour appliquer les modifications des outils de la barre latérale.",
+        "vi": "Bạn cần khởi động lại Anki để áp dụng thay đổi cho công cụ thanh bên.",
+        "zh": "需要重启 Anki 才能应用侧边栏工具的更改。",
+        "hi": "साइडबार टूल में बदलाव लागू करने के लिए Anki पुनः प्रारंभ करें।",
+    },
+    "Your level, XP and daily streak.": {
+        "de": "Dein Level, XP und deine tägliche Serie.", "es": "Tu nivel, XP y racha diaria.",
+        "ko": "내 레벨, XP, 일일 스트릭.", "pt": "Seu nível, XP e sequência diária.",
+        "fr": "Votre niveau, XP et série quotidienne.", "vi": "Cấp độ, XP và chuỗi ngày của bạn.",
+        "zh": "您的等级、XP 和每日连击。", "hi": "आपका स्तर, XP और दैनिक स्ट्रीक।",
+    },
+    "Your study plan and the daily fact.": {
+        "de": "Dein Lernplan und der tägliche Fakt.", "es": "Tu plan de estudio y el dato diario.",
+        "ko": "학습 계획과 오늘의 상식.", "pt": "Seu plano de estudos e o fato diário.",
+        "fr": "Votre plan d'étude et le fait du jour.", "vi": "Kế hoạch học và sự thật hằng ngày.",
+        "zh": "您的学习计划和每日知识。", "hi": "आपकी अध्ययन योजना और दैनिक तथ्य।",
+    },
+    "A countdown bar towards your exam or deadline.": {
+        "de": "Ein Countdown-Balken bis zu deiner Prüfung oder Deadline.", "es": "Una barra de cuenta regresiva hacia tu examen o fecha límite.",
+        "ko": "시험이나 마감일까지의 카운트다운 바.", "pt": "Uma barra de contagem regressiva até sua prova ou prazo.",
+        "fr": "Une barre de compte à rebours vers votre examen ou échéance.", "vi": "Thanh đếm ngược đến kỳ thi hoặc hạn chót của bạn.",
+        "zh": "距离考试或截止日期的倒计时条。", "hi": "आपकी परीक्षा या समय-सीमा तक की उलटी गिनती पट्टी।",
+    },
+    "An extra panel with detailed review statistics.": {
+        "de": "Ein zusätzliches Panel mit detaillierten Wiederholungsstatistiken.", "es": "Un panel adicional con estadísticas detalladas de repaso.",
+        "ko": "자세한 복습 통계가 있는 추가 패널.", "pt": "Um painel extra com estatísticas detalhadas de revisão.",
+        "fr": "Un panneau supplémentaire avec des statistiques de révision détaillées.", "vi": "Bảng bổ sung với thống kê ôn tập chi tiết.",
+        "zh": "包含详细复习统计的额外面板。", "hi": "विस्तृत रिव्यू आंकड़ों वाला अतिरिक्त पैनल।",
+    },
+    "Replaces the standard overview with a modern dashboard showing retention, hard cards and more.": {
+        "de": "Ersetzt die Standard-Übersicht durch ein modernes Dashboard mit Retention, schweren Karten und mehr.",
+        "es": "Reemplaza la vista estándar por un panel moderno con retención, tarjetas difíciles y más.",
+        "ko": "기본 개요를 리텐션, 어려운 카드 등을 보여주는 현대적인 대시보드로 교체합니다.",
+        "pt": "Substitui a visão padrão por um painel moderno com retenção, cartões difíceis e mais.",
+        "fr": "Remplace l'aperçu standard par un tableau de bord moderne avec rétention, cartes difficiles et plus.",
+        "vi": "Thay thế màn hình tổng quan chuẩn bằng bảng điều khiển hiện đại với tỷ lệ ghi nhớ, thẻ khó và hơn thế.",
+        "zh": "用显示记忆保持率、难卡等的现代仪表板替换标准概览。",
+        "hi": "मानक ओवरव्यू को रिटेंशन, कठिन कार्ड आदि दिखाने वाले आधुनिक डैशबोर्ड से बदलता है।",
+    },
+    "A visual mind-mapping panel.": {
+        "de": "Ein visuelles Mindmap-Panel.", "es": "Un panel visual de mapas mentales.", "ko": "시각적 마인드맵 패널.", "pt": "Um painel visual de mapas mentais.",
+        "fr": "Un panneau visuel de cartes mentales.", "vi": "Bảng sơ đồ tư duy trực quan.", "zh": "可视化思维导图面板。", "hi": "एक विज़ुअल माइंड-मैप पैनल।",
+    },
+    "Progress, rewards and motivation panel.": {
+        "de": "Panel für Fortschritt, Belohnungen und Motivation.", "es": "Panel de progreso, recompensas y motivación.",
+        "ko": "진행 상황, 보상, 동기 부여 패널.", "pt": "Painel de progresso, recompensas e motivação.",
+        "fr": "Panneau de progression, récompenses et motivation.", "vi": "Bảng tiến độ, phần thưởng và động lực.",
+        "zh": "进度、奖励和激励面板。", "hi": "प्रगति, पुरस्कार और प्रेरणा पैनल।",
+    },
+    "Background music while you study.": {
+        "de": "Hintergrundmusik beim Lernen.", "es": "Música de fondo mientras estudias.", "ko": "공부할 때 듣는 배경 음악.", "pt": "Música de fundo enquanto você estuda.",
+        "fr": "Musique de fond pendant vos études.", "vi": "Nhạc nền khi bạn học.", "zh": "学习时的背景音乐。", "hi": "पढ़ाई के दौरान पृष्ठभूमि संगीत।",
+    },
+    "A focus timer with work and break intervals.": {
+        "de": "Ein Fokus-Timer mit Arbeits- und Pausenintervallen.", "es": "Un temporizador de concentración con intervalos de trabajo y descanso.",
+        "ko": "작업과 휴식 간격이 있는 집중 타이머.", "pt": "Um cronômetro de foco com intervalos de trabalho e pausa.",
+        "fr": "Un minuteur de concentration avec intervalles de travail et de pause.", "vi": "Bộ đếm giờ tập trung với các khoảng làm việc và nghỉ.",
+        "zh": "带工作和休息间隔的专注计时器。", "hi": "कार्य और विराम अंतराल वाला फोकस टाइमर।",
+    },
+    "Chat assistant that can explain your cards.": {
+        "de": "Chat-Assistent, der deine Karten erklären kann.", "es": "Asistente de chat que puede explicar tus tarjetas.",
+        "ko": "카드를 설명해 주는 채팅 어시스턴트.", "pt": "Assistente de chat que pode explicar seus cartões.",
+        "fr": "Assistant de chat capable d'expliquer vos cartes.", "vi": "Trợ lý trò chuyện có thể giải thích thẻ của bạn.",
+        "zh": "可以讲解您卡片的聊天助手。", "hi": "चैट असिस्टेंट जो आपके कार्ड समझा सकता है।",
+    },
+    "Open websites in a panel without leaving Anki.": {
+        "de": "Webseiten in einem Panel öffnen, ohne Anki zu verlassen.", "es": "Abre sitios web en un panel sin salir de Anki.",
+        "ko": "Anki를 떠나지 않고 패널에서 웹사이트 열기.", "pt": "Abra sites em um painel sem sair do Anki.",
+        "fr": "Ouvrez des sites web dans un panneau sans quitter Anki.", "vi": "Mở trang web trong bảng mà không rời Anki.",
+        "zh": "无需离开 Anki 即可在面板中打开网站。", "hi": "Anki छोड़े बिना पैनल में वेबसाइटें खोलें।",
+    },
+    "Notes, to-dos and PDFs alongside your cards.": {
+        "de": "Notizen, To-dos und PDFs neben deinen Karten.", "es": "Notas, tareas y PDF junto a tus tarjetas.",
+        "ko": "카드 옆에 메모, 할 일, PDF.", "pt": "Notas, tarefas e PDFs ao lado dos seus cartões.",
+        "fr": "Notes, tâches et PDF à côté de vos cartes.", "vi": "Ghi chú, việc cần làm và PDF cạnh thẻ của bạn.",
+        "zh": "在卡片旁查看笔记、待办和 PDF。", "hi": "आपके कार्ड के साथ नोट्स, टू-डू और PDF।",
+    },
+    "Ocean": {
+        "de": "Ozean", "es": "Océano", "ko": "오션", "pt": "Oceano",
+        "fr": "Océan", "vi": "Đại dương", "zh": "海洋", "hi": "महासागर",
+    },
+    "Orchid": {
+        "de": "Orchidee", "es": "Orquídea", "ko": "오키드", "pt": "Orquídea",
+        "fr": "Orchidée", "vi": "Phong lan", "zh": "兰花", "hi": "ऑर्किड",
+    },
+    "Forest": {
+        "de": "Wald", "es": "Bosque", "ko": "포레스트", "pt": "Floresta",
+        "fr": "Forêt", "vi": "Rừng", "zh": "森林", "hi": "वन",
+    },
+    "Deluge": {
+        "de": "Deluge", "es": "Diluvio", "ko": "델루지", "pt": "Dilúvio",
+        "fr": "Déluge", "vi": "Deluge", "zh": "深紫", "hi": "डेल्यूज",
+    },
+    "Horizon": {
+        "de": "Horizont", "es": "Horizonte", "ko": "허라이즌", "pt": "Horizonte",
+        "fr": "Horizon", "vi": "Chân trời", "zh": "地平线", "hi": "क्षितिज",
+    },
+    "Dusty": {
+        "de": "Dusty", "es": "Dusty", "ko": "더스티", "pt": "Dusty",
+        "fr": "Dusty", "vi": "Dusty", "zh": "灰青", "hi": "डस्टी",
+    },
+    "Custom Color…": {
+        "de": "Eigene Farbe…", "es": "Color personalizado…", "ko": "사용자 지정 색상…", "pt": "Cor personalizada…",
+        "fr": "Couleur personnalisée…", "vi": "Màu tùy chỉnh…", "zh": "自定义颜色…", "hi": "कस्टम रंग…",
+    },
+    "Card Creator": {
+        "de": "Kartenersteller", "es": "Creador de tarjetas", "ko": "카드 만들기", "pt": "Criador de cartões",
+        "fr": "Créateur de cartes", "vi": "Trình tạo thẻ", "zh": "卡片创建器", "hi": "कार्ड क्रिएटर",
+    },
+    "Build multiple cards while reading": {
+        "de": "Erstelle beim Lesen mehrere Karten", "es": "Crea varias tarjetas mientras lees", "ko": "읽으면서 여러 카드를 만드세요", "pt": "Crie vários cartões durante a leitura",
+        "fr": "Créez plusieurs cartes pendant la lecture", "vi": "Tạo nhiều thẻ trong khi đọc", "zh": "边阅读边创建多张卡片", "hi": "पढ़ते समय कई कार्ड बनाएँ",
+    },
+    "Tip: Card Creator works best in fullscreen.": {
+        "de": "Tipp: Im Vollbild funktioniert der Kartenersteller am besten.", "es": "Consejo: el creador de tarjetas funciona mejor en pantalla completa.", "ko": "팁: 카드 만들기는 전체 화면에서 가장 편리합니다.", "pt": "Dica: o Criador de cartões funciona melhor em tela cheia.",
+        "fr": "Astuce : le créateur de cartes fonctionne mieux en plein écran.", "vi": "Mẹo: Trình tạo thẻ hoạt động tốt nhất ở chế độ toàn màn hình.", "zh": "提示：卡片创建器在全屏模式下效果最佳。", "hi": "सुझाव: कार्ड क्रिएटर फ़ुलस्क्रीन में सबसे अच्छा काम करता है।",
+    },
+    "Question or prompt": {
+        "de": "Frage oder Aufgabenstellung", "es": "Pregunta o indicación", "ko": "질문 또는 프롬프트", "pt": "Pergunta ou enunciado",
+        "fr": "Question ou consigne", "vi": "Câu hỏi hoặc gợi ý", "zh": "问题或提示", "hi": "प्रश्न या संकेत",
+    },
+    "Answer or explanation": {
+        "de": "Antwort oder Erklärung", "es": "Respuesta o explicación", "ko": "답변 또는 설명", "pt": "Resposta ou explicação",
+        "fr": "Réponse ou explication", "vi": "Câu trả lời hoặc giải thích", "zh": "答案或解释", "hi": "उत्तर या व्याख्या",
+    },
+    "Add card": {
+        "de": "Karte hinzufügen", "es": "Añadir tarjeta", "ko": "카드 추가", "pt": "Adicionar cartão",
+        "fr": "Ajouter la carte", "vi": "Thêm thẻ", "zh": "添加卡片", "hi": "कार्ड जोड़ें",
+    },
+    "Update card": {
+        "de": "Karte aktualisieren", "es": "Actualizar tarjeta", "ko": "카드 업데이트", "pt": "Atualizar cartão",
+        "fr": "Mettre à jour la carte", "vi": "Cập nhật thẻ", "zh": "更新卡片", "hi": "कार्ड अपडेट करें",
+    },
+    "New card": {
+        "de": "Neue Karte", "es": "Nueva tarjeta", "ko": "새 카드", "pt": "Novo cartão",
+        "fr": "Nouvelle carte", "vi": "Thẻ mới", "zh": "新卡片", "hi": "नया कार्ड",
+    },
+    "Add PDF source to the back": {
+        "de": "PDF-Quelle auf der Rückseite ergänzen", "es": "Añadir la fuente PDF al reverso", "ko": "뒷면에 PDF 출처 추가", "pt": "Adicionar a fonte do PDF ao verso",
+        "fr": "Ajouter la source PDF au verso", "vi": "Thêm nguồn PDF vào mặt sau", "zh": "在背面添加 PDF 来源", "hi": "पीछे PDF स्रोत जोड़ें",
+    },
+    "Adds the file name and selected page numbers in small text.": {
+        "de": "Fügt Dateiname und ausgewählte Seitenzahlen klein hinzu.", "es": "Añade el nombre del archivo y las páginas seleccionadas en texto pequeño.", "ko": "파일 이름과 선택한 페이지 번호를 작은 글씨로 추가합니다.", "pt": "Adiciona o nome do arquivo e as páginas selecionadas em texto pequeno.",
+        "fr": "Ajoute le nom du fichier et les pages sélectionnées en petit.", "vi": "Thêm tên tệp và số trang đã chọn bằng chữ nhỏ.", "zh": "以小字添加文件名和所选页码。", "hi": "फ़ाइल नाम और चुने गए पृष्ठ नंबर छोटे अक्षरों में जोड़ता है।",
+    },
+    "{count} cards ready": {
+        "de": "{count} Karten bereit", "es": "{count} tarjetas listas", "ko": "카드 {count}개 준비됨", "pt": "{count} cartões prontos",
+        "fr": "{count} cartes prêtes", "vi": "{count} thẻ đã sẵn sàng", "zh": "已准备 {count} 张卡片", "hi": "{count} कार्ड तैयार",
+    },
+    "Cards": {
+        "de": "Karten", "es": "Tarjetas", "ko": "카드", "pt": "Cartões",
+        "fr": "Cartes", "vi": "Thẻ", "zh": "卡片", "hi": "कार्ड",
+    },
+    "Deck name": {
+        "de": "Stapelname", "es": "Nombre del mazo", "ko": "덱 이름", "pt": "Nome do baralho",
+        "fr": "Nom du paquet", "vi": "Tên bộ thẻ", "zh": "牌组名称", "hi": "डेक का नाम",
+    },
+    "Choose an existing deck or enter a new name": {
+        "de": "Vorhandenen Stapel wählen oder neuen Namen eingeben", "es": "Elige un mazo existente o introduce un nombre nuevo", "ko": "기존 덱을 선택하거나 새 이름을 입력하세요", "pt": "Escolha um baralho existente ou digite um novo nome",
+        "fr": "Choisissez un paquet existant ou saisissez un nouveau nom", "vi": "Chọn bộ thẻ hiện có hoặc nhập tên mới", "zh": "选择现有牌组或输入新名称", "hi": "मौजूदा डेक चुनें या नया नाम दर्ज करें",
+    },
+    "Create cards": {
+        "de": "Karten erstellen", "es": "Crear tarjetas", "ko": "카드 만들기", "pt": "Criar cartões",
+        "fr": "Créer les cartes", "vi": "Tạo thẻ", "zh": "创建卡片", "hi": "कार्ड बनाएँ",
+    },
+    "Finish · Create {count} cards": {
+        "de": "Fertig · {count} Karten erstellen", "es": "Finalizar · Crear {count} tarjetas", "ko": "완료 · 카드 {count}개 만들기", "pt": "Concluir · Criar {count} cartões",
+        "fr": "Terminer · Créer {count} cartes", "vi": "Hoàn tất · Tạo {count} thẻ", "zh": "完成 · 创建 {count} 张卡片", "hi": "पूरा करें · {count} कार्ड बनाएँ",
+    },
+    "Discard session": {
+        "de": "Sitzung verwerfen", "es": "Descartar sesión", "ko": "세션 버리기", "pt": "Descartar sessão",
+        "fr": "Supprimer la session", "vi": "Hủy phiên", "zh": "放弃会话", "hi": "सत्र छोड़ें",
+    },
+    "Discard this unfinished Card Creator session?": {
+        "de": "Diese unfertige Kartenersteller-Sitzung verwerfen?", "es": "¿Descartar esta sesión inacabada del creador de tarjetas?", "ko": "완료되지 않은 카드 만들기 세션을 버릴까요?", "pt": "Descartar esta sessão inacabada do criador de cartões?",
+        "fr": "Supprimer cette session inachevée du créateur de cartes ?", "vi": "Hủy phiên tạo thẻ chưa hoàn thành này?", "zh": "放弃此未完成的卡片创建会话吗？", "hi": "इस अधूरे कार्ड क्रिएटर सत्र को छोड़ दें?",
+    },
+    "Edit": {
+        "de": "Bearbeiten", "es": "Editar", "ko": "편집", "pt": "Editar",
+        "fr": "Modifier", "vi": "Chỉnh sửa", "zh": "编辑", "hi": "संपादित करें",
+    },
+    "Remove card": {
+        "de": "Karte entfernen", "es": "Eliminar tarjeta", "ko": "카드 제거", "pt": "Remover cartão",
+        "fr": "Supprimer la carte", "vi": "Xóa thẻ", "zh": "移除卡片", "hi": "कार्ड हटाएँ",
+    },
+    "No cards collected yet.": {
+        "de": "Noch keine Karten gesammelt.", "es": "Aún no hay tarjetas recopiladas.", "ko": "아직 모은 카드가 없습니다.", "pt": "Nenhum cartão coletado ainda.",
+        "fr": "Aucune carte collectée pour le moment.", "vi": "Chưa có thẻ nào được thu thập.", "zh": "尚未收集卡片。", "hi": "अभी तक कोई कार्ड एकत्र नहीं हुआ।",
+    },
+    "Enter text manually or select text in the PDF.": {
+        "de": "Gib Text manuell ein oder markiere ihn in der PDF.", "es": "Escribe texto manualmente o selecciónalo en el PDF.", "ko": "직접 입력하거나 PDF에서 텍스트를 선택하세요.", "pt": "Digite o texto manualmente ou selecione-o no PDF.",
+        "fr": "Saisissez du texte ou sélectionnez-le dans le PDF.", "vi": "Nhập văn bản thủ công hoặc chọn văn bản trong PDF.", "zh": "手动输入文字或在 PDF 中选择文字。", "hi": "टेक्स्ट मैन्युअल रूप से लिखें या PDF में चुनें।",
+    },
+    "Enter a front side first.": {
+        "de": "Gib zuerst eine Vorderseite ein.", "es": "Introduce primero un anverso.", "ko": "먼저 앞면을 입력하세요.", "pt": "Digite primeiro a frente.",
+        "fr": "Saisissez d’abord un recto.", "vi": "Hãy nhập mặt trước trước.", "zh": "请先输入正面内容。", "hi": "पहले सामने वाला भाग दर्ज करें।",
+    },
+    "Choose or enter a deck name.": {
+        "de": "Wähle einen Stapel oder gib einen Stapelnamen ein.", "es": "Elige o introduce un nombre de mazo.", "ko": "덱을 선택하거나 이름을 입력하세요.", "pt": "Escolha ou digite um nome de baralho.",
+        "fr": "Choisissez ou saisissez un nom de paquet.", "vi": "Chọn hoặc nhập tên bộ thẻ.", "zh": "请选择或输入牌组名称。", "hi": "डेक चुनें या उसका नाम दर्ज करें।",
+    },
+    "Creating cards…": {
+        "de": "Karten werden erstellt…", "es": "Creando tarjetas…", "ko": "카드 만드는 중…", "pt": "Criando cartões…",
+        "fr": "Création des cartes…", "vi": "Đang tạo thẻ…", "zh": "正在创建卡片…", "hi": "कार्ड बनाए जा रहे हैं…",
+    },
+    "This card is already in the session.": {
+        "de": "Diese Karte befindet sich bereits in der Sitzung.", "es": "Esta tarjeta ya está en la sesión.", "ko": "이 카드는 이미 세션에 있습니다.", "pt": "Este cartão já está na sessão.",
+        "fr": "Cette carte est déjà dans la session.", "vi": "Thẻ này đã có trong phiên.", "zh": "此卡片已在会话中。", "hi": "यह कार्ड सत्र में पहले से है।",
+    },
+    "This card contains too much text.": {
+        "de": "Diese Karte enthält zu viel Text.", "es": "Esta tarjeta contiene demasiado texto.", "ko": "이 카드에는 텍스트가 너무 많습니다.", "pt": "Este cartão contém texto demais.",
+        "fr": "Cette carte contient trop de texte.", "vi": "Thẻ này chứa quá nhiều văn bản.", "zh": "此卡片文字过多。", "hi": "इस कार्ड में बहुत अधिक टेक्स्ट है।",
+    },
+    "This session already contains 500 cards.": {
+        "de": "Diese Sitzung enthält bereits 500 Karten.", "es": "Esta sesión ya contiene 500 tarjetas.", "ko": "이 세션에는 이미 카드가 500개 있습니다.", "pt": "Esta sessão já contém 500 cartões.",
+        "fr": "Cette session contient déjà 500 cartes.", "vi": "Phiên này đã chứa 500 thẻ.", "zh": "此会话已包含 500 张卡片。", "hi": "इस सत्र में पहले से 500 कार्ड हैं।",
+    },
+    "Choose or enter a valid deck name.": {
+        "de": "Wähle einen gültigen Stapelnamen oder gib ihn ein.", "es": "Elige o introduce un nombre de mazo válido.", "ko": "유효한 덱 이름을 선택하거나 입력하세요.", "pt": "Escolha ou digite um nome de baralho válido.",
+        "fr": "Choisissez ou saisissez un nom de paquet valide.", "vi": "Chọn hoặc nhập tên bộ thẻ hợp lệ.", "zh": "请选择或输入有效的牌组名称。", "hi": "मान्य डेक नाम चुनें या दर्ज करें।",
+    },
+    "Add at least one card first.": {
+        "de": "Füge zuerst mindestens eine Karte hinzu.", "es": "Añade primero al menos una tarjeta.", "ko": "먼저 카드를 하나 이상 추가하세요.", "pt": "Adicione primeiro pelo menos um cartão.",
+        "fr": "Ajoutez d’abord au moins une carte.", "vi": "Hãy thêm ít nhất một thẻ trước.", "zh": "请先添加至少一张卡片。", "hi": "पहले कम से कम एक कार्ड जोड़ें।",
+    },
+    "A PDF Card Creator session can contain at most {count} cards.": {
+        "de": "Eine PDF-Kartenersteller-Sitzung kann höchstens {count} Karten enthalten.", "es": "Una sesión del creador de tarjetas PDF puede contener como máximo {count} tarjetas.", "ko": "PDF 카드 만들기 세션에는 최대 {count}개의 카드를 넣을 수 있습니다.", "pt": "Uma sessão do Criador de Cartões PDF pode conter no máximo {count} cartões.",
+        "fr": "Une session du créateur de cartes PDF peut contenir au maximum {count} cartes.", "vi": "Một phiên tạo thẻ PDF có thể chứa tối đa {count} thẻ.", "zh": "PDF 卡片创建会话最多可包含 {count} 张卡片。", "hi": "PDF कार्ड क्रिएटर सत्र में अधिकतम {count} कार्ड हो सकते हैं।",
+    },
+    "Every card needs a front side.": {
+        "de": "Jede Karte benötigt eine Vorderseite.", "es": "Cada tarjeta necesita un anverso.", "ko": "모든 카드에는 앞면이 필요합니다.", "pt": "Todo cartão precisa de uma frente.",
+        "fr": "Chaque carte doit avoir un recto.", "vi": "Mỗi thẻ cần có mặt trước.", "zh": "每张卡片都需要正面内容。", "hi": "हर कार्ड का सामने वाला भाग होना चाहिए।",
+    },
+    "One of the PDF cards is too long.": {
+        "de": "Eine der PDF-Karten ist zu lang.", "es": "Una de las tarjetas PDF es demasiado larga.", "ko": "PDF 카드 중 하나가 너무 깁니다.", "pt": "Um dos cartões PDF é longo demais.",
+        "fr": "L’une des cartes PDF est trop longue.", "vi": "Một trong các thẻ PDF quá dài.", "zh": "其中一张 PDF 卡片过长。", "hi": "PDF कार्डों में से एक बहुत लंबा है।",
+    },
+    "This Card Creator session contains too much text.": {
+        "de": "Diese Kartenersteller-Sitzung enthält zu viel Text.", "es": "Esta sesión del creador de tarjetas contiene demasiado texto.", "ko": "이 카드 만들기 세션에는 텍스트가 너무 많습니다.", "pt": "Esta sessão do criador de cartões contém texto demais.",
+        "fr": "Cette session du créateur de cartes contient trop de texte.", "vi": "Phiên tạo thẻ này chứa quá nhiều văn bản.", "zh": "此卡片创建会话文字过多。", "hi": "इस कार्ड क्रिएटर सत्र में बहुत अधिक टेक्स्ट है।",
+    },
+    "Create PDF cards": {
+        "de": "PDF-Karten erstellen", "es": "Crear tarjetas PDF", "ko": "PDF 카드 만들기", "pt": "Criar cartões PDF",
+        "fr": "Créer les cartes PDF", "vi": "Tạo thẻ PDF", "zh": "创建 PDF 卡片", "hi": "PDF कार्ड बनाएँ",
+    },
+    "Created {count} cards in “{deck}”.": {
+        "de": "{count} Karten wurden in „{deck}“ erstellt.", "es": "Se crearon {count} tarjetas en «{deck}».", "ko": "‘{deck}’에 카드 {count}개를 만들었습니다.", "pt": "{count} cartões foram criados em “{deck}”.",
+        "fr": "{count} cartes ont été créées dans « {deck} ».", "vi": "Đã tạo {count} thẻ trong “{deck}”.", "zh": "已在“{deck}”中创建 {count} 张卡片。", "hi": "“{deck}” में {count} कार्ड बनाए गए।",
+    },
+    "Could not create the PDF cards.": {
+        "de": "Die PDF-Karten konnten nicht erstellt werden.", "es": "No se pudieron crear las tarjetas PDF.", "ko": "PDF 카드를 만들 수 없습니다.", "pt": "Não foi possível criar os cartões PDF.",
+        "fr": "Impossible de créer les cartes PDF.", "vi": "Không thể tạo các thẻ PDF.", "zh": "无法创建 PDF 卡片。", "hi": "PDF कार्ड नहीं बनाए जा सके।",
+    },
+
+    # ── Sidebar keyboard shortcuts ─────────────────────────────────────────
+    "Keyboard Shortcut": {
+        "de": "Tastenkürzel", "es": "Atajo de teclado", "ko": "키보드 단축키", "pt": "Atalho de teclado",
+        "fr": "Raccourci clavier", "vi": "Phím tắt", "zh": "键盘快捷键", "hi": "कीबोर्ड शॉर्टकट",
+    },
+    "Press the desired key combination.": {
+        "de": "Drücke die gewünschte Tastenkombination.", "es": "Pulsa la combinación de teclas deseada.", "ko": "원하는 키 조합을 누르세요.", "pt": "Pressione a combinação de teclas desejada.",
+        "fr": "Appuyez sur la combinaison de touches souhaitée.", "vi": "Nhấn tổ hợp phím mong muốn.", "zh": "请按下所需的组合键。", "hi": "अपना इच्छित कुंजी संयोजन दबाएँ।",
+    },
+    "Use Ctrl, Alt, Command or a function key.": {
+        "de": "Verwende Strg, Alt, Command oder eine Funktionstaste.", "es": "Usa Ctrl, Alt, Comando o una tecla de función.", "ko": "Ctrl, Alt, Command 또는 기능 키를 사용하세요.", "pt": "Use Ctrl, Alt, Command ou uma tecla de função.",
+        "fr": "Utilisez Ctrl, Alt, Commande ou une touche de fonction.", "vi": "Sử dụng Ctrl, Alt, Command hoặc một phím chức năng.", "zh": "请使用 Ctrl、Alt、Command 或功能键。", "hi": "Ctrl, Alt, Command या फ़ंक्शन कुंजी का उपयोग करें।",
+    },
+    "Clear Shortcut": {
+        "de": "Tastenkürzel entfernen", "es": "Borrar atajo", "ko": "단축키 지우기", "pt": "Limpar atalho",
+        "fr": "Effacer le raccourci", "vi": "Xóa phím tắt", "zh": "清除快捷键", "hi": "शॉर्टकट हटाएँ",
+    },
+    "This shortcut is already assigned to {feature}.": {
+        "de": "Dieses Tastenkürzel ist bereits {feature} zugewiesen.", "es": "Este atajo ya está asignado a {feature}.", "ko": "이 단축키는 이미 {feature}에 지정되어 있습니다.", "pt": "Este atalho já está atribuído a {feature}.",
+        "fr": "Ce raccourci est déjà attribué à {feature}.", "vi": "Phím tắt này đã được gán cho {feature}.", "zh": "此快捷键已分配给 {feature}。", "hi": "यह शॉर्टकट पहले से {feature} को दिया गया है।",
+    },
+    "This shortcut is already used by Anki: {action}.": {
+        "de": "Dieses Tastenkürzel wird bereits von Anki verwendet: {action}.", "es": "Anki ya usa este atajo: {action}.", "ko": "이 단축키는 Anki에서 이미 사용 중입니다: {action}.", "pt": "Este atalho já é usado pelo Anki: {action}.",
+        "fr": "Ce raccourci est déjà utilisé par Anki : {action}.", "vi": "Phím tắt này đã được Anki sử dụng: {action}.", "zh": "Anki 已使用此快捷键：{action}。", "hi": "यह शॉर्टकट Anki पहले से उपयोग कर रहा है: {action}।",
+    },
+    "Shortcut {shortcut} for {feature} conflicts with another Anki shortcut.": {
+        "de": "Das Tastenkürzel {shortcut} für {feature} kollidiert mit einem anderen Anki-Tastenkürzel.", "es": "El atajo {shortcut} de {feature} entra en conflicto con otro atajo de Anki.", "ko": "{feature}의 단축키 {shortcut}이 다른 Anki 단축키와 충돌합니다.", "pt": "O atalho {shortcut} de {feature} entra em conflito com outro atalho do Anki.",
+        "fr": "Le raccourci {shortcut} de {feature} entre en conflit avec un autre raccourci Anki.", "vi": "Phím tắt {shortcut} cho {feature} xung đột với một phím tắt Anki khác.", "zh": "{feature} 的快捷键 {shortcut} 与另一个 Anki 快捷键冲突。", "hi": "{feature} का शॉर्टकट {shortcut} किसी अन्य Anki शॉर्टकट से टकराता है।",
+    },
+    "Could not open this sidebar tool.": {
+        "de": "Dieses Sidebar-Werkzeug konnte nicht geöffnet werden.", "es": "No se pudo abrir esta herramienta de la barra lateral.", "ko": "이 사이드바 도구를 열 수 없습니다.", "pt": "Não foi possível abrir esta ferramenta da barra lateral.",
+        "fr": "Impossible d’ouvrir cet outil de la barre latérale.", "vi": "Không thể mở công cụ thanh bên này.", "zh": "无法打开此侧边栏工具。", "hi": "यह साइडबार टूल नहीं खुल सका।",
+    },
+    "Enable or disable this sidebar tool.": {
+        "de": "Dieses Sidebar-Werkzeug ein- oder ausschalten.", "es": "Activa o desactiva esta herramienta de la barra lateral.", "ko": "이 사이드바 도구를 켜거나 끕니다.", "pt": "Ative ou desative esta ferramenta da barra lateral.",
+        "fr": "Activez ou désactivez cet outil de la barre latérale.", "vi": "Bật hoặc tắt công cụ thanh bên này.", "zh": "启用或禁用此侧边栏工具。", "hi": "इस साइडबार टूल को चालू या बंद करें।",
+    },
+    "Click and press a keyboard shortcut.": {
+        "de": "Klicke hier und drücke ein Tastenkürzel.", "es": "Haz clic y pulsa un atajo de teclado.", "ko": "클릭한 다음 키보드 단축키를 누르세요.", "pt": "Clique e pressione um atalho de teclado.",
+        "fr": "Cliquez puis appuyez sur un raccourci clavier.", "vi": "Nhấp rồi nhấn một phím tắt.", "zh": "点击后按下键盘快捷键。", "hi": "क्लिक करें और कीबोर्ड शॉर्टकट दबाएँ।",
+    },
+    "Shortcuts apply immediately after saving. Restart Anki after enabling or disabling sidebar tools.": {
+        "de": "Tastenkürzel gelten direkt nach dem Speichern. Starte Anki neu, nachdem du Sidebar-Werkzeuge ein- oder ausgeschaltet hast.", "es": "Los atajos se aplican inmediatamente después de guardar. Reinicia Anki tras activar o desactivar herramientas de la barra lateral.", "ko": "단축키는 저장 후 즉시 적용됩니다. 사이드바 도구를 켜거나 끈 뒤에는 Anki를 다시 시작하세요.", "pt": "Os atalhos são aplicados imediatamente após salvar. Reinicie o Anki depois de ativar ou desativar ferramentas da barra lateral.",
+        "fr": "Les raccourcis s’appliquent dès l’enregistrement. Redémarrez Anki après avoir activé ou désactivé des outils de la barre latérale.", "vi": "Phím tắt được áp dụng ngay sau khi lưu. Hãy khởi động lại Anki sau khi bật hoặc tắt các công cụ thanh bên.", "zh": "快捷键保存后立即生效。启用或禁用侧边栏工具后请重启 Anki。", "hi": "शॉर्टकट सेव करने के तुरंत बाद लागू होते हैं। साइडबार टूल चालू या बंद करने के बाद Anki पुनः शुरू करें।",
+    },
+    "Anki action": {
+        "de": "Anki-Aktion", "es": "acción de Anki", "ko": "Anki 작업", "pt": "ação do Anki",
+        "fr": "action Anki", "vi": "tác vụ Anki", "zh": "Anki 操作", "hi": "Anki क्रिया",
+    },
+    "Anki shortcut": {
+        "de": "Anki-Tastenkürzel", "es": "atajo de Anki", "ko": "Anki 단축키", "pt": "atalho do Anki",
+        "fr": "raccourci Anki", "vi": "phím tắt Anki", "zh": "Anki 快捷键", "hi": "Anki शॉर्टकट",
+    },
+    "No current card content was found. Open a card in the reviewer or turn off card context.": {
+        "de": "Es wurde kein Inhalt der aktuellen Karte gefunden. Öffne eine Karte im Lernmodus oder schalte den Kartenkontext aus.", "es": "No se encontró contenido de la tarjeta actual. Abre una tarjeta en el repaso o desactiva el contexto de tarjeta.",
+        "ko": "현재 카드 내용을 찾을 수 없습니다. 복습 화면에서 카드를 열거나 카드 컨텍스트를 끄세요.", "pt": "Nenhum conteúdo do cartão atual foi encontrado. Abra um cartão no revisor ou desative o contexto do cartão.",
+        "fr": "Aucun contenu n’a été trouvé pour la carte actuelle. Ouvrez une carte dans le réviseur ou désactivez le contexte de la carte.", "vi": "Không tìm thấy nội dung của thẻ hiện tại. Hãy mở một thẻ trong trình ôn tập hoặc tắt ngữ cảnh thẻ.",
+        "zh": "未找到当前卡片的内容。请在复习界面打开一张卡片，或关闭卡片上下文。", "hi": "वर्तमान कार्ड की सामग्री नहीं मिली। रिव्यूअर में कार्ड खोलें या कार्ड संदर्भ बंद करें।",
+    },
+
+    # ── Release 1.3 UI additions ──────────────────────────────────────────
+    "+{} XP earned": {
+        "de": "+{} XP verdient", "es": "+{} XP obtenidos", "ko": "+{} XP 획득", "pt": "+{} XP ganhos",
+        "fr": "+{} XP gagnés", "vi": "Đã nhận +{} XP", "zh": "已获得 +{} XP", "hi": "+{} XP अर्जित",
+    },
+    "Add your own track": {
+        "de": "Eigenen Titel hinzufügen", "es": "Añadir tu propia pista", "ko": "내 트랙 추가", "pt": "Adicionar sua própria faixa",
+        "fr": "Ajouter votre propre piste", "vi": "Thêm bản nhạc của bạn", "zh": "添加自己的曲目", "hi": "अपना ट्रैक जोड़ें",
+    },
+    "Celebration popups": {
+        "de": "Erfolgs-Pop-ups", "es": "Ventanas de celebración", "ko": "축하 팝업", "pt": "Pop-ups de comemoração",
+        "fr": "Fenêtres de célébration", "vi": "Cửa sổ chúc mừng", "zh": "庆祝弹窗", "hi": "उपलब्धि पॉप-अप",
+    },
+    "Claim your +{} XP in the sidebar.": {
+        "de": "Hole deine +{} XP in der Seitenleiste ab.", "es": "Reclama tus +{} XP en la barra lateral.", "ko": "사이드바에서 +{} XP를 받으세요.", "pt": "Resgate seus +{} XP na barra lateral.",
+        "fr": "Récupérez vos +{} XP dans la barre latérale.", "vi": "Nhận +{} XP trong thanh bên.", "zh": "在侧边栏领取 +{} XP。", "hi": "साइडबार में अपने +{} XP प्राप्त करें।",
+    },
+    "Daily Challenge completed!": {
+        "de": "Tages-Challenge geschafft!", "es": "¡Desafío diario completado!", "ko": "일일 챌린지 완료!", "pt": "Desafio diário concluído!",
+        "fr": "Défi quotidien terminé !", "vi": "Đã hoàn thành thử thách hằng ngày!", "zh": "每日挑战已完成！", "hi": "दैनिक चुनौती पूरी हुई!",
+    },
+    "Don't show this again": {
+        "de": "Nicht mehr anzeigen", "es": "No volver a mostrar", "ko": "다시 표시하지 않기", "pt": "Não mostrar novamente",
+        "fr": "Ne plus afficher", "vi": "Không hiển thị lại", "zh": "不再显示", "hi": "इसे फिर न दिखाएँ",
+    },
+    "Level Up!": {
+        "de": "Levelaufstieg!", "es": "¡Subida de nivel!", "ko": "레벨 업!", "pt": "Subiu de nível!",
+        "fr": "Niveau supérieur !", "vi": "Lên cấp!", "zh": "升级了！", "hi": "लेवल बढ़ा!",
+    },
+    "Level {} reached": {
+        "de": "Level {} erreicht", "es": "Nivel {} alcanzado", "ko": "레벨 {} 달성", "pt": "Nível {} alcançado",
+        "fr": "Niveau {} atteint", "vi": "Đã đạt cấp {}", "zh": "已达到 {} 级", "hi": "लेवल {} प्राप्त",
+    },
+    "My Tracks": {
+        "de": "Meine Titel", "es": "Mis pistas", "ko": "내 트랙", "pt": "Minhas faixas",
+        "fr": "Mes pistes", "vi": "Nhạc của tôi", "zh": "我的曲目", "hi": "मेरे ट्रैक",
+    },
+    "New Rank!": {
+        "de": "Neuer Rang!", "es": "¡Nuevo rango!", "ko": "새 랭크!", "pt": "Novo ranking!",
+        "fr": "Nouveau rang !", "vi": "Hạng mới!", "zh": "新段位！", "hi": "नई रैंक!",
+    },
+    "Nice!": {
+        "de": "Klasse!", "es": "¡Genial!", "ko": "좋아요!", "pt": "Muito bem!",
+        "fr": "Bravo !", "vi": "Tuyệt!", "zh": "真棒！", "hi": "बहुत बढ़िया!",
+    },
+    "PDF": {
+        "de": "PDF", "es": "PDF", "ko": "PDF", "pt": "PDF", "fr": "PDF", "vi": "PDF", "zh": "PDF", "hi": "PDF",
+    },
+    "Play / Pause": {
+        "de": "Wiedergabe / Pause", "es": "Reproducir / Pausar", "ko": "재생 / 일시정지", "pt": "Reproduzir / Pausar",
+        "fr": "Lecture / Pause", "vi": "Phát / Tạm dừng", "zh": "播放 / 暂停", "hi": "चलाएँ / रोकें",
+    },
+    "Player loads below": {
+        "de": "Player wird unten geladen", "es": "El reproductor se carga abajo", "ko": "아래에 플레이어가 로드됩니다", "pt": "O player carrega abaixo",
+        "fr": "Le lecteur se charge ci-dessous", "vi": "Trình phát tải ở bên dưới", "zh": "播放器将在下方加载", "hi": "प्लेयर नीचे लोड होगा",
+    },
+    "QtWebEngine is required for the music player.": {
+        "de": "Für den Musikplayer wird QtWebEngine benötigt.", "es": "El reproductor de música requiere QtWebEngine.", "ko": "음악 플레이어에는 QtWebEngine이 필요합니다.", "pt": "O player de música requer QtWebEngine.",
+        "fr": "QtWebEngine est requis pour le lecteur de musique.", "vi": "Trình phát nhạc yêu cầu QtWebEngine.", "zh": "音乐播放器需要 QtWebEngine。", "hi": "म्यूज़िक प्लेयर के लिए QtWebEngine आवश्यक है।",
+    },
+    "Reddit": {
+        "de": "Reddit", "es": "Reddit", "ko": "Reddit", "pt": "Reddit", "fr": "Reddit", "vi": "Reddit", "zh": "Reddit", "hi": "Reddit",
+    },
+    "Remove this track": {
+        "de": "Diesen Titel entfernen", "es": "Eliminar esta pista", "ko": "이 트랙 제거", "pt": "Remover esta faixa",
+        "fr": "Supprimer cette piste", "vi": "Xóa bản nhạc này", "zh": "移除此曲目", "hi": "यह ट्रैक हटाएँ",
+    },
+    "Resume playback on startup": {
+        "de": "Wiedergabe beim Start fortsetzen", "es": "Reanudar al iniciar", "ko": "시작할 때 재생 재개", "pt": "Retomar reprodução ao iniciar",
+        "fr": "Reprendre la lecture au démarrage", "vi": "Tiếp tục phát khi khởi động", "zh": "启动时继续播放", "hi": "शुरू होने पर प्लेबैक जारी रखें",
+    },
+    "Save failed — your changes are still open.": {
+        "de": "Speichern fehlgeschlagen — deine Änderungen sind noch geöffnet.", "es": "Error al guardar; tus cambios siguen abiertos.", "ko": "저장에 실패했습니다. 변경 사항은 아직 열려 있습니다.", "pt": "Falha ao salvar — suas alterações ainda estão abertas.",
+        "fr": "Échec de l’enregistrement — vos modifications sont toujours ouvertes.", "vi": "Lưu thất bại — các thay đổi vẫn đang mở.", "zh": "保存失败——你的更改仍处于打开状态。", "hi": "सेव नहीं हुआ — आपके बदलाव अभी खुले हैं।",
+    },
+    "Session Summary": {
+        "de": "Sitzungsübersicht", "es": "Resumen de la sesión", "ko": "세션 요약", "pt": "Resumo da sessão",
+        "fr": "Résumé de la session", "vi": "Tóm tắt phiên", "zh": "学习总结", "hi": "सत्र सारांश",
+    },
+    "Show a popup on the home screen for new ranks, level-ups and completed challenges.": {
+        "de": "Zeige auf der Startseite ein Pop-up für neue Ränge, Levelaufstiege und abgeschlossene Challenges.", "es": "Muestra una ventana en la pantalla principal para nuevos rangos, niveles y desafíos completados.", "ko": "새 랭크, 레벨 업, 완료한 챌린지를 홈 화면 팝업으로 표시합니다.", "pt": "Mostra um pop-up na tela inicial para novos rankings, níveis e desafios concluídos.",
+        "fr": "Affiche une fenêtre d’accueil pour les nouveaux rangs, niveaux et défis terminés.", "vi": "Hiện cửa sổ trên màn hình chính cho hạng mới, lên cấp và thử thách đã hoàn thành.", "zh": "在主屏幕显示新段位、升级和完成挑战的弹窗。", "hi": "नई रैंक, लेवल और पूरी चुनौतियों के लिए होम स्क्रीन पर पॉप-अप दिखाएँ।",
+    },
+    "Sounds": {
+        "de": "Klänge", "es": "Sonidos", "ko": "소리", "pt": "Sons", "fr": "Sons", "vi": "Âm thanh", "zh": "声音", "hi": "ध्वनियाँ",
+    },
+    "The deadline dates are invalid: {}": {
+        "de": "Die Deadline-Daten sind ungültig: {}", "es": "Las fechas del plazo no son válidas: {}", "ko": "마감 날짜가 올바르지 않습니다: {}", "pt": "As datas do prazo são inválidas: {}",
+        "fr": "Les dates de l’échéance sont invalides : {}", "vi": "Ngày hạn chót không hợp lệ: {}", "zh": "截止日期无效：{}", "hi": "समय-सीमा की तारीखें अमान्य हैं: {}",
+    },
+    "The start date must not be after the end date.": {
+        "de": "Das Startdatum darf nicht nach dem Enddatum liegen.", "es": "La fecha de inicio no puede ser posterior a la fecha final.", "ko": "시작 날짜는 종료 날짜보다 늦을 수 없습니다.", "pt": "A data inicial não pode ser posterior à data final.",
+        "fr": "La date de début ne peut pas être postérieure à la date de fin.", "vi": "Ngày bắt đầu không được sau ngày kết thúc.", "zh": "开始日期不能晚于结束日期。", "hi": "शुरुआत की तारीख समाप्ति की तारीख के बाद नहीं हो सकती।",
+    },
+    "This PDF is {size:.1f} MB and is too large for the inline viewer. Open it in the system PDF viewer instead.": {
+        "de": "Dieses PDF ist {size:.1f} MB groß und zu groß für die interne Ansicht. Öffne es stattdessen im System-PDF-Programm.", "es": "Este PDF ocupa {size:.1f} MB y es demasiado grande para el visor integrado. Ábrelo en el visor PDF del sistema.", "ko": "이 PDF는 {size:.1f}MB로 인라인 뷰어에서 열기에는 너무 큽니다. 시스템 PDF 뷰어에서 여세요.", "pt": "Este PDF tem {size:.1f} MB e é grande demais para o visualizador interno. Abra-o no visualizador de PDF do sistema.",
+        "fr": "Ce PDF fait {size:.1f} Mo et est trop volumineux pour le lecteur intégré. Ouvrez-le dans le lecteur PDF du système.", "vi": "PDF này có dung lượng {size:.1f} MB và quá lớn cho trình xem nội tuyến. Hãy mở bằng trình xem PDF của hệ thống.", "zh": "此 PDF 大小为 {size:.1f} MB，无法在内嵌查看器中打开。请改用系统 PDF 查看器。", "hi": "यह PDF {size:.1f} MB का है और इनलाइन व्यूअर के लिए बहुत बड़ा है। इसे सिस्टम PDF व्यूअर में खोलें।",
+    },
+    "Volume": {
+        "de": "Lautstärke", "es": "Volumen", "ko": "볼륨", "pt": "Volume", "fr": "Volume", "vi": "Âm lượng", "zh": "音量", "hi": "आवाज़",
+    },
+    "in {}": {
+        "de": "in {}", "es": "en {}", "ko": "{} 후", "pt": "em {}", "fr": "dans {}", "vi": "trong {}", "zh": "{}后", "hi": "{} में",
+    },
+    "{} XP to next level": {
+        "de": "{} XP bis zum nächsten Level", "es": "{} XP para el siguiente nivel", "ko": "다음 레벨까지 {} XP", "pt": "{} XP para o próximo nível",
+        "fr": "{} XP avant le niveau suivant", "vi": "Còn {} XP đến cấp tiếp theo", "zh": "距离下一级还需 {} XP", "hi": "अगले लेवल तक {} XP",
+    },
+    "{} cards": {
+        "de": "{} Karten", "es": "{} tarjetas", "ko": "카드 {}장", "pt": "{} cartões", "fr": "{} cartes", "vi": "{} thẻ", "zh": "{} 张卡片", "hi": "{} कार्ड",
+    },
+    "Reviews per day (last 30 days). The best day in this period is the top of the curve.": {
+        "de": "Wiederholungen pro Tag (letzte 30 Tage). Der beste Tag dieses Zeitraums bildet die Kurvenspitze.", "es": "Repasos por día (últimos 30 días). El mejor día del periodo marca la parte superior de la curva.", "ko": "일별 복습 수(최근 30일). 이 기간의 최고 기록이 곡선의 최댓값입니다.", "pt": "Revisões por dia (últimos 30 dias). O melhor dia do período define o topo da curva.",
+        "fr": "Révisions par jour (30 derniers jours). Le meilleur jour de la période définit le sommet de la courbe.", "vi": "Số lượt ôn mỗi ngày (30 ngày qua). Ngày tốt nhất trong giai đoạn là đỉnh của đường cong.", "zh": "每日复习量（最近 30 天）。此期间表现最好的一天对应曲线顶点。", "hi": "प्रतिदिन रिव्यू (पिछले 30 दिन)। इस अवधि का सबसे अच्छा दिन वक्र का शीर्ष है।",
+    },
+    "<p>Earn XP, level up, and climb the ranks while studying!</p><p><b>How to Earn XP</b></p><ul><li><b>Study Time:</b> 10 XP per minute.</li><li><b>Daily Challenge:</b> Bonus XP based on level.</li><li><b>Streak:</b> 20 XP × current streak day.</li></ul><p><b>Leveling &amp; Ranks</b></p><ul><li>Max Level: 100.</li><li>New Rank every 5 levels.</li></ul><p class=\"tip\">Tip: Consistency is key!</p>": {
+        "de": "<p>Sammle beim Lernen XP, steige Level auf und erreiche neue Ränge!</p><p><b>So verdienst du XP</b></p><ul><li><b>Lernzeit:</b> 10 XP pro Minute.</li><li><b>Tages-Challenge:</b> Bonus-XP abhängig vom Level.</li><li><b>Streak:</b> 20 XP × aktueller Streak-Tag.</li></ul><p><b>Level &amp; Ränge</b></p><ul><li>Maximales Level: 100.</li><li>Alle 5 Level ein neuer Rang.</li></ul><p class=\"tip\">Tipp: Regelmäßigkeit ist entscheidend!</p>",
+        "es": "<p>¡Gana XP, sube de nivel y avanza de rango mientras estudias!</p><p><b>Cómo ganar XP</b></p><ul><li><b>Tiempo de estudio:</b> 10 XP por minuto.</li><li><b>Desafío diario:</b> XP extra según el nivel.</li><li><b>Racha:</b> 20 XP × día actual de racha.</li></ul><p><b>Niveles y rangos</b></p><ul><li>Nivel máximo: 100.</li><li>Nuevo rango cada 5 niveles.</li></ul><p class=\"tip\">Consejo: ¡La constancia es clave!</p>",
+        "ko": "<p>공부하며 XP를 얻고 레벨과 랭크를 올리세요!</p><p><b>XP 획득 방법</b></p><ul><li><b>학습 시간:</b> 분당 10 XP.</li><li><b>일일 챌린지:</b> 레벨에 따른 보너스 XP.</li><li><b>연속 학습:</b> 현재 연속 일수 × 20 XP.</li></ul><p><b>레벨과 랭크</b></p><ul><li>최대 레벨: 100.</li><li>5레벨마다 새 랭크.</li></ul><p class=\"tip\">팁: 꾸준함이 중요합니다!</p>",
+        "pt": "<p>Ganhe XP, suba de nível e avance no ranking enquanto estuda!</p><p><b>Como ganhar XP</b></p><ul><li><b>Tempo de estudo:</b> 10 XP por minuto.</li><li><b>Desafio diário:</b> XP bônus conforme o nível.</li><li><b>Sequência:</b> 20 XP × dia atual da sequência.</li></ul><p><b>Níveis e rankings</b></p><ul><li>Nível máximo: 100.</li><li>Novo ranking a cada 5 níveis.</li></ul><p class=\"tip\">Dica: consistência é essencial!</p>",
+        "fr": "<p>Gagnez de l’XP, montez de niveau et progressez dans les rangs en étudiant !</p><p><b>Comment gagner de l’XP</b></p><ul><li><b>Temps d’étude :</b> 10 XP par minute.</li><li><b>Défi quotidien :</b> XP bonus selon le niveau.</li><li><b>Série :</b> 20 XP × jour actuel de la série.</li></ul><p><b>Niveaux et rangs</b></p><ul><li>Niveau maximal : 100.</li><li>Nouveau rang tous les 5 niveaux.</li></ul><p class=\"tip\">Conseil : la régularité est essentielle !</p>",
+        "vi": "<p>Kiếm XP, lên cấp và tăng hạng trong khi học!</p><p><b>Cách kiếm XP</b></p><ul><li><b>Thời gian học:</b> 10 XP mỗi phút.</li><li><b>Thử thách hằng ngày:</b> XP thưởng theo cấp.</li><li><b>Chuỗi:</b> 20 XP × ngày chuỗi hiện tại.</li></ul><p><b>Cấp &amp; hạng</b></p><ul><li>Cấp tối đa: 100.</li><li>Hạng mới mỗi 5 cấp.</li></ul><p class=\"tip\">Mẹo: sự đều đặn là chìa khóa!</p>",
+        "zh": "<p>学习时赚取 XP、升级并提升段位！</p><p><b>如何赚取 XP</b></p><ul><li><b>学习时间：</b>每分钟 10 XP。</li><li><b>每日挑战：</b>根据等级获得额外 XP。</li><li><b>连续学习：</b>20 XP × 当前连续天数。</li></ul><p><b>等级与段位</b></p><ul><li>最高等级：100。</li><li>每 5 级获得新段位。</li></ul><p class=\"tip\">提示：坚持最重要！</p>",
+        "hi": "<p>पढ़ते समय XP कमाएँ, लेवल बढ़ाएँ और नई रैंक पाएँ!</p><p><b>XP कैसे कमाएँ</b></p><ul><li><b>अध्ययन समय:</b> प्रति मिनट 10 XP.</li><li><b>दैनिक चुनौती:</b> लेवल के आधार पर बोनस XP.</li><li><b>स्ट्रीक:</b> 20 XP × वर्तमान स्ट्रीक दिन.</li></ul><p><b>लेवल और रैंक</b></p><ul><li>अधिकतम लेवल: 100.</li><li>हर 5 लेवल पर नई रैंक.</li></ul><p class=\"tip\">सुझाव: निरंतरता सबसे महत्वपूर्ण है!</p>",
     },
 
 }

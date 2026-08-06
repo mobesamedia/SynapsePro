@@ -1,16 +1,25 @@
 # -*- coding: utf-8 -*-
+"""Gamification sidebar — HTML/WebView UI.
 
+The sidebar is rendered by ``gamification_web/sidebar.html`` inside a
+QWebEngineView. Python builds a JSON payload (level, rank, streak, daily
+challenge, all ranks …) and injects it via ``initGamification()``; the page
+reports clicks back over a console.log bridge (``SYNAPSEPRO_GAMI:<action>``),
+mirroring the pattern used by ``web_settings_dialog.py``.
+
+Public API (used by __init__.py):
+    GamificationSidebar(manager, parent)  – QDockWidget
+    .update_display()                     – re-inject fresh data
+    .refresh_style()                      – re-apply theme after settings change
+"""
+
+import json
 import os
 import traceback
-from typing import Optional, TYPE_CHECKING, List, Dict, Any
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from aqt import mw
-from aqt.qt import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton,
-    QSizePolicy, Qt, QDockWidget, QScrollArea, QSpacerItem, QGridLayout,
-    QPixmap, QFrame, QMovie, QTimer, QSize, QPainter, QColor,
-    QByteArray, QBuffer, QIODevice
-)
+from aqt.qt import Qt, QDockWidget, QLabel, QUrl, QWidget
 from aqt.utils import tooltip
 
 try:
@@ -24,95 +33,163 @@ except ImportError:
     def _(text):  # type: ignore
         return text
 
+try:
+    from .web_i18n import translations as _web_translations
+except ImportError:
+    def _web_translations(_surface):  # type: ignore
+        return {}
+
+try:
+    from .theme import palette as _palette
+except ImportError:
+    def _palette(night):  # type: ignore
+        return {}
+
 if TYPE_CHECKING:
     from .gamification import GamificationManager
 
-MAIN_BADGE_SIZE = 140
-SMALL_BADGE_SIZE = 55
-GRID_COLUMNS = 4
-
-# --- Night Mode Detection ---
-is_night_mode = False
+# ── Qt 6 WebEngine imports ─────────────────────────────────────────────────────
 try:
-    if mw.pm.night_mode():
-        is_night_mode = True
-except Exception:
-    pass
-
-# --- Theme ---
-try:
-    from .theme import palette as _palette, FONT_FAMILY as _FONT_FAMILY
+    from PyQt6.QtGui import QColor
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
+    from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 except ImportError:
-    def _palette(night): return {}  # type: ignore
-    _FONT_FAMILY = "sans-serif"
+    QWebEngineView = QWebEnginePage = QWebEngineSettings = None  # type: ignore
+    QColor = None  # type: ignore
 
-# --- Stylesheets ---
+_BRIDGE_PREFIX = "SYNAPSEPRO_GAMI:"
 
-def _build_sidebar_style(night: bool) -> str:
-    c = _palette(night)
-    return f"""
-    QWidget#MainWidget {{
-        background-color: {c['bg']};
-        font-family: {_FONT_FAMILY};
-    }}
-    QFrame#CardFrame {{
-        background-color: {c['surface']};
-        border-radius: 12px;
-        border: 1px solid {c['grey_light']};
-    }}
-    QLabel {{
-        color: {c['text']};
-        background-color: transparent;
-        border: none;
-    }}
-    QLabel#SectionTitle {{
-        font-size: 13px; font-weight: 600; color: {c['text_muted']};
-        margin-top: 5px; margin-bottom: 2px; background-color: transparent;
-    }}
-    QLabel#RankTitle {{ font-size: 18px; font-weight: 700; color: {c['blue']}; background-color: transparent; }}
-    QLabel#LevelLabel {{ font-size: 15px; font-weight: 600; color: {c['text']}; background-color: transparent; }}
-    QPushButton {{
-        background-color: {c['blue']}; color: white; border-radius: 15px;
-        padding: 8px 16px; font-weight: 600; font-size: 13px; border: {c['blue_border']};
-    }}
-    QPushButton:hover {{ background-color: {c['blue_hover']}; }}
-    QPushButton:pressed {{ background-color: {c['blue_pressed']}; }}
-    QPushButton:disabled {{ background-color: {c['grey_light']}; color: {c['text_faint']}; border: {'1px solid ' + c['grey_light'] if night else 'none'}; }}
-    QProgressBar {{
-        border: none; border-radius: 4px; background-color: {c['grey_light']}; height: 8px; text-align: center;
-    }}
-    QProgressBar::chunk {{ background-color: {c['blue']}; border-radius: 4px; }}
-"""
+_HTML_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "gamification_web", "sidebar.html")
 
-# NOTE: Styles are intentionally NOT cached at module level here.
-# _build_sidebar_style() is called at widget-creation time so that a
-# colour-theme change (via theme.set_active_theme()) is always reflected
-# in the widget's appearance when it is first opened or refreshed.
 
-class BadgeLabel(QLabel):
-    def __init__(self, locked=False, parent=None):
-        super().__init__(parent)
-        self._locked = locked
-        self.setStyleSheet("background-color: transparent;")
+def _is_night() -> bool:
+    try:
+        return bool(mw and hasattr(mw, "pm") and mw.pm.night_mode())
+    except Exception:
+        return False
 
-    def setLocked(self, locked: bool):
-        if self._locked != locked:
-            self._locked = locked
-            self.update()
 
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        if self._locked:
-            painter = QPainter(self)
-            if is_night_mode:
-                overlay_color = QColor(0, 0, 0, 180)
+def _file_url(path: Optional[str]) -> str:
+    """Absolute file:// URL for *path*, or '' if it doesn't exist."""
+    if path and os.path.exists(path):
+        return QUrl.fromLocalFile(path).toString()
+    return ""
+
+
+def _last_frame_png(gif_path: Optional[str]) -> Optional[str]:
+    """Extract the GIF's LAST frame as a cached PNG via QMovie.
+
+    The page freezes the badge animation on this image. It has exactly the
+    same dimensions and content as the final GIF frame, so the swap is
+    invisible (the shipped rank PNGs are cropped differently, and canvas
+    drawImage() only ever yields the FIRST frame per the HTML spec).
+    """
+    if not gif_path or not os.path.exists(gif_path):
+        return None
+    cache_dir = os.path.join(os.path.dirname(_HTML_PATH), "cache")
+    out = os.path.join(
+        cache_dir, os.path.basename(gif_path).rsplit(".", 1)[0] + "_last.png")
+    try:
+        if (os.path.exists(out)
+                and os.path.getmtime(out) >= os.path.getmtime(gif_path)):
+            return out
+        from aqt.qt import QMovie
+        os.makedirs(cache_dir, exist_ok=True)
+        mv = QMovie(gif_path)
+        n = mv.frameCount()
+        if n <= 0:
+            # Some decoders report 0 — step through one loop to count.
+            n = 0
+            while mv.jumpToNextFrame():
+                cur = mv.currentFrameNumber()
+                if cur <= n and n > 0:
+                    break  # wrapped around to the start
+                n = cur
+            n += 1
+        mv.jumpToFrame(max(0, n - 1))
+        pix = mv.currentPixmap()
+        if pix.isNull() or not pix.save(out, "PNG"):
+            return None
+        return out
+    except Exception as e:
+        print(f"{ADDON_NAME}: last-frame extraction failed: {e}")
+        return None
+
+
+_gif_duration_cache: Dict[str, int] = {}
+
+
+def _gif_duration_ms(path: Optional[str]) -> int:
+    """Total duration of one GIF loop in milliseconds (0 if unknown).
+
+    Parsed directly from the GIF block structure (sum of all Graphic Control
+    Extension delays) so the page can freeze the badge on its static frame
+    after exactly one playthrough.
+    """
+    if not path or not os.path.exists(path):
+        return 0
+    if path in _gif_duration_cache:
+        return _gif_duration_cache[path]
+    total = 0
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        if data[:6] not in (b"GIF87a", b"GIF89a"):
+            return 0
+        pos = 6
+        packed = data[pos + 4]
+        pos += 7
+        if packed & 0x80:  # global color table
+            pos += 3 * (2 ** ((packed & 7) + 1))
+        while pos < len(data):
+            block = data[pos]; pos += 1
+            if block == 0x3B:  # trailer
+                break
+            if block == 0x21:  # extension
+                label = data[pos]; pos += 1
+                if label == 0xF9 and data[pos] >= 4:
+                    delay = data[pos + 2] | (data[pos + 3] << 8)  # 1/100 s
+                    total += (delay if delay > 1 else 10) * 10
+                while True:  # skip sub-blocks
+                    size = data[pos]; pos += 1
+                    if size == 0:
+                        break
+                    pos += size
+            elif block == 0x2C:  # image descriptor
+                lct = data[pos + 8]; pos += 9
+                if lct & 0x80:  # local color table
+                    pos += 3 * (2 ** ((lct & 7) + 1))
+                pos += 1  # LZW minimum code size
+                while True:  # skip image data sub-blocks
+                    size = data[pos]; pos += 1
+                    if size == 0:
+                        break
+                    pos += size
             else:
-                overlay_color = QColor(255, 255, 255, 180)
-                
-            painter.setBrush(overlay_color)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.drawRoundedRect(self.rect(), 5.0, 5.0)
+                break
+        total = max(400, min(total, 20000)) if total else 0
+    except Exception:
+        total = 0
+    _gif_duration_cache[path] = total
+    return total
+
+
+if QWebEnginePage is not None:
+
+    class _GamiPage(QWebEnginePage):  # type: ignore[misc]
+        """Console-message bridge: JS logs 'SYNAPSEPRO_GAMI:<action>'."""
+
+        def __init__(self, callback, *args):
+            super().__init__(*args)
+            self._callback = callback
+
+        def javaScriptConsoleMessage(self, level, message, line, source_id):  # noqa: N802
+            if isinstance(message, str) and message.startswith(_BRIDGE_PREFIX):
+                try:
+                    self._callback(message[len(_BRIDGE_PREFIX):])
+                except Exception as e:
+                    print(f"{ADDON_NAME}: bridge error: {e}")
 
 
 class GamificationSidebar(QDockWidget):
@@ -120,454 +197,299 @@ class GamificationSidebar(QDockWidget):
         super().__init__("", parent)
         self.manager = manager
         self.setObjectName("GamificationSidebar")
-        self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
-        self.setMinimumWidth(300) 
-        self.setTitleBarWidget(QWidget()) 
+        self.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+        self.setMinimumWidth(300)
+        self.setTitleBarWidget(QWidget())
 
-        self.main_rank_movie: Optional[QMovie] = None
-        self._movie_buffer: Optional[QBuffer] = None
-        self._movie_byte_array: Optional[QByteArray] = None
-        
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
-        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        
-        scroll_bg = _palette(is_night_mode)["bg"]
-        self.scroll_area.setStyleSheet(f"background-color: {scroll_bg}; border: none;")
+        self._loaded = False
 
-        self.main_widget = QWidget()
-        self.main_widget.setObjectName("MainWidget")
-        
-        self.main_widget.setStyleSheet(_build_sidebar_style(is_night_mode))
-        
-        self.layout = QVBoxLayout(self.main_widget)
-        self.layout.setContentsMargins(15, 15, 15, 15)
-        self.layout.setSpacing(15)
-        self.layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        if QWebEngineView is None or not os.path.exists(_HTML_PATH):
+            fallback = QLabel(_("Error: QtWebEngine not available."))
+            fallback.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.setWidget(fallback)
+            self._view = None
+            self._page = None
+            return
 
-        self._setup_ui()
-        
-        self.scroll_area.setWidget(self.main_widget)
-        self.setWidget(self.scroll_area)
-        
+        self._view = QWebEngineView(self)
+        self._page = _GamiPage(self._on_message, self._view)
+        self._view.setPage(self._page)
+
+        # Match the page background to the theme BEFORE anything paints —
+        # otherwise the view flashes white in dark mode while loading.
+        self._apply_view_background()
+
+        # Allow the local page to display the rank images from ../media/.
+        try:
+            s = self._view.settings()
+            s.setAttribute(
+                QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+        except Exception:
+            pass
+
+        self._view.loadFinished.connect(self._on_load_finished)
+        self._view.setUrl(QUrl.fromLocalFile(_HTML_PATH))
+        self.setWidget(self._view)
+
+    # ── public API ────────────────────────────────────────────────────────────
+    def update_display(self) -> None:
+        """Re-inject fresh gamification data into the page."""
+        self._inject()
+
+    def refresh_style(self) -> None:
+        """Re-apply the current colour theme after a settings change."""
+        self._apply_view_background()
+        self._inject()
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        """Replay the badge animation once whenever the sidebar is opened."""
+        super().showEvent(event)
+        if self._page and self._loaded:
+            try:
+                self._page.runJavaScript("window.replayBadge && replayBadge();")
+            except Exception:
+                pass
+
+    # ── internals ─────────────────────────────────────────────────────────────
+    def _apply_view_background(self) -> None:
+        if not self._page or QColor is None:
+            return
+        try:
+            c = _palette(_is_night())
+            self._page.setBackgroundColor(
+                QColor(c.get("bg", "#1c1c1e" if _is_night() else "#f5f5f7")))
+        except Exception:
+            pass
+
+    def _on_load_finished(self, ok: bool) -> None:
+        if ok:
+            self._loaded = True
+            self._inject()
+
+    def _on_message(self, action: str) -> None:
+        if action == "ready":
+            # DOM is ready — inject even before loadFinished fires.
+            self._loaded = True
+            self._inject()
+        elif action == "complete":
+            self._on_complete_challenge()
+        elif action.startswith("popups:"):
+            self._set_popups_enabled(action.split(":", 1)[1] == "1")
+        elif action.startswith("err:"):
+            print(f"{ADDON_NAME}: JS error: {action[4:]}")
+
+    def _inject(self) -> None:
+        if not self._loaded or not self._page:
+            return
+        try:
+            payload = json.dumps(self._build_payload())
+            self._page.runJavaScript(
+                f"window.initGamification && initGamification({payload});")
+        except Exception as e:
+            print(f"{ADDON_NAME}: inject failed: {e}")
+            traceback.print_exc()
+
+    @staticmethod
+    def _addon_settings():
+        """The package-level settings dict + save function (or (None, None))."""
+        try:
+            import sys
+            pkg = sys.modules.get(__package__ or "")
+            settings = getattr(pkg, "addon_settings", None)
+            save = getattr(pkg, "save_addon_settings", None)
+            if isinstance(settings, dict):
+                return settings, save
+        except Exception:
+            pass
+        return None, None
+
+    def _popups_enabled(self) -> bool:
+        settings, _save = self._addon_settings()
+        if settings is None:
+            return True
+        return bool(settings.get("gamification_popups_enabled", True))
+
+    def _set_popups_enabled(self, enabled: bool) -> None:
+        """Toggle the celebration popups (checkbox in this sidebar)."""
+        try:
+            settings, save = self._addon_settings()
+            if settings is not None:
+                settings["gamification_popups_enabled"] = bool(enabled)
+                if callable(save):
+                    save()
+        except Exception as e:
+            print(f"{ADDON_NAME}: popup toggle failed: {e}")
+
+    def _on_complete_challenge(self) -> None:
+        if not self.manager:
+            tooltip(_("Error: Gamification Manager not available."))
+            return
+        if self.manager.is_challenge_completed_today():
+            tooltip(_("Challenge already completed today!"))
+            self.update_display()
+            return
+        # on_complete_challenge() re-validates the goal before awarding XP.
+        try:
+            self.manager.on_complete_challenge()
+        except Exception as e:
+            print(f"{ADDON_NAME}: Error calling on_complete_challenge: {e}")
+            tooltip(_("An error occurred."))
         self.update_display()
 
-    def _setup_ui(self):
-        profile_card = QFrame()
-        profile_card.setObjectName("CardFrame")
-        profile_layout = QVBoxLayout(profile_card)
-        profile_layout.setContentsMargins(15, 20, 15, 20)
-        profile_layout.setSpacing(10)
+    # ── payload ───────────────────────────────────────────────────────────────
+    def _build_payload(self) -> Dict[str, Any]:
+        night = _is_night()
+        c = _palette(night)
 
-        self.rank_badge_label = QLabel()
-        self.rank_badge_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.rank_badge_label.setMinimumSize(MAIN_BADGE_SIZE, MAIN_BADGE_SIZE)
-        self.rank_badge_label.setMaximumSize(MAIN_BADGE_SIZE, MAIN_BADGE_SIZE)
-        self.rank_badge_label.setStyleSheet("background-color: transparent; border: none;")
-        profile_layout.addWidget(self.rank_badge_label, 0, Qt.AlignmentFlag.AlignCenter)
+        payload: Dict[str, Any] = {
+            "isDark": night,
+            "errors": _web_translations("errors"),
+            "colors": {
+                "accent":       c.get("blue"),
+                "accentBright": c.get("blue_accent"),
+                "bg":           c.get("bg"),
+                "card":         c.get("surface"),
+                "border":       c.get("grey_light"),
+                "text":         c.get("text"),
+                "muted":        c.get("text_muted"),
+                "track":        c.get("grey_light"),
+                # NOTE: green intentionally not themed from the palette — the
+                # page uses its own muted, Apple-style green (text-only).
+            },
+            "labels": {
+                "title":       _("SynapsePro Gamification"),
+                "level":       _("Level {}"),
+                "nextGoal":    _("Next Goal"),
+                "onlyXp":      _("Only {} XP left"),
+                "maxRank":     _("Maximum Rank Achieved!"),
+                "congrats":    _("Congratulations!"),
+                "streak":      _("Current Streak"),
+                "dayStreak":   _("{} Day"),
+                "daysStreak":  _("{} Days"),
+                "challenge":   _("Daily Challenge"),
+                "completed":   _("Completed"),
+                "claim":       _("Claim +{} XP"),
+                "notYet":      _("Challenge not completed yet ({}/{})."),
+                "allRanks":    _("All Ranks"),
+                "lvlPlus":     _("Lvl {}+: {}"),
+                "locked":      _("(Locked)"),
+                "how":         _("How it works"),
+                "xpNeededTip": _("Needed for next level: {}"),
+                "popups":      _("Celebration popups"),
+                "popupsHint":  _("Show a popup on the home screen for new ranks, level-ups and completed challenges."),
+            },
+            "popupsEnabled": self._popups_enabled(),
+            "guideHtml": self._guide_html(),
+        }
 
-        self.level_label = QLabel(_("Level: ?"))
-        self.level_label.setObjectName("LevelLabel")
-        self.level_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        m = self.manager
+        if not m:
+            payload.update({
+                "level": "?", "rankName": "?", "badge": "",
+                "xp": 0, "xpNeeded": None, "remainingXp": None, "progressPct": 0,
+                "streak": 0, "streakXp": 0,
+                "challenge": {"text": _("Loading..."), "cur": 0, "target": 0,
+                              "completed": False, "achieved": False, "xpReward": 0},
+                "nextGoal": None, "ranks": [],
+            })
+            return payload
 
-        self.rank_name_label = QLabel(_("Rank: ???"))
-        self.rank_name_label.setObjectName("RankTitle")
-        self.rank_name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.rank_name_label.setTextFormat(Qt.TextFormat.RichText)
-        self.rank_name_label.setWordWrap(True)
-        
-        profile_layout.addWidget(self.level_label)
-        profile_layout.addWidget(self.rank_name_label)
-        
-        xp_layout = QVBoxLayout()
-        xp_layout.setSpacing(6)
-        
-        self.xp_progress_bar = QProgressBar()
-        self.xp_progress_bar.setTextVisible(False)
-        self.xp_progress_bar.setFixedHeight(8)
-        
-        self.xp_label = QLabel(_("XP: ? / ?"))
-        self.xp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        xp_label_color = _palette(is_night_mode)["text_muted"]
-        self.xp_label.setStyleSheet(f"font-size: 11px; color: {xp_label_color}; background-color: transparent;")
-        
-        xp_layout.addWidget(self.xp_progress_bar)
-        xp_layout.addWidget(self.xp_label)
-        profile_layout.addSpacing(5)
-        profile_layout.addLayout(xp_layout)
-        
-        self.layout.addWidget(profile_card)
+        level = m.get_level()
+        rank_info = m.get_current_rank_info()
+        rank_name = _(rank_info.get("name", _("Unknown Rank"))).replace("<br>", " ")
+        badge_gif_path = m.get_rank_image_path(rank_info.get("image"))
+        badge_url = _file_url(badge_gif_path)
+        # Still image the page freezes on after one GIF playthrough:
+        # the extracted last frame (pixel-identical), falling back to the
+        # shipped static PNG if extraction is unavailable.
+        badge_png_path = _last_frame_png(badge_gif_path)
+        if not badge_png_path and badge_gif_path:
+            badge_png_path = badge_gif_path.replace(".gif", ".png")
+        badge_static_url = _file_url(badge_png_path)
 
-        self.next_goal_group = QFrame()
-        self.next_goal_group.setObjectName("CardFrame")
-        goal_layout = QVBoxLayout(self.next_goal_group)
-        goal_layout.setContentsMargins(15, 15, 15, 15)
-        
-        goal_title = QLabel(_("Next Goal"))
-        goal_title.setObjectName("SectionTitle")
-        goal_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        goal_layout.addWidget(goal_title)
+        xp_current = m.data.get("xp", 0)
+        needed = m.get_xp_for_level(level)
+        needed_val = None if needed == float("inf") else int(needed)
+        remaining = m.get_remaining_xp()
+        remaining_val = int(remaining) if isinstance(remaining, int) else None
 
-        self.next_goal_text_label = QLabel(_("Loading next goal..."))
-        self.next_goal_text_label.setTextFormat(Qt.TextFormat.RichText)
-        self.next_goal_text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.next_goal_text_label.setWordWrap(True)
-        self.next_goal_text_label.setStyleSheet("background-color: transparent; border: none;")
-        goal_layout.addWidget(self.next_goal_text_label)
-        
-        self.layout.addWidget(self.next_goal_group)
+        streak = m.get_streak()
 
-        streak_group = QFrame()
-        streak_group.setObjectName("CardFrame")
-        streak_layout = QVBoxLayout(streak_group)
-        streak_layout.setContentsMargins(15, 15, 15, 15)
-        streak_layout.setSpacing(2)
-        
-        streak_title = QLabel(_("Current Streak"))
-        streak_title.setObjectName("SectionTitle")
-        streak_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        streak_layout.addWidget(streak_title)
+        challenge_text, _unused = m.get_current_challenge()
+        chall_cur, chall_target = m.get_challenge_progress()
+        completed = m.is_challenge_completed_today()
 
-        self.streak_days_label = QLabel(_("? Day Streak"))
-        self.streak_days_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        streak_color = _palette(is_night_mode)["blue_accent"]
-        self.streak_days_label.setStyleSheet(f"font-size: 16px; color: {streak_color}; font-weight: 700; background-color: transparent;")
-        
-        self.streak_xp_label = QLabel("(+? XP)")
-        self.streak_xp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.streak_xp_label.setStyleSheet(f"font-size: 13px; color: {_palette(is_night_mode)['green']}; font-weight: 500; background-color: transparent;")
-        
-        streak_layout.addWidget(self.streak_days_label)
-        streak_layout.addWidget(self.streak_xp_label)
-        self.layout.addWidget(streak_group)
+        all_ranks: List[Dict[str, Any]] = m.get_all_ranks()
 
-        self.challenge_group = QFrame()
-        self.challenge_group.setObjectName("CardFrame")
-        challenge_layout = QVBoxLayout(self.challenge_group)
-        challenge_layout.setContentsMargins(15, 15, 15, 15)
-        challenge_layout.setSpacing(10)
-        
-        challenge_title = QLabel(_("Daily Challenge"))
-        challenge_title.setObjectName("SectionTitle")
-        challenge_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        challenge_layout.addWidget(challenge_title)
+        # Next rank goal (XP still needed until the next rank's level)
+        next_goal = None
+        for rank in all_ranks:
+            if rank["level"] > level:
+                xp_to_finish_level = needed - xp_current if needed_val is not None else 0
+                xp_intermediate = sum(
+                    m.get_xp_for_level(i) for i in range(level + 1, rank["level"]))
+                next_goal = {
+                    "xp": int(xp_to_finish_level + xp_intermediate),
+                    "name": _(rank["name"]).replace("<br>", " "),
+                }
+                break
 
-        self.challenge_text_label = QLabel(_("Loading challenge..."))
-        self.challenge_text_label.setWordWrap(True)
-        self.challenge_text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        chal_text_color = _palette(is_night_mode)["text"]
-        self.challenge_text_label.setStyleSheet(f"font-size: 13px; color: {chal_text_color}; padding: 5px 0; background-color: transparent;")
-        
-        challenge_layout.addWidget(self.challenge_text_label)
-        
-        self.challenge_complete_button = QPushButton(_("Complete Challenge"))
-        self.challenge_complete_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.challenge_complete_button.clicked.connect(self._on_complete_challenge_clicked)
-        self.challenge_complete_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        
-        challenge_layout.addWidget(self.challenge_complete_button)
-        self.layout.addWidget(self.challenge_group)
+        ranks_payload = []
+        for rank in all_ranks:
+            rank_level = rank.get("level", 999)
+            gif_path = m.get_rank_image_path(rank.get("image"))
+            # Static PNG for the grid (animated GIFs stay reserved for the hero badge)
+            img_path = gif_path.replace(".gif", ".png") if gif_path else None
+            if not (img_path and os.path.exists(img_path)):
+                img_path = gif_path
+            ranks_payload.append({
+                "name": _(rank.get("name", "?")).replace("<br>", " "),
+                "level": rank_level,
+                "img": _file_url(img_path),
+                "unlocked": level >= rank_level,
+                "current": rank_level == rank_info.get("level"),
+            })
 
-        ranks_card = QFrame()
-        ranks_card.setObjectName("CardFrame")
-        ranks_layout = QVBoxLayout(ranks_card)
-        ranks_layout.setContentsMargins(15, 15, 15, 15)
-        
-        ranks_title = QLabel(_("All Ranks"))
-        ranks_title.setObjectName("SectionTitle")
-        ranks_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ranks_layout.addWidget(ranks_title)
-        ranks_layout.addSpacing(5)
+        payload.update({
+            "level": level,
+            "rankName": rank_name,
+            "badge": badge_url,
+            "badgeStatic": badge_static_url,
+            "badgeDurationMs": _gif_duration_ms(badge_gif_path),
+            "xp": int(xp_current),
+            "xpNeeded": needed_val,
+            "remainingXp": remaining_val,
+            "progressPct": m.get_progress_percentage(),
+            "streak": streak,
+            "streakXp": streak * 20,
+            "challenge": {
+                "text": challenge_text,
+                "cur": chall_cur,
+                "target": chall_target,
+                "completed": completed,
+                "achieved": chall_cur >= chall_target,
+                "xpReward": m.get_daily_challenge_xp(),
+            },
+            "nextGoal": next_goal,
+            "ranks": ranks_payload,
+        })
+        return payload
 
-        self.all_ranks_widget = QWidget()
-        self.all_ranks_layout = QGridLayout(self.all_ranks_widget)
-        self.all_ranks_layout.setSpacing(10)
-        self.all_ranks_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.all_ranks_layout.setContentsMargins(0, 0, 0, 0)
-        self.all_ranks_widget.setStyleSheet("background-color: transparent;")
-        
-        ranks_layout.addWidget(self.all_ranks_widget)
-        self.layout.addWidget(ranks_card)
-
-        guide_card = QFrame()
-        guide_card.setObjectName("CardFrame")
-        guide_layout = QVBoxLayout(guide_card)
-        guide_layout.setContentsMargins(15, 15, 15, 15)
-        
-        guide_title_label = QLabel(_("How it works"))
-        guide_title_label.setObjectName("SectionTitle")
-        guide_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        guide_layout.addWidget(guide_title_label)
-        
-        self.guide_label = QLabel()
-        self.guide_label.setTextFormat(Qt.TextFormat.RichText)
-        self.guide_label.setWordWrap(True)
-        self.guide_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        
-        guide_text_color = _palette(is_night_mode)["text"]
-        self.guide_label.setStyleSheet(f"font-size: 11px; color: {guide_text_color}; background-color: transparent;")
-        self.guide_label.setText(self._get_guide_html())
-        
-        guide_layout.addWidget(self.guide_label)
-        self.layout.addWidget(guide_card)
-
-        self.layout.addStretch(1)
-
-    def _get_guide_html(self) -> str:
-        sec_color = _palette(is_night_mode)["text_muted"]
+    def _guide_html(self) -> str:
         tpl = _(
-            "<p style=\"margin-bottom: 8px;\">Earn XP, level up, and climb the ranks while studying!</p>"
-            "<p style=\"margin-bottom: 2px;\"><b>How to Earn XP</b></p>"
-            "<ul style=\"margin-top: 0px; margin-bottom: 8px; padding-left: 20px;\">"
+            "<p>Earn XP, level up, and climb the ranks while studying!</p>"
+            "<p><b>How to Earn XP</b></p>"
+            "<ul>"
             "<li><b>Study Time:</b> 10 XP per minute.</li>"
             "<li><b>Daily Challenge:</b> Bonus XP based on level.</li>"
-            "<li><b>Streak:</b> 20 XP \u00d7 current streak day.</li>"
+            "<li><b>Streak:</b> 20 XP × current streak day.</li>"
             "</ul>"
-            "<p style=\"margin-bottom: 2px;\"><b>Leveling & Ranks</b></p>"
-            "<ul style=\"margin-top: 0px; margin-bottom: 8px; padding-left: 20px;\">"
+            "<p><b>Leveling &amp; Ranks</b></p>"
+            "<ul>"
             "<li>Max Level: 100.</li>"
             "<li>New Rank every 5 levels.</li>"
             "</ul>"
-            "<p style=\"margin-top: 5px; color: {sec_color};\"><i>Tip: Consistency is key!</i></p>"
+            "<p class=\"tip\">Tip: Consistency is key!</p>"
         )
-        return tpl.format(sec_color=sec_color)
-
-    def _clear_layout(self, layout):
-        if layout is not None:
-            while layout.count():
-                item = layout.takeAt(0)
-                widget = item.widget()
-                if widget is not None: widget.deleteLater()
-                else:
-                    sub_layout = item.layout()
-                    if sub_layout is not None: self._clear_layout(sub_layout)
-    
-    def _setup_gif_animation(self, movie: QMovie, label: QLabel):
-        def restart_animation(): movie.start()
-        def on_movie_finished(): QTimer.singleShot(5000, restart_animation)
-        def on_frame_changed(frame_number: int):
-            if movie.frameCount() > 0 and frame_number == movie.frameCount() - 1: movie.stop()
-        try: movie.finished.disconnect()
-        except TypeError: pass
-        try: movie.frameChanged.disconnect()
-        except TypeError: pass
-        movie.finished.connect(on_movie_finished)
-        movie.frameChanged.connect(on_frame_changed)
-        movie.start()
-
-    def refresh_style(self) -> None:
-        """Re-apply the current colour theme after a settings change.
-
-        Called from ``__init__.py`` immediately after the user saves settings
-        so that the sidebar reflects the new theme without an Anki restart.
-        Updates the main Qt stylesheet and refreshes all inline-styled labels
-        via :meth:`update_display`.
-        """
-        self.main_widget.setStyleSheet(_build_sidebar_style(is_night_mode))
-        scroll_bg = _palette(is_night_mode)["bg"]
-        self.scroll_area.setStyleSheet(f"background-color: {scroll_bg}; border: none;")
-        # Re-apply inline styles that carry colour tokens (streak, xp label …)
-        streak_color = _palette(is_night_mode)["blue_accent"]
-        self.streak_days_label.setStyleSheet(
-            f"font-size: 16px; color: {streak_color}; font-weight: 700; background-color: transparent;"
-        )
-        xp_label_color = _palette(is_night_mode)["text_muted"]
-        self.xp_label.setStyleSheet(
-            f"font-size: 11px; color: {xp_label_color}; background-color: transparent;"
-        )
-        self.update_display()
-
-    def update_display(self):
-        if not self.manager:
-            self.rank_badge_label.setText("?")
-            self.level_label.setText(_("Level: ?")); self.rank_name_label.setText(_("Rank: ???"))
-            self.next_goal_text_label.setText(_("Loading next goal..."))
-            self.streak_days_label.setText(_("? Day Streak"))
-            self.streak_xp_label.setText("(+? XP)")
-            self.xp_label.setText(_("XP: ? / ?"))
-            self.xp_progress_bar.setValue(0); self.challenge_text_label.setText(_("Loading..."))
-            self.challenge_complete_button.setEnabled(False); self.challenge_complete_button.setText(_("Complete Challenge"))
-            self._clear_layout(self.all_ranks_layout)
-            self.guide_label.setText(self._get_guide_html())
-            return
-
-        try:
-            current_level = self.manager.get_level()
-            current_rank_info = self.manager.get_current_rank_info()
-            current_rank_name = _(current_rank_info.get("name", _("Unknown Rank")))
-            current_rank_image_file = current_rank_info.get("image")
-            current_rank_image_path = self.manager.get_rank_image_path(current_rank_image_file)
-            streak = self.manager.get_streak(); xp_current = self.manager.data.get('xp', 0); needed = self.manager.get_xp_for_level(current_level)
-            remaining_xp = self.manager.get_remaining_xp(); progress_percent = self.manager.get_progress_percentage()
-            challenge_text, _unused = self.manager.get_current_challenge(); is_completed = self.manager.is_challenge_completed_today()
-            
-            xp_reward = self.manager.get_daily_challenge_xp()
-            
-            all_ranks: List[Dict[str, Any]] = self.manager.get_all_ranks()
-
-            # Release old movie resources to prevent C++ memory crashes.
-            self.rank_badge_label.setMovie(None)
-
-            if self.main_rank_movie:
-                self.main_rank_movie.stop()
-                self.main_rank_movie.deleteLater()
-                self.main_rank_movie = None
-
-            if self._movie_buffer:
-                try: self._movie_buffer.close()
-                except Exception: pass
-                self._movie_buffer.deleteLater()
-                self._movie_buffer = None
-
-            # Load GIF from disk into memory to avoid file-lock issues.
-            main_badge_exists = current_rank_image_path and os.path.exists(current_rank_image_path)
-            if main_badge_exists:
-                with open(current_rank_image_path, 'rb') as f:
-                    img_data = f.read()
-
-                self._movie_byte_array = QByteArray(img_data)
-                self._movie_buffer = QBuffer(self._movie_byte_array)
-
-                # PyQt5 / PyQt6 compatibility
-                try:
-                    self._movie_buffer.open(QIODevice.OpenModeFlag.ReadOnly)
-                except AttributeError:
-                    self._movie_buffer.open(QIODevice.ReadOnly)
-
-                self.main_rank_movie = QMovie(self._movie_buffer, b"gif")
-                
-                self.main_rank_movie.setScaledSize(QSize(MAIN_BADGE_SIZE, MAIN_BADGE_SIZE))
-                self.rank_badge_label.setMovie(self.main_rank_movie)
-                self.rank_badge_label.setToolTip(current_rank_name.replace("<br>", " "))
-                self._setup_gif_animation(self.main_rank_movie, self.rank_badge_label)
-            else:
-                self.rank_badge_label.setText(current_rank_name[0] if current_rank_name else "?")
-                self.rank_badge_label.setToolTip(_("Image not found: {}").format(current_rank_image_file or "N/A"))
-
-            self.level_label.setText(_("Level {}").format(current_level))
-            self.rank_name_label.setText(current_rank_name)
-            needed_str = "MAX" if needed == float('inf') else f"{int(needed):,}"; rem_str = "N/A" if remaining_xp == float('inf') or not isinstance(remaining_xp, int) else f"{int(remaining_xp):,}"
-
-            xp_text = f"{xp_current:,} / {needed_str} XP"
-            self.xp_label.setText(xp_text)
-            self.xp_label.setToolTip(_("Needed for next level: {}").format(rem_str))
-
-            self.xp_progress_bar.setValue(progress_percent); self.xp_progress_bar.setToolTip(f"{progress_percent}%")
-
-            streak_xp_bonus = streak * 20
-            streak_text_tpl = _("{} Day Streak") if streak == 1 else _("{} Days Streak")
-            self.streak_days_label.setText(streak_text_tpl.format(streak))
-            self.streak_xp_label.setText(f"(+{streak_xp_bonus:,} XP)")
-            streak_tooltip = _("Current streak bonus: +{} XP per day.\n(Formula: 20 XP \u00d7 {} days)").format(f"{streak_xp_bonus:,}", streak)
-            self.streak_days_label.setToolTip(streak_tooltip)
-            self.streak_xp_label.setToolTip(streak_tooltip)
-
-            self.challenge_text_label.setText(challenge_text)
-
-            _c = _palette(is_night_mode)
-            if is_completed:
-                self.challenge_group.setStyleSheet(
-                    f"QFrame#CardFrame {{ background-color: {_c['green_bg']}; border: 1px solid {_c['green_border']}; border-radius: 12px; }}"
-                )
-                self.challenge_complete_button.setText(_("Completed"))
-                self.challenge_complete_button.setEnabled(False)
-                self.challenge_complete_button.setToolTip("")
-            else:
-                self.challenge_group.setStyleSheet(
-                    f"QFrame#CardFrame {{ background-color: {_c['info_bg']}; border: 1px solid {_c['info_border']}; border-radius: 12px; }}"
-                )
-                self.challenge_complete_button.setText(_("Complete (+{} XP)").format(xp_reward))
-                self.challenge_complete_button.setEnabled(True)
-                self.challenge_complete_button.setToolTip(_("Click to gain {} XP.").format(xp_reward))
-
-            next_rank_info = None
-            for rank in all_ranks:
-                if rank['level'] > current_level:
-                    next_rank_info = rank
-                    break
-            
-            sub_text_col = _palette(is_night_mode)["text_muted"]
-            accent_col = _palette(is_night_mode)["blue_accent"]
-            
-            if next_rank_info:
-                xp_needed_for_current_level = self.manager.get_xp_for_level(current_level) - xp_current
-                total_xp_for_intermediate_levels = 0
-                for i in range(current_level + 1, next_rank_info['level']):
-                    total_xp_for_intermediate_levels += self.manager.get_xp_for_level(i)
-                total_remaining_xp = xp_needed_for_current_level + total_xp_for_intermediate_levels
-
-                next_rank_display = _(next_rank_info['name']).replace('<br>', ' ')
-                only_xp_until = _("Only {} XP until:").format(f"{int(total_remaining_xp):,}")
-                next_goal_html = (f"<div style='font-size: 11px; color: {sub_text_col};'>{only_xp_until}</div>"
-                                  f"<div style='font-weight: bold; font-size: 16px; color: {accent_col}; margin-top:2px;'>{next_rank_display}</div>")
-                self.next_goal_text_label.setText(next_goal_html)
-            else:
-                max_rank_html = (f"<div style='font-weight: bold; color: {accent_col};'>{_('Maximum Rank Achieved!')}</div>"
-                                 f"<div style='font-size: 14px; margin-top:2px;'>{_('Congratulations!')}</div>")
-                self.next_goal_text_label.setText(max_rank_html)
-
-
-            self._clear_layout(self.all_ranks_layout)
-            row, col = 0, 0
-            for rank_info in all_ranks:
-                rank_level = rank_info.get('level', 999)
-                is_unlocked = current_level >= rank_level
-                rank_name = _(rank_info.get("name", "?")).replace("<br>", " ")
-                rank_image_file = rank_info.get("image")
-                rank_image_path = self.manager.get_rank_image_path(rank_image_file)
-
-                icon_label = BadgeLabel(locked=not is_unlocked)
-                icon_label.setMinimumSize(SMALL_BADGE_SIZE, SMALL_BADGE_SIZE)
-                icon_label.setMaximumSize(SMALL_BADGE_SIZE, SMALL_BADGE_SIZE)
-                icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                tooltip_text = _("Lvl {}+: {}").format(rank_info.get('level', '?'), rank_name)
-                if not is_unlocked:
-                    tooltip_text += " " + _("(Locked)")
-                icon_label.setToolTip(tooltip_text)
-
-                small_badge_exists = rank_image_path and os.path.exists(rank_image_path)
-                
-                if small_badge_exists:
-                    static_image_path = rank_image_path.replace(".gif", ".png")
-                    
-                    if not os.path.exists(static_image_path):
-                        static_image_path = rank_image_path
-                    
-                    # Load small badge images into memory to avoid file-lock issues.
-                    with open(static_image_path, 'rb') as f:
-                        static_img_data = f.read()
-                        
-                    pixmap = QPixmap()
-                    pixmap.loadFromData(static_img_data)
-                    
-                    if not pixmap.isNull():
-                        scaled_pixmap = pixmap.scaled(
-                            QSize(SMALL_BADGE_SIZE, SMALL_BADGE_SIZE), 
-                            Qt.AspectRatioMode.KeepAspectRatio, 
-                            Qt.TransformationMode.SmoothTransformation
-                        )
-                        icon_label.setPixmap(scaled_pixmap)
-                    else:
-                        icon_label.setText("?")
-                else:
-                    icon_label.setText("?")
-
-                self.all_ranks_layout.addWidget(icon_label, row, col); col += 1
-                if col >= GRID_COLUMNS: col = 0; row += 1
-
-            self.guide_label.setText(self._get_guide_html())
-
-        except Exception as e:
-            print(f"{ADDON_NAME}: Error updating sidebar display: {e}"); traceback.print_exc()
-            self.rank_name_label.setText(_("Error")); self.challenge_text_label.setText(_("Error"))
-            self.challenge_complete_button.setEnabled(False)
-            self._clear_layout(self.all_ranks_layout)
-            self.guide_label.setText("<i>" + _("Error loading guide.") + "</i>")
-
-    def _on_complete_challenge_clicked(self):
-        if not self.manager: tooltip(_("Error: Gamification Manager not available.")); return
-        if self.manager.is_challenge_completed_today(): tooltip(_("Challenge already completed today!")); return
-        try: self.manager.on_complete_challenge(); self.update_display()
-        except Exception as e: print(f"{ADDON_NAME}: Error calling on_complete_challenge: {e}"); tooltip(_("An error occurred."))
+        return tpl

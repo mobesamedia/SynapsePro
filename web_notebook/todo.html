@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<style id="sp-dark-scrollbars">
+  /* Dark-mode scrollbars: Chromium styles native scrollbars from the
+     color-scheme property, which otherwise stays "light".
+     Theme comes from Anki (nightMode class injected by notebook_sidebar.py),
+     NOT from prefers-color-scheme — that follows the OS, not Anki. */
+  html.nightMode { color-scheme: dark; }
+  html:has(body.nightMode) { color-scheme: dark; }
+</style>
+
   <meta charset="UTF-8">
   <title>Todo</title>
   <style>
@@ -24,25 +33,8 @@
       --card-bg:     #ffffff;
       --card-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
-    body.nightMode, @media (prefers-color-scheme: dark) { :root {
-      --bg:         #191919;
-      --header-bg:  #252525;
-      --sidebar-bg: #202020;
-      --text:       #ececec;
-      --text-gray:  #888;
-      --hover-bg:   #2c2c2c;
-      --border:     rgba(255,255,255,0.09);
-      --accent:     #4a9eff;
-      --done-text:  #666;
-      --tag-bg:     #1e3050;
-      --tag-text:   #6ea8fe;
-      --danger:     #e05a5a;
-      --check-border:#555;
-      --check-done: #4a9eff;
-      --input-bg:   #252525;
-      --card-bg:    #222222;
-      --card-shadow:0 1px 3px rgba(0,0,0,0.3);
-    }}
+    /* (OS-based prefers-color-scheme fallback removed — the theme is driven
+       solely by Anki via the nightMode class, see body.nightMode below.) */
     body.nightMode {
       --bg:         #191919;
       --header-bg:  #252525;
@@ -461,7 +453,10 @@ function save() {
   pycmd('notion_mini:todo:save:' + json);
 }
 
+window.__synapseSnapshotForUnload = function() { return JSON.stringify(todos); };
+window.__synapseSnapshotForVerification = function() { return JSON.stringify(todos); };
 window.onTodoSaved = function() { showStatus(window.__SYNAPSE_I18N__?.saved || 'Saved'); };
+window.onTodoSaveFailed = function() { showStatus(window.__SYNAPSE_I18N__?.save_failed || 'Save failed — your changes are still open.'); };
 
 // ── CRUD ──────────────────────────────────────────
 function addTodo() {
@@ -505,7 +500,11 @@ function renderTagChips() {
   allTags.forEach(tag => {
     const chip = document.createElement('span');
     chip.className = 'tag-chip' + (selectedTagFilter === tag ? ' selected' : '');
-    chip.innerHTML = tag + '<span class="tag-chip-x">✕</span>';
+    chip.appendChild(document.createTextNode(tag));
+    const closeGlyph = document.createElement('span');
+    closeGlyph.className = 'tag-chip-x';
+    closeGlyph.textContent = '✕';
+    chip.appendChild(closeGlyph);
     chip.onclick = () => {
       selectedTagFilter = selectedTagFilter === tag ? null : tag;
       renderTagChips();
@@ -591,7 +590,7 @@ function itemHTML(t) {
       <div class="todo-meta">${tagHtml}${dateHtml}</div>
     </div>
     <div class="todo-actions">
-      <button class="action-btn del" title="Delete" onclick="deleteTodo('${t.id}')">
+      <button class="action-btn del" title="${esc(window.__SYNAPSE_I18N__?.delete || 'Delete')}" aria-label="${esc(window.__SYNAPSE_I18N__?.delete || 'Delete')}" onclick="deleteTodo('${t.id}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"/>
           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -620,9 +619,11 @@ function showStatus(msg) {
 }
 
 // ── Night-mode detection ──────────────────────────
-if (document.documentElement.classList.contains('nightMode') ||
-    document.body.classList.contains('nightMode') ||
-    window.matchMedia('(prefers-color-scheme: dark)').matches) {
+// Anki's theme is authoritative (flag/class injected by notebook_sidebar.py);
+// prefers-color-scheme is NOT consulted — it follows the OS, not Anki.
+if (window.__SYNAPSE_NIGHT__ === true ||
+    document.documentElement.classList.contains('nightMode') ||
+    document.body.classList.contains('nightMode')) {
   document.body.classList.add('nightMode');
 }
 
@@ -639,6 +640,7 @@ if (window.__SYNAPSE_TODO_PRELOAD__ !== undefined) {
 (function applyI18n() {
     const t = window.__SYNAPSE_I18N__;
     if (!t) return;
+    document.title = t.title || 'Todo';
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (t[key] !== undefined) el.textContent = t[key];
@@ -649,5 +651,91 @@ if (window.__SYNAPSE_TODO_PRELOAD__ !== undefined) {
     });
 })();
 </script>
+
+    <script>
+    /* ── SynapsePro global error reporter ─────────────────────────────────
+       Self-contained (inline styles, no page-CSS dependencies): invisible
+       until a JS error occurs, then shows a dismissible banner with the
+       real traceback so users can report actionable bugs instead of
+       "buttons are not working". Never throws itself. */
+    (function() {
+        if (window.__spReportError) return;
+        function isDark() {
+            try {
+                if (typeof window.__SYNAPSE_NIGHT__ === 'boolean') return window.__SYNAPSE_NIGHT__;
+                if (document.documentElement.classList.contains('nightMode') || document.body.classList.contains('nightMode')) return true;
+                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } catch (e) { return false; }
+        }
+        function ensureBanner() {
+            var b = document.getElementById('sp-error-banner');
+            if (b) return b;
+            if (!document.body) return null;
+            var dark = isDark();
+            b = document.createElement('div');
+            b.id = 'sp-error-banner';
+            b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483000;display:none;'
+                + 'font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:left;'
+                + 'padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,0.25);border-top:2px solid #dc3545;'
+                + (dark ? 'background:#2c2c2c;color:#e0e0e0;' : 'background:#ffffff;color:#333333;');
+            var btnCss = 'margin-right:8px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;border-radius:7px;'
+                + (dark ? 'background:#303030;color:#e0e0e0;border:1px solid #555;' : 'background:#fff;color:#333;border:1px solid #ccc;');
+            var preCss = 'display:none;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+                + 'font-size:11px;border-radius:6px;padding:8px;margin:0 0 8px 0;'
+                + (dark ? 'background:#404040;border:1px solid #555;' : 'background:#f5f5f5;border:1px solid #ccc;');
+            var t = window.__SYNAPSE_I18N__ || {};
+            b.innerHTML = '<div style="font-weight:700;color:#dc3545;margin-bottom:4px;">' + (t.error_title || 'SynapsePro error') + '</div>'
+                + '<div class="sp-eb-msg" style="margin-bottom:6px;word-break:break-word;"></div>'
+                + '<pre class="sp-eb-pre" style="' + preCss + '"></pre>'
+                + '<div><button type="button" data-spact="details" style="' + btnCss + '">' + (t.error_show || 'Show details') + '</button>'
+                + '<button type="button" data-spact="copy" style="' + btnCss + '">' + (t.error_copy || 'Copy error') + '</button>'
+                + '<button type="button" data-spact="dismiss" style="' + btnCss + '">' + (t.error_dismiss || 'Dismiss') + '</button></div>';
+            document.body.appendChild(b);
+            b.addEventListener('click', function(e) {
+                var act = e.target && e.target.getAttribute && e.target.getAttribute('data-spact');
+                if (act === 'dismiss') b.style.display = 'none';
+                if (act === 'details') {
+                    var pre = b.querySelector('.sp-eb-pre');
+                    var open = pre.style.display === 'block';
+                    pre.style.display = open ? 'none' : 'block';
+                    var t = window.__SYNAPSE_I18N__ || {};
+                    e.target.textContent = open ? (t.error_show || 'Show details') : (t.error_hide || 'Hide details');
+                }
+                if (act === 'copy') {
+                    var text = b.querySelector('.sp-eb-msg').textContent + '\n\n' + b.querySelector('.sp-eb-pre').textContent;
+                    try { navigator.clipboard.writeText(text); e.target.textContent = (window.__SYNAPSE_I18N__ || {}).error_copied || 'Copied!'; setTimeout(function() { e.target.textContent = (window.__SYNAPSE_I18N__ || {}).error_copy || 'Copy error'; }, 2000); } catch (err) {}
+                }
+            });
+            return b;
+        }
+        window.__spReportError = function(err, context) {
+            try {
+                var msg = (err && err.message) ? err.message : String(err);
+                var t = window.__SYNAPSE_I18N__ || {};
+                var stack = (err && err.stack) ? String(err.stack) : (t.error_no_stack || '(no stack trace available)');
+                console.error('[SynapsePro]' + (context ? ' [' + context + ']' : ''), err);
+                var show = function() {
+                    var b = ensureBanner();
+                    if (!b) return;
+                    b.querySelector('.sp-eb-msg').textContent = (context ? context + ': ' : '') + msg
+                        + ' — ' + (t.error_safe || 'Your data is safe. Please screenshot the details and send them to help.synapse.pro@gmail.com.');
+                    b.querySelector('.sp-eb-pre').textContent = stack;
+                    b.style.display = 'block';
+                };
+                if (document.body) show();
+                else document.addEventListener('DOMContentLoaded', show);
+            } catch (e) { try { console.error('[SynapsePro] error while reporting error', e, err); } catch (e2) {} }
+        };
+        window.addEventListener('error', function(e) {
+            if (e.error && (e.error.message || e.error.stack)) window.__spReportError(e.error, (window.__SYNAPSE_I18N__ || {}).error_unexpected || 'Unexpected error');
+            else console.warn('[SynapsePro] Background browser error:', e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            if (e.reason && e.reason.synapseCritical === true) window.__spReportError(e.reason, (window.__SYNAPSE_I18N__ || {}).error_unexpected_async || 'Unexpected error (async)');
+            else console.warn('[SynapsePro] Background task rejected:', e.reason);
+            e.preventDefault();
+        });
+    })();
+    </script>
 </body>
 </html>
