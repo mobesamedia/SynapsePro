@@ -4,19 +4,31 @@ _secrets.py
 # Chromium/Qt browser profiles generated at runtime
 ai_v2_profile/
 website_web_profile/
+music_web_profile/
+mindmap_web_data/
 
 # Runtime data files (generated per user, not part of the addon)
 addon_settings.json
 study_plan_config.json
+ai_secrets.json
+meta.json
 
 # macOS metadata
 .DS_Store
 **/.DS_Store
+__MACOSX/
 
 # Python cache
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
+
+# Local recovery data and Finder custom icons
+*.zip
+*_backup.json
+*_recovery.json
+Icon?
 
 # IDE folders
 .idea/

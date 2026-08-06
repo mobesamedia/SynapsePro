@@ -54,6 +54,10 @@ body:has(#custom-dashboard) {
     background-attachment: fixed !important;
 }
 
+html:has(body.nightMode.deckbrowser),
+html:has(body.nightMode.overview),
+html:has(body.nightMode.review),
+html:has(body.nightMode):has(#custom-dashboard),
 body.nightMode.deckbrowser,
 body.nightMode.overview,
 body.nightMode.review,

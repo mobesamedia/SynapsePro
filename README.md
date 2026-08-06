@@ -1,45 +1,109 @@
-# SynapsePro by MobesaMedia
+# SynapsePro for Anki
 
-**For Anki Desktop**  
-**Website:** [www.synapse-pro.de](https://www.synapse-pro.de)  
-**Contact:** help.synapse.pro@gmail.com  
+<p align="center">
+  <img src="docs/images/SynapsePro_README.png" alt="SynapsePro – The Ultimate Anki Workspace" width="100%">
+</p>
 
----
+<p align="center">
+  A modern, all-in-one workspace that brings planning, focus, organization,
+  insights, and motivation directly into Anki Desktop.
+</p>
+
+<p align="center">
+  <a href="https://www.synapse-pro.de">Website</a> ·
+  <a href="https://github.com/mobesamedia/SynapsePro/issues">Report an issue</a> ·
+  <a href="mailto:help.synapse.pro@gmail.com">Support</a>
+</p>
 
 ## About SynapsePro
 
-SynapsePro transforms Anki from a simple flashcard tool into a comprehensive productivity ecosystem. Accessed via a sleek sidebar launcher, it integrates a motivating gamification system (XP, ranks, streaks), advanced analytics, and essential study tools like mind maps and AI assistance directly into the interface. The goal is to centralize your study workflow, boost motivation through visual feedback, and keep your workspace organized and distraction-free.
+SynapsePro extends Anki with an integrated productivity environment designed to
+keep your study workflow in one place. Plan sessions, track progress, organize
+notes and PDFs, create mind maps, use focus tools, and stay motivated through
+gamification—without leaving Anki.
 
----
+## Highlights
+
+| Study & planning | Knowledge workspace | Motivation & insights |
+| --- | --- | --- |
+| Daily study plans | Notebook and task lists | XP, ranks, and streaks |
+| Deadlines and countdowns | Built-in PDF viewer | Measurable daily challenges |
+| Pomodoro and session timers | Mind maps with recall hints | Review statistics and trends |
+| Grade-focused study modes | Website sidebar and web search | Session summaries and earned XP |
+
+Additional features include:
+
+- A configurable launcher sidebar with keyboard shortcuts
+- An optional AI assistant supporting OpenAI, Gemini, Anthropic, OpenRouter,
+  Ollama, and llama.cpp-compatible servers
+- A redesigned music player with local audio and optional SoundCloud support
+- Light and dark modes, multiple color themes, and multilingual interface text
+- Full-screen workspaces for Notebook, Mind Map, and Website Viewer
+
+## What's new in 1.4.0
+
+- Full-screen workspaces provide more room for Notebook, Mind Map, and Website Viewer
+- Improved PDF viewing with 100% default zoom, text selection, and quick access to Anki's card editor
+- Active-recall conceal/reveal tools, folders, and linked subpages in Notebook
+- Redesigned Settings, Pomodoro controls, and Music Player
+- New Dashboard study-history graph and improved challenge progress tracking
+- Resizable Mind Map nodes, optional recall hints, and enhanced study-session summaries
+- General stability, usability, and interface improvements
+
+## Requirements
+
+- Anki Desktop 25.09.4 or newer
+- Windows, macOS, or Linux with Anki's bundled Qt 6 WebEngine
+- Internet access only for features that deliberately use an online service,
+  such as cloud AI providers, SoundCloud, or the website sidebar
+
+AnkiMobile and AnkiDroid do not load desktop add-ons.
 
 ## Installation
 
-1. Open Anki.
-2. Go to **Tools → Add-ons → Get Add-ons**.
-3. Enter the AnkiWeb code (once available) or manually place the add-on folder into the `addons21` directory.
-4. Restart Anki to activate SynapsePro.
+### AnkiWeb
 
----
+1. In Anki Desktop, open **Tools → Add-ons → Get Add-ons**.
+2. Enter the SynapsePro add-on code shown on its AnkiWeb page.
+3. Restart Anki.
+
+### Manual installation
+
+1. Quit Anki completely.
+2. Place the downloaded SynapsePro folder inside Anki's `addons21` directory.
+3. Start Anki again.
+
+## Privacy and online features
+
+SynapsePro is primarily a local desktop add-on. After you accept the onboarding
+privacy notice, it sends selected setup categories and version information once
+to the developer's Supabase database. It does not include card content,
+learning statistics, names, email addresses, credentials, or device identifiers.
+
+Online features connect only when required or used. AI requests go directly to
+the provider you select, and API keys are stored locally in the current Anki
+profile. See [PRIVACY.md](PRIVACY.md) for complete details about data storage and
+network behavior.
+
+AI output and bundled daily facts may be inaccurate. They are study aids and
+not medical, legal, or other professional advice.
 
 ## Support
 
-If you encounter issues or have suggestions, please contact us:  
-Email: [help.synapse.pro@gmail.com](mailto:help.synapse.pro@gmail.com)  
-Website: [www.synapse-pro.de](https://www.synapse-pro.de)
+If you encounter a problem, please include your operating system, Anki version,
+SynapsePro version, steps to reproduce the issue, and relevant lines from
+**Help → About → Copy Debug Info**.
 
----
+Never include API keys, private card content, or personal URLs in a report.
 
-## License & Legal
+- Email: [help.synapse.pro@gmail.com](mailto:help.synapse.pro@gmail.com)
+- Issues: [github.com/mobesamedia/SynapsePro/issues](https://github.com/mobesamedia/SynapsePro/issues)
+- Website: [synapse-pro.de](https://www.synapse-pro.de)
 
-### Source Code
-The **source code** of this add-on (Python, HTML, CSS, and JS logic) is licensed under the **MIT License**. This ensures compliance with Anki's add-on policies and allows the community to inspect and modify the code, provided proper credit is given to the original author.
+## License
 
-### Assets & Branding (Exclusions)
-**IMPORTANT:** The MIT License **does not** apply to the visual assets and branding elements contained within this add-on.
+The source code is licensed under the [MIT License](LICENSE). SynapsePro
+branding, images, animations, and audio are excluded and remain All Rights
+Reserved by MobesaMedia. Licenses for bundled third-party libraries are listed
+in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-The following assets are the exclusive intellectual property of MobesaMedia and are **All Rights Reserved**:
-*   All image files (icons, rank badges, backgrounds, UI graphics).
-*   The SynapsePro logo and branding.
-*   Animations and audio files.
-
-You are **not permitted** to redistribute, modify, or use these assets (specifically copying the visual identity/skin for your own projects) without prior written permission.
